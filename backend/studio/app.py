@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Request
+from fastapi import Body, FastAPI, HTTPException, Query, Request
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from platformdirs import user_data_dir
@@ -24,7 +24,10 @@ from pydantic import ValidationError
 from . import __version__
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
+from .highlight import best_highlight
 from .models import ALL_SLICES
+from .pages import PageStore
+from .retrieval import SharedIndex
 
 DEFAULT_PORT = 8765
 DEV_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
@@ -49,9 +52,14 @@ def create_app(
     if allow_dev_origin:
         allowed_hosts |= {"localhost:5173", "127.0.0.1:5173"}
 
+    index_dir = library_dir / "index"
+    model_cache = os.environ.get("STUDIO_MODEL_CACHE")
+
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = Database(data_dir / "studio.sqlite3")
+        app.state.pages = PageStore(library_dir)
+        app.state.index = SharedIndex(index_dir, cache_dir=Path(model_cache) if model_cache else None) if (index_dir / "index.json").exists() else None
         yield
         app.state.db.close()
 
@@ -80,6 +88,31 @@ def create_app(
             "version": __version__,
             "library": {"chunks": index["chunks"], "documents": index["documents"], "builtAt": index["built_at"]} if index else None,
         }
+
+    @app.get("/api/search")
+    def search(q: str = Query(min_length=1, max_length=500), k: int = Query(5, ge=1, le=10)) -> dict[str, Any]:
+        """Passages from the shared course library that match the question, each with a citation."""
+        index: SharedIndex | None = app.state.index
+        if index is None:
+            raise HTTPException(503, "The course library index is missing. Ask the maintainer to rebuild it.")
+        pages: PageStore = app.state.pages
+        results = []
+        for hit in index.search(q, k=k):
+            page = pages.get(hit.source, hit.page)
+            d = hit.as_dict()
+            d["title"] = pages.title(hit.source)
+            d["highlight"] = best_highlight(page.text, q) if page else None
+            d["warning"] = page.warning if page else None
+            results.append(d)
+        return {"query": q, "mode": index.mode, "results": results}
+
+    @app.get("/api/page")
+    def get_page(source: str = Query(max_length=300), page: int = Query(ge=1)) -> dict[str, Any]:
+        """One page of a shared-library document as text, for the citation preview."""
+        found = app.state.pages.get(source, page)
+        if found is None:
+            raise HTTPException(404, "That page is not in the course library")
+        return found.as_dict()
 
     @app.get("/api/state")
     def get_state() -> dict[str, Any]:

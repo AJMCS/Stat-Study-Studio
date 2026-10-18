@@ -23,13 +23,13 @@ const QUIZ3 = "quizzes/quiz-03-mle-and-sampling-distributions.pdf";
 const HW1 = "homework/homework-01.pdf";
 const HW2 = "homework/homework-02.pdf";
 
-const src = (id: string, title: string, filename: string, page: number, excerpt: string, highlight?: string): SourceRef => ({
+/** A citation into the shared library. `highlight` is verbatim text on that page (checked by topics.test.ts). */
+const src = (id: string, title: string, filename: string, page: number, highlight?: string): SourceRef => ({
   id,
   kind: "Shared",
   title,
   filename,
   page,
-  excerpt,
   highlight,
 });
 
@@ -54,146 +54,76 @@ const mc = (
 /* ------------------------------------------------------------------ Lecture 1 */
 
 const l1 = [
-  src("l1-prob-vs-inf", "Lecture 1 · Probability vs. inferential statistics", LEC[1], 4,
-    "Probability Theory: Starts with known parameters of a distribution and computes probabilities of events (data). Inferential Statistics: Starts with observed events (data) and makes inferences about the unknown parameters of the population distribution.",
-    "Starts with observed events (data) and makes inferences about the unknown parameters"),
-  src("l1-statistic", "Lecture 1 · Statistics", LEC[1], 5,
-    "A statistic is a function of the data that does not depend on any unknown parameters.",
-    "a function of the data that does not depend on any unknown parameters"),
-  src("l1-estimation", "Lecture 1 · Estimation and prediction", LEC[1], 6,
-    "Point Estimation: Provides a single best guess of a parameter. Interval Estimation: Provides a range within which the parameter is expected to lie with a certain confidence level or probability.",
-    "Provides a single best guess of a parameter"),
-  src("l1-parametric", "Lecture 1 · Parametric vs. non-parametric", LEC[1], 5,
-    "Parametric inference assumes that the data follows a distribution characterized by a finite set of parameters. Non-parametric inference makes minimal assumptions about the form of the distribution."),
+  src("l1-prob-vs-inf", "Lecture 1 · Probability vs. inferential statistics", LEC[1], 4, "Starts with observed events (data) and makes inferences about the unknown parameters"),
+  src("l1-statistic", "Lecture 1 · Statistics", LEC[1], 5, "a function of the data that does not depend on any unknown parameters"),
+  src("l1-estimation", "Lecture 1 · Estimation and prediction", LEC[1], 6, "Provides a single best guess of a parameter"),
+  src("l1-parametric", "Lecture 1 · Parametric vs. non-parametric", LEC[1], 5, "Assumes that the data follows a distribution characterized by a finite set of parameters."),
 ];
 
 /* ------------------------------------------------------------------ Lecture 2 */
 
 const l2 = [
-  src("l2-freq", "Lecture 2 · Frequentist statistics", LEC[2], 4,
-    "In the frequentist approach to statistics, parameters are considered fixed but unknown values. Because the parameter is fixed (not random), we cannot make meaningful probabilistic statements about the parameter.",
-    "parameters are considered fixed but unknown values"),
-  src("l2-bayes", "Lecture 2 · Bayesian statistics", LEC[2], 4,
-    "In the Bayesian framework, parameters are treated as random variables that have their own probability distributions. These distributions reflect your uncertainty about the parameter before seeing any data (the \"prior\") and are updated as data becomes available (yielding the \"posterior\").",
-    "parameters are treated as random variables that have their own probability distributions"),
-  src("l2-likelihood", "Lecture 2 · The likelihood", LEC[2], 6,
-    "The likelihood function is not a probability distribution. It does not integrate to one. However, it does give us an idea of which parameter values may be more likely to generate data like the data we observed.",
-    "The likelihood function is not a probability distribution"),
-  src("l2-prior", "Lecture 2 · Prior distributions", LEC[2], 7,
-    "If you treat the parameter as random, then the distribution that you assign to it before observing the data is called its prior distribution.",
-    "the distribution that you assign to it before observing the data is called its prior distribution"),
-  src("hw1-priors", "Homework 1 · Priors from moments, and prior reasonableness", HW1, 1,
-    "Suppose that the prior distribution of some parameter θ is a gamma distribution for which the mean is 5 and the variance is 2. Determine the prior pdf of θ. … Your friend suggests a normal prior distribution with mean 1 and variance 10 for λ. Is this a reasonable prior distribution for this problem? Why or why not?",
-    "Determine the prior pdf of θ"),
-  src("hw1-likelihood", "Homework 1 · Writing and sketching likelihoods", HW1, 1,
-    "Suppose you flip a possibly weighted coin 100 times and observe 60 heads. Write the likelihood function for p, the true proportion of heads resulting from this coin. Then, sketch this likelihood function over the [0, 1] interval.",
-    "Write the likelihood function for p"),
+  src("l2-freq", "Lecture 2 · Frequentist statistics", LEC[2], 4, "Because the parameter is fixed (not random), we cannot make meaningful probabilistic statements about the parameter."),
+  src("l2-bayes", "Lecture 2 · Bayesian statistics", LEC[2], 4, "that have their own probability distributions. These distributions reflect your uncertainty about the parameter before seeing any data (the \"prior\") and are updated as data becomes available (yielding the \"posterior\")."),
+  src("l2-likelihood", "Lecture 2 · The likelihood", LEC[2], 6, "It does not integrate to one. However, it does give us an idea of which parameter values may be more likely to generate data like the data we observed."),
+  src("l2-prior", "Lecture 2 · Prior distributions", LEC[2], 7, "In this case, we might construct a prior with a small standard deviation (low uncertainty)."),
+  src("hw1-priors", "Homework 1 · Priors from moments, and prior reasonableness", HW1, 1, "Your friend suggests a normal prior distribution with mean 1 and variance 10 for"),
+  src("hw1-likelihood", "Homework 1 · Writing and sketching likelihoods", HW1, 1, "Suppose you flip a possibly weighted coin 100 times and observe 60 heads. Write the likelihood function for"),
 ];
 
 /* ------------------------------------------------------------------ Lecture 3 */
 
 const l3 = [
-  src("l3-posterior", "Lecture 3 · Posterior distribution", LEC[3], 2,
-    "The conditional distribution of the parameter given the data is called the posterior distribution. It expresses our state of knowledge about the parameter after observing the data. High posterior variance means that we still are not very certain what a likely value is for the parameter.",
-    "It expresses our state of knowledge about the parameter after observing the data"),
-  src("l3-bayes", "Lecture 3 · Bayes' theorem for inference", LEC[3], 3,
-    "The posterior distribution is then proportional to the likelihood times the prior distribution! Since the marginal is not a function of the parameter, it can be thought of as a constant term that shows up in the posterior distribution, and is usually ignored.",
-    "The posterior distribution is then proportional to the likelihood times the prior distribution"),
-  src("l3-conjugate", "Lecture 3 · Conjugate priors", LEC[3], 4,
-    "For a given likelihood, if the prior and posterior distribution belong to the same family, this is said to be a conjugate prior distribution. Posterior updating can be done simply by updating the parameters that correspond to the family.",
-    "if the prior and posterior distribution belong to the same family"),
-  src("l3-beta", "Lecture 3 · Beta-Bernoulli updating", LEC[3], 4,
-    "If the prior of p is Beta(α, β), the posterior of p given x1, …, xn is Beta(α + Σxi, β + n − Σxi)."),
-  src("l3-gamma", "Lecture 3 · Gamma-Poisson updating", LEC[3], 5,
-    "If the prior of λ is Gamma(α, β), the posterior of λ given x1, …, xn is Gamma(α + Σxi, β + n)."),
-  src("l3-normal", "Lecture 3 · Normal sampling", LEC[3], 6,
-    "With known variance σ² and a Normal(μ0, σ0²) prior on the mean, the posterior is normal with mean μ1 = (σ²μ0 + nσ0²x̄n)/(σ² + nσ0²) and variance σ1² = σ²σ0²/(σ² + nσ0²)."),
-  src("l3-prior-effect", "Lecture 3 · Effect of the prior", LEC[3], 7,
-    "When the sample size is large, the posterior mean is pulled closer to the sample mean. When the prior variance is small, the prior has more influence on the posterior and the posterior mean will be pulled closer to the prior mean.",
-    "When the sample size is large, the posterior mean is pulled closer to the sample mean"),
-  src("hw2-weighted", "Homework 2 · Posterior mean as a weighted average", HW2, 1,
-    "Show that the mean of the posterior distribution of θ will be a weighted average having the form γn X̄n + (1 − γn)μ0, and show that γn → 1 as n → ∞.",
-    "Show that the mean of the posterior distribution"),
-  src("hw2-posterior", "Homework 2 · Normal and Beta posteriors", HW2, 1,
-    "The posterior distribution of θ is a normal distribution with a mean of 30 minutes and a variance of 1/30. What was the prior distribution of θ? … a Beta prior distribution with parameters α = 2 and β = 200. A random sample of 100 chargers is tested, and 3 defective chargers are found. What is the posterior distribution of θ?",
-    "What was the prior distribution of θ?"),
-  src("q2-conjugacy", "Quiz 2 · Beta-Binomial and Gamma-Poisson conjugacy", QUIZ2, 1,
-    "The Beta prior is conjugate to the Bernoulli likelihood, so the posterior is Beta(α + Σxi, β + n − Σxi): add successes to α and failures to β."),
+  src("l3-posterior", "Lecture 3 · Posterior distribution", LEC[3], 2, "High posterior variance means that we still are not very certain what a likely value is for the parameter"),
+  src("l3-bayes", "Lecture 3 · Bayes' theorem for inference", LEC[3], 3, "The posterior distribution is then proportional to the likelihood times the prior distribution"),
+  src("l3-conjugate", "Lecture 3 · Conjugate priors", LEC[3], 4, "if the prior and posterior distribution belong to the same family"),
+  src("l3-beta", "Lecture 3 · Beta-Bernoulli updating", LEC[3], 4, "form a random sample from the Bernoulli distribution with parameter"),
+  src("l3-gamma", "Lecture 3 · Gamma-Poisson updating", LEC[3], 5, "form a random sample from the Poisson distribution with parameter"),
+  src("l3-normal", "Lecture 3 · Normal sampling", LEC[3], 6, "that is the normal distribution with mean 0 and a variance of 60."),
+  src("l3-prior-effect", "Lecture 3 · Effect of the prior", LEC[3], 7, "When the sample size is large, the posterior mean is pulled closer to the sample mean"),
+  src("hw2-weighted", "Homework 2 · Posterior mean as a weighted average", HW2, 1, "Show that the mean of the posterior distribution"),
+  src("hw2-posterior", "Homework 2 · Normal and Beta posteriors", HW2, 1, "A random sample of 100 chargers is tested, and 3 defective chargers are found. What is the posterior distribution of"),
+  src("q2-conjugacy", "Quiz 2 · Beta-Binomial and Gamma-Poisson conjugacy", QUIZ2, 1, "The Beta prior is conjugate to the Bernoulli likelihood, so the posterior is Beta("),
 ];
 
 /* ------------------------------------------------------------------ Lecture 4 */
 
 const l4 = [
-  src("l4-loss", "Lecture 4 · Loss functions", LEC[4], 2,
-    "A loss function is a real-valued function of two variables, L(θ, a). The interpretation is that the statistician \"loses\" by L(θ, a) if the parameter equals θ and the estimate equals a.",
-    "the statistician \"loses\" by L(θ, a)"),
-  src("l4-bayes-est", "Lecture 4 · Bayes estimator", LEC[4], 3,
-    "For each possible value x, let δ(x) = a be such that E[L(θ, a) | x] is minimized. Then δ(x) is called a Bayes estimator of θ.",
-    "E[L(θ, a) | x] is minimized"),
-  src("l4-squared", "Lecture 4 · Squared error loss", LEC[4], 3,
-    "Suppose that the squared error loss function is used and that the posterior mean of θ is finite. Then the Bayes estimator of θ is δ(X) = E(θ | X).",
-    "the Bayes estimator of θ is δ(X) = E(θ | X)"),
-  src("l4-absolute", "Lecture 4 · Absolute error loss", LEC[4], 5,
-    "Suppose that the absolute error loss function is used. Then the Bayes estimator of θ is the posterior median. Absolute error loss does not penalize extreme deviations as much as squared error loss.",
-    "the Bayes estimator of θ is the posterior median"),
-  src("hw2-bayes-exp", "Homework 2 · Bayes estimate for an exponential rate", HW2, 1,
-    "Using a squared error loss function, what is the Bayes estimate of λ?",
-    "Using a squared error loss function, what is the Bayes estimate of λ?"),
-  src("q2-loss", "Quiz 2 · Loss functions and Bayes estimators", QUIZ2, 2,
-    "Squared error is just one choice. Absolute error |θ − a|, 0-1 loss, and asymmetric losses are all non-negative too. The Bayes estimator under absolute error is the posterior median."),
+  src("l4-loss", "Lecture 4 · Loss functions", LEC[4], 2, "is a real number. The interpretation is that the statistician \"loses\" by"),
+  src("l4-bayes-est", "Lecture 4 · Bayes estimator", LEC[4], 3, "be a loss function. For each possible value"),
+  src("l4-squared", "Lecture 4 · Squared error loss", LEC[4], 3, "Suppose that the squared error loss function is used and that the posterior mean of"),
+  src("l4-absolute", "Lecture 4 · Absolute error loss", LEC[4], 5, "Suppose that the absolute error loss function is used. Then, the Bayes estimator of"),
+  src("hw2-bayes-exp", "Homework 2 · Bayes estimate for an exponential rate", HW2, 1, "Using a squared error loss function, what is the Bayes estimate of"),
+  src("q2-loss", "Quiz 2 · Loss functions and Bayes estimators", QUIZ2, 2, "Squared error is just one choice."),
 ];
 
 /* ------------------------------------------------------------------ Lecture 5 */
 
 const l5 = [
-  src("l5-def", "Lecture 5 · Maximum likelihood estimator", LEC[5], 2,
-    "We will no longer use a prior distribution, and we are no longer viewing the parameters of interest as random variables. Instead, these are fixed unknown values. The maximum likelihood estimator is θ̂(X) = arg max L(θ | X), provided it exists.",
-    "these are fixed unknown values"),
-  src("l5-procedure", "Lecture 5 · Procedure", LEC[5], 2,
-    "Because logarithms are monotonically increasing, the argument that maximizes the likelihood is the same as the argument that maximizes the log likelihood. Differentiate the log likelihood, set it equal to zero, solve, and check the second derivative is negative.",
-    "the argument that maximizes the likelihood is the same as the argument that maximizes the log likelihood"),
-  src("l5-edge", "Lecture 5 · Edge cases", LEC[5], 4,
-    "There may be a local maximum within the parameter space, but a global maximum could lie on the edge of the parameter space. In this case, the previous procedure for finding the MLE will fail. It is good practice to consider the edges of the parameter space.",
-    "a global maximum could lie on the edge of the parameter space"),
-  src("hw2-mle", "Homework 2 · MLE problems", HW2, 1,
-    "The time until decay of a radioactive particle is modeled with f(x|θ) = (1/θ²) x e^(−x/θ) for x > 0. You observe decay times X1 = 2, X2 = 3, and X3 = 4. Find the MLE for θ. … f(x|θ) = (1 − θ)^x θ … What is the MLE of θ?",
-    "Find the MLE for θ"),
-  src("q3-likelihood", "Quiz 3 · Role of the likelihood", QUIZ3, 3,
-    "L(θ) = f(x1, …, xn | θ), viewed as a function of θ. MLE picks the θ that makes the observed data most probable."),
+  src("l5-def", "Lecture 5 · Maximum likelihood estimator", LEC[5], 2, "these are fixed unknown values"),
+  src("l5-procedure", "Lecture 5 · Procedure", LEC[5], 2, "the argument that maximizes the likelihood is the same as the argument that maximizes the log likelihood"),
+  src("l5-edge", "Lecture 5 · Edge cases", LEC[5], 4, "a global maximum could lie on the edge of the parameter space"),
+  src("hw2-mle", "Homework 2 · MLE problems", HW2, 1, "The time until decay of a radioactive particle is modeled as a random variable with the following PDF:"),
+  src("q3-likelihood", "Quiz 3 · Role of the likelihood", QUIZ3, 3, "that makes the observed data most probable."),
 ];
 
 /* ------------------------------------------------------------------ Lecture 6 */
 
 const l6 = [
-  src("l6-invariance", "Lecture 6 · Invariance", LEC[6], 2,
-    "Let θ̂ be a maximum likelihood estimate of some parameter θ. Also let g(θ) be any function of the parameter. Then the maximum likelihood estimate of g(θ) is g(θ̂).",
-    "the maximum likelihood estimate of g(θ) is g(θ̂)"),
-  src("l6-consistency", "Lecture 6 · Consistency", LEC[6], 3,
-    "As n → ∞, the MLE converges in probability to the true unknown parameter value. As you collect more and more data, the MLE becomes a better and better approximation of the true parameter.",
-    "the MLE becomes a better and better approximation of the true parameter"),
-  src("l6-bias", "Lecture 6 · Is the MLE unbiased?", LEC[6], 4,
-    "The bias of an estimator is the difference between its expected value and the true value of the parameter. It turns out that the MLE is not always unbiased, especially for small sample sizes. However it is consistent, so the bias tends to zero as the sample size grows.",
-    "the MLE is not always unbiased, especially for small sample sizes"),
-  src("q3-bias", "Quiz 3 · MLEs are not always unbiased", QUIZ3, 1,
-    "MLEs are not guaranteed to be unbiased. The normal variance MLE divides by n, so E[σ̂²] = ((n − 1)/n)σ² and it underestimates σ²."),
+  src("l6-invariance", "Lecture 6 · Invariance", LEC[6], 2, "we get the MLE of any function of the parameter for \"free\". For example, medians and other quantiles are typically a function of the distribution parameters."),
+  src("l6-consistency", "Lecture 6 · Consistency", LEC[6], 3, "the MLE becomes a better and better approximation of the true parameter"),
+  src("l6-bias", "Lecture 6 · Is the MLE unbiased?", LEC[6], 4, "This means that the bias tends to zero as the sample size grows."),
+  src("q3-bias", "Quiz 3 · MLEs are not always unbiased", QUIZ3, 2, "MLEs are not guaranteed to be unbiased."),
 ];
 
 /* ------------------------------------------------------------------ Lecture 7 */
 
 const l7 = [
-  src("l7-def", "Lecture 7 · Sampling distribution", LEC[7], 2,
-    "Since a statistic is just a function of the data, it is also random, with some distribution. The probability distribution of T is called the sampling distribution of T.",
-    "The probability distribution of T is called the sampling distribution of T"),
-  src("l7-props", "Lecture 7 · Properties", LEC[7], 2,
-    "The sampling distribution provides insight into the variability of a statistic. The standard deviation of the sampling distribution is called the standard error. As the sample size n increases, the sampling distribution of many statistics becomes approximately normal.",
-    "The standard deviation of the sampling distribution is called the standard error"),
-  src("l7-mle", "Lecture 7 · MLE sampling distributions", LEC[7], 3,
-    "For normal data with known variance, the MLE of μ is the sample mean, whose sampling variance decreases as n increases. For uniform data on [0, θ], the maximum tends to get closer to θ as n increases."),
-  src("l7-visual", "Lecture 7 · Visualizing a sampling distribution", LEC[7], 5,
-    "For p close to zero (or one) the sampling distribution is skewed and approaches normality more slowly. As the sample size increases, the sampling distribution has lower variance.",
-    "As the sample size increases, the sampling distribution has lower variance"),
-  src("q3-se", "Quiz 3 · Standard error", QUIZ3, 2,
-    "The standard error is the standard deviation of the estimator's sampling distribution: SE(X̄) = √Var(X̄) = σ/√n. Watch out for σ²/n: that is the variance of X̄, not its standard error."),
+  src("l7-def", "Lecture 7 · Sampling distribution", LEC[7], 2, "it has some probability distribution. Since a statistic is just a function of the data, it is also random, with some distribution."),
+  src("l7-props", "Lecture 7 · Properties", LEC[7], 2, "The sampling distribution provides insight into the variability of a statistic."),
+  src("l7-mle", "Lecture 7 · MLE sampling distributions", LEC[7], 3, "Previously we saw that the MLE is a common point estimator with some useful properties."),
+  src("l7-visual", "Lecture 7 · Visualizing a sampling distribution", LEC[7], 5, "As the sample size increases, the sampling distribution has lower variance"),
+  src("q3-se", "Quiz 3 · Standard error", QUIZ3, 2, "The standard error is the standard deviation of the estimator's sampling distribution:"),
 ];
 
 /* ------------------------------------------------------------------ Topics */

@@ -90,7 +90,7 @@ export function TopicPage() {
       </section>
 
       <h2>Sources</h2>
-      <Citations sources={topic.sources} />
+      <Citations sources={topic.sources.filter((s) => s.filename?.startsWith("lecture-notes/"))} />
     </>
   );
 }

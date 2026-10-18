@@ -61,7 +61,7 @@ STAT 132
 
 At its core, statistics is based on learning about some population parameter based on data from a sample. There are many different ways this can be done, and even different philosophical viewpoints. Two major philosophical viewpoints are frequentist and Bayesian statistics.
 
-> **Definition 1.4** (Frequentist Statistics). In the **frequentist** approach to statistics, parameters are considered <u>fixed</u> but <u>unknown</u> values.
+> **Definition 1.4** (Frequentist Statistics). In the **frequentist** approach to statistics, parameters are considered *fixed* but *unknown* values.
 
 - Because the parameter is fixed (not random), we cannot make meaningful probabilistic statements about the parameter.
   - For example, we cannot talk about the probability of the parameter being in a calculated confidence interval.
@@ -70,7 +70,7 @@ At its core, statistics is based on learning about some population parameter bas
 - Instead, frequentist statistics focuses on long run asymptotic results.
   - For example, if we were to repeat our sampling procedure many times, and calculate a confidence interval for each of these samples, what is the proportion of these intervals that would cover the true parameter?
 
-> **Definition 1.5** (Bayesian Statistics). In the **Bayesian** framework, parameters are treated as <u>random variables</u> that have their own probability distributions. These distributions reflect your uncertainty about the parameter before seeing any data (the "prior") and are updated as data becomes available (yielding the "posterior").
+> **Definition 1.5** (Bayesian Statistics). In the **Bayesian** framework, parameters are treated as *random variables* that have their own probability distributions. These distributions reflect your uncertainty about the parameter before seeing any data (the "prior") and are updated as data becomes available (yielding the "posterior").
 
 <!-- page 5 -->
 - Because our state of knowledge for a parameter is completely characterized by a probability distribution, we can make meaningful probabilistic statements about the parameter.
@@ -98,7 +98,7 @@ Notice that in probability theory, we usually know the parameters, but have not 
 <!-- page 6 -->
 *[Figure: "Likelihood for 10 coin flips with 8 heads". A curve of likelihood against $p$ from 0 to 1, labeled $L(p) = \binom{10}{8} p^8 (1-p)^2$. The curve is near zero below about 0.3, rises to a maximum of about 0.30 at $p = 0.8$, and falls to zero at $p = 1$.]*
 
-**Note:** The likelihood function is <u>not</u> a probability distribution. It does not integrate to one. However, it does give us an idea of which parameter values may be more likely to generate data like the data we observed.
+**Note:** The likelihood function is *not* a probability distribution. It does not integrate to one. However, it does give us an idea of which parameter values may be more likely to generate data like the data we observed.
 
 **Example 2.2** (Test Scores). Suppose that scores for a specific personality test are normally distributed with a mean of $\mu$ and a standard deviation of 10, where $\mu$ is unknown. You randomly select 3 individuals and they had scores 45, 55, and 50. Write the likelihood function for this problem.
 

@@ -2,7 +2,7 @@
   "version": 1,
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "dimensions": 384,
-  "chunks": 260,
+  "chunks": 253,
   "documents": 28,
   "transcripts": {
     "transcripts/discussion-sections/disc-01-annotated.md": "c27dfe9e9f2bbfac",
@@ -10,13 +10,13 @@
     "transcripts/discussion-sections/disc-02-annotated.md": "5e49b614da7143d9",
     "transcripts/discussion-sections/disc-02.md": "1e67fd97eff5741f",
     "transcripts/discussion-sections/disc-03-annotated.md": "2242697701f5b48a",
-    "transcripts/discussion-sections/disc-03.md": "9324b894fe97fe17",
+    "transcripts/discussion-sections/disc-03.md": "42ca5a548bc78eca",
     "transcripts/discussion-sections/disc-04.md": "f1f00724365ffe19",
     "transcripts/homework/homework-01.md": "067b7c8bec5bf0e5",
     "transcripts/homework/homework-02.md": "b7ebf61960856396",
     "transcripts/lecture-notes/lecture-01-probability-review-and-intro-to-inference.md": "eb4effc839cfadf7",
-    "transcripts/lecture-notes/lecture-02-frequentist-vs-bayesian-inference.md": "11d296dd55338dfe",
-    "transcripts/lecture-notes/lecture-03-the-posterior-distribution.md": "0a1e5973db927756",
+    "transcripts/lecture-notes/lecture-02-frequentist-vs-bayesian-inference.md": "9a72e8ae657f7179",
+    "transcripts/lecture-notes/lecture-03-the-posterior-distribution.md": "be3b8ec7c7312725",
     "transcripts/lecture-notes/lecture-04-loss-functions-and-bayes-estimators.md": "868ce940c03a3c88",
     "transcripts/lecture-notes/lecture-05-maximum-likelihood-estimation.md": "69a55e8f42ce9d42",
     "transcripts/lecture-notes/lecture-06-maximum-likelihood-properties.md": "5868fcb577884ce3",
@@ -34,5 +34,5 @@
     "transcripts/readings/reading-ch01-probability-and-logic-of-inference.md": "fbb50d326dc2c1a0",
     "transcripts/readings/reading-ch04-loss-functions-and-bayes-estimators.md": "0a8b24f1e9b1c293"
   },
-  "built_at": "2026-10-18T03:13:42Z"
+  "built_at": "2026-10-18T03:38:38Z"
 }

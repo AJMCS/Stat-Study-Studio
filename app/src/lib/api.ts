@@ -1,4 +1,4 @@
-import type { AppData } from "../types";
+import type { AppData, SourceRef } from "../types";
 
 export type Slice = keyof AppData;
 
@@ -51,8 +51,59 @@ export interface Health {
   library: { chunks: number; documents: number; builtAt: string } | null;
 }
 
+export interface SearchHit {
+  id: string;
+  scope: "shared";
+  source: string;
+  title: string;
+  page: number;
+  heading: string;
+  kind: string;
+  text: string;
+  score: number;
+  verified: boolean;
+  lowConfidence: boolean;
+  highlight: string | null;
+  warning: string | null;
+}
+
+export interface SearchResponse {
+  query: string;
+  /** "keyword" when the embedding model is not available yet (for example first run without internet). */
+  mode: "semantic" | "keyword";
+  results: SearchHit[];
+}
+
+export interface PageInfo {
+  source: string;
+  title: string;
+  page: number;
+  pages: number;
+  kind: string;
+  text: string;
+  verified: boolean;
+  lowConfidence: boolean;
+  warning: string | null;
+}
+
+export const hitToSource = (h: SearchHit): SourceRef => ({
+  id: h.id,
+  kind: "Shared",
+  title: h.title,
+  filename: h.source,
+  page: h.page,
+  excerpt: h.text,
+  highlight: h.highlight ?? undefined,
+  lowConfidence: h.lowConfidence,
+  warning: h.warning,
+});
+
 export const api = {
   health: async (): Promise<Health> => (await call("/api/health")).json(),
+  search: async (q: string, k = 5): Promise<SearchResponse> =>
+    (await call(`/api/search?q=${encodeURIComponent(q)}&k=${k}`)).json(),
+  page: async (source: string, page: number): Promise<PageInfo> =>
+    (await call(`/api/page?source=${encodeURIComponent(source)}&page=${page}`)).json(),
   getState: async (): Promise<{ initialized: boolean; state: Partial<AppData> }> => (await call("/api/state")).json(),
   putSlice: async (name: Slice, value: unknown): Promise<void> => {
     await call(`/api/state/${name}`, json(value));

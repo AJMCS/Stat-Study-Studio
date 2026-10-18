@@ -6,7 +6,7 @@ import { generateExam, gradeExamAnswer, type DraftExam } from "../mock/ai";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
-import { Citations } from "../components/Citation";
+import { Citations, isAnswerKey } from "../components/Citation";
 import { CRITERIA, type CriterionScores, type ExamRecord } from "../types";
 import { composite } from "../lib/scoring";
 
@@ -108,7 +108,7 @@ export function Exam() {
 
   const q = exam.questions[i];
   const a = answers[q.id] ?? emptyPad();
-  const srcs = q.sourceIds.map(sourceById).filter((s): s is SourceRef => !!s);
+  const srcs = q.sourceIds.map(sourceById).filter((s): s is SourceRef => !!s && !isAnswerKey(s));
   const mm = Math.max(0, Math.floor(left / 60));
   const ss = Math.max(0, left % 60).toString().padStart(2, "0");
 

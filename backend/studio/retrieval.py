@@ -8,6 +8,8 @@ supplementary material is down-weighted rather than excluded.
 from __future__ import annotations
 
 import json
+import logging
+import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -22,10 +24,12 @@ KIND_WEIGHT = {
     "lecture": 1.0,
     "worked-solutions": 1.0,
     "problem-set": 0.95,
-    "reading": 0.80,
-    "prerequisite": 0.70,
+    "reading": 0.90,
+    "prerequisite": 0.85,
 }
 RRF_K = 60
+
+log = logging.getLogger(__name__)
 
 
 @dataclass
@@ -61,7 +65,14 @@ class Hit:
 
 
 class SharedIndex:
-    def __init__(self, index_dir: Path = INDEX_DIR):
+    """`mode` is "semantic" when the embedding model is loaded and "keyword" when it is not (for example on first
+    run without internet, before the model has been downloaded). Keyword search keeps working either way."""
+
+    def __init__(self, index_dir: Path = INDEX_DIR, cache_dir: Path | None = None):
+        self.cache_dir = cache_dir
+        self.mode = "semantic"
+        self._loading = False
+        self._lock = threading.Lock()
         meta = json.loads((index_dir / "index.json").read_text(encoding="utf-8"))
         self.meta = meta
         self.rows = [json.loads(line) for line in (index_dir / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]
@@ -72,12 +83,48 @@ class SharedIndex:
         self._model = None
 
     # ------------------------------------------------------------------ embedding
-    def _embed_query(self, query: str) -> np.ndarray:
-        if self._model is None:
-            from fastembed import TextEmbedding
+    def _load_model(self, local_only: bool):
+        from fastembed import TextEmbedding
 
-            self._model = TextEmbedding(model_name=self.meta["embedding_model"])
-        v = np.array(list(self._model.query_embed([latex_to_text(query)])))[0].astype(np.float32)
+        kwargs = {"model_name": self.meta["embedding_model"], "local_files_only": local_only}
+        if self.cache_dir:
+            kwargs["cache_dir"] = str(self.cache_dir)
+        return TextEmbedding(**kwargs)
+
+    def _download_in_background(self) -> None:
+        def work():
+            try:
+                model = self._load_model(local_only=False)
+                with self._lock:
+                    self._model = model
+                log.info("Embedding model downloaded; semantic search is on.")
+            except Exception as e:  # offline, blocked, disk full: keep using keyword search
+                log.info("Embedding model unavailable (%s); using keyword search.", e)
+            finally:
+                self._loading = False
+
+        self._loading = True
+        threading.Thread(target=work, daemon=True).start()
+
+    def _ensure_model(self):
+        with self._lock:
+            if self._model is not None:
+                return self._model
+            if self._loading:
+                return None
+            try:
+                self._model = self._load_model(local_only=True)
+                return self._model
+            except Exception:
+                pass
+        self._download_in_background()
+        return None
+
+    def _embed_query(self, query: str) -> np.ndarray | None:
+        model = self._ensure_model()
+        if model is None:
+            return None
+        v = np.array(list(model.query_embed([latex_to_text(query)])))[0].astype(np.float32)
         return v / np.linalg.norm(v)
 
     # ------------------------------------------------------------------ search
@@ -100,11 +147,13 @@ class SharedIndex:
         if not allowed:
             return []
         idx = np.array(allowed)
-        dense = self.emb[idx] @ self._embed_query(query)
+        qv = self._embed_query(query)
+        self.mode = "semantic" if qv is not None else "keyword"
+        dense = self.emb[idx] @ qv if qv is not None else np.zeros(len(idx))
         bm = np.asarray(self._bm25.get_scores(tokenize(query)))[idx]
 
         fused = np.zeros(len(idx))
-        for scores in (dense, bm):
+        for scores in ((dense, bm) if qv is not None else (bm,)):
             order = np.argsort(-scores)
             for rank, pos in enumerate(order):
                 fused[pos] += 1.0 / (RRF_K + rank + 1)

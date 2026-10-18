@@ -119,6 +119,14 @@ def chunk_page(text: str) -> list[tuple[str, str]]:
 _WORD = re.compile(r"[A-Za-z]{3,}")
 
 
+_TOC_ENTRY = re.compile(r"\(p\. \d+\)|\.{4,}")
+
+
+def is_contents(text: str) -> bool:
+    """A table of contents lists topics and page numbers; it answers no question, so it is not indexed."""
+    return bool(re.match(r"^#+\s*Contents", text.strip())) or len(_TOC_ENTRY.findall(text)) >= 3
+
+
 def is_junk(text: str) -> bool:
     """Automatic extraction of scribbles or figures yields strings of stray letters, not prose."""
     tokens = text.split()
@@ -146,6 +154,8 @@ def load_transcript(path: Path, library: Path) -> list[Chunk]:
             if len(piece.strip()) < 40:
                 continue
             if not method.startswith("manual") and is_junk(piece):
+                continue
+            if is_contents(piece):
                 continue
             chunks.append(
                 Chunk(

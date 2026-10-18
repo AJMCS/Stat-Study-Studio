@@ -23,7 +23,7 @@ Recall that the prior distribution $\pi(\theta)$ expresses our state of knowledg
 
 > **Definition 1.1** (Posterior). Consider a statistical inference problem with parameter $\theta$ and random variables $X_1, \ldots, X_n$ to be observed. The conditional distribution of $\theta$ given $X_1, \ldots, X_n$ is called the **posterior distribution** of $\theta$. The conditional pdf or pmf of $\theta$ given $X_1 = x_1, \ldots, X_n = x_n$ is called the posterior pdf or posterior pmf of $\theta$ and is typically denoted $\pi(\theta|x_1, \ldots, x_n)$.
 
-The posterior distribution expresses our state of knowledge about the parameter <u>after</u> observing the data. This is a probability distribution, so we can freely calculate things like the mean and variance of this distribution.
+The posterior distribution expresses our state of knowledge about the parameter *after* observing the data. This is a probability distribution, so we can freely calculate things like the mean and variance of this distribution.
 
 - High posterior variance means that we still are not very certain what a likely value is for the parameter
 - Low posterior variance means we have little uncertainty about the likely values for the parameter

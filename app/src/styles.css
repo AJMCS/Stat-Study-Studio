@@ -136,3 +136,16 @@ td input { width: 5rem; }
 .gate { max-width: 560px; margin: 4rem auto; padding: 0 1rem; }
 .banner { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; background: var(--warn-bg); border-bottom: 1px solid var(--line); }
 .banner.bad { border-left: 4px solid var(--bad); }
+
+.modal.wide { max-width: 760px; max-height: 92vh; overflow: auto; }
+.page-scroll { max-height: 38vh; overflow: auto; border: 1px solid var(--line); border-radius: 8px; padding: 0.2rem 1rem; background: var(--bg); }
+.page-view { font-size: 0.95rem; }
+.page-view h1, .page-view h2, .page-view h3 { font-size: 1.05rem; margin: 0.8rem 0 0.3rem; }
+.page-view blockquote { margin: 0.6rem 0; padding: 0.1rem 0.9rem; border-left: 3px solid var(--line); }
+.page-view table { font-size: 0.85rem; display: block; overflow-x: auto; }
+.page-view .katex-display { overflow-x: auto; overflow-y: hidden; }
+.page-view mark { scroll-margin: 4rem; }
+ol.excerpts { padding-left: 1.2rem; }
+ol.excerpts li { margin-bottom: 1rem; }
+.small { font-size: 0.82rem; margin: 0 0 0.2rem; }
+.pdf.small { margin-top: 0.8rem; }

@@ -41,9 +41,12 @@ export interface SourceRef {
   page?: number;
   version?: number;
   uploadedAt?: string;
-  excerpt: string;
-  /** Exact span within `excerpt` that can be reliably highlighted, if known. */
+  /** Passage text. Shared sources load the real page from the service instead. */
+  excerpt?: string;
+  /** A passage that appears verbatim on the cited page. Only set when it can be located reliably. */
   highlight?: string;
+  lowConfidence?: boolean;
+  warning?: string | null;
   ocr?: boolean;
   ocrConfidence?: number;
   unavailable?: boolean;

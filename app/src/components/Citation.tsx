@@ -1,10 +1,15 @@
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { SourceRef } from "../types";
+import { api, type PageInfo } from "../lib/api";
 import { getBlob } from "../lib/personal";
+import { PageView } from "./PageView";
 
 export const LOW_OCR = 0.7;
 
 export const isLowOcr = (s: SourceRef) => !!s.ocr && (s.ocrConfidence ?? 1) < LOW_OCR;
+
+/** Answer keys (quiz reviews) must not be opened from study screens before a learner has submitted. */
+export const isAnswerKey = (s: SourceRef) => !!s.filename?.startsWith("quizzes/");
 
 export function SourceTag({ s }: { s: SourceRef }) {
   const parts =
@@ -20,7 +25,15 @@ export function SourceTag({ s }: { s: SourceRef }) {
   );
 }
 
-/** Citation chips for an answer. Shows a low-OCR warning and opens an in-app preview on selection. */
+/** The warning to show alongside an answer that relies on these sources, if any. */
+export function sourceWarning(sources: SourceRef[]): string | null {
+  const w = sources.find((s) => s.warning)?.warning;
+  if (w) return w;
+  if (sources.some(isLowOcr)) return "This answer relies on low-confidence OCR text. The extracted text may be incomplete or inaccurate; check the original page.";
+  return null;
+}
+
+/** Citation chips for an answer. Shows a warning for low-confidence text and opens a preview on selection. */
 export function Citations({ sources, empty }: { sources: SourceRef[]; empty?: string }) {
   const [open, setOpen] = useState<SourceRef | null>(null);
   if (sources.length === 0) {
@@ -30,11 +43,12 @@ export function Citations({ sources, empty }: { sources: SourceRef[]; empty?: st
       </p>
     );
   }
+  const warning = sourceWarning(sources);
   return (
     <div className="citations">
-      {sources.some(isLowOcr) && (
+      {warning && (
         <p className="notice warn-box" role="alert">
-          This answer relies on low-confidence OCR text. The extracted text may be incomplete or inaccurate; check the original page.
+          {warning}
         </p>
       )}
       {sources.map((s) => (
@@ -47,20 +61,34 @@ export function Citations({ sources, empty }: { sources: SourceRef[]; empty?: st
   );
 }
 
+type Load = { state: "loading" } | { state: "ready"; page: PageInfo } | { state: "failed"; message: string };
+
 export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [fileMsg, setFileMsg] = useState("");
+  const [load, setLoad] = useState<Load>({ state: "loading" });
+  const [marked, setMarked] = useState<boolean | null>(null);
+  const shared = s.kind === "Shared" && !!s.filename && s.page !== undefined;
 
   useEffect(() => {
-    ref.current?.showModal();
-    return () => ref.current?.close();
+    const d = ref.current;
+    d?.showModal();
+    return () => d?.close();
   }, []);
 
-  // Highlight only when the span is reliably located within the excerpt.
-  const idx = s.highlight ? s.excerpt.indexOf(s.highlight) : -1;
-  const before = idx >= 0 ? s.excerpt.slice(0, idx) : s.excerpt;
-  const hit = idx >= 0 ? s.highlight! : "";
-  const after = idx >= 0 ? s.excerpt.slice(idx + hit.length) : "";
+  useEffect(() => {
+    if (!shared) return;
+    let cancelled = false;
+    api
+      .page(s.filename!, s.page!)
+      .then((page) => !cancelled && setLoad({ state: "ready", page }))
+      .catch((e) => !cancelled && setLoad({ state: "failed", message: e instanceof Error ? e.message : "The page text could not be loaded." }));
+    return () => {
+      cancelled = true;
+    };
+  }, [shared, s.filename, s.page]);
+
+  const onHighlight = useCallback((found: boolean) => setMarked(found), []);
 
   const openFile = async () => {
     if (s.unavailable) return setFileMsg("The original file is no longer available.");
@@ -74,24 +102,39 @@ export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => voi
     }
   };
 
+  const page = load.state === "ready" ? load.page : null;
+  const warning = page?.warning ?? s.warning ?? (isLowOcr(s) ? "Low OCR confidence: this text may be incomplete or inaccurate." : null);
+
   return (
-    <dialog ref={ref} className="modal" onClose={onClose} aria-labelledby="src-title">
-      <h3 id="src-title">{s.title}</h3>
+    <dialog ref={ref} className="modal wide" onClose={onClose} aria-labelledby="src-title">
+      <h3 id="src-title">{page?.title ?? s.title}</h3>
       <p>
         <SourceTag s={s} />
-        {s.page ? <span className="muted"> · page {s.page}</span> : null}
+        {s.page ? <span className="muted"> · page {s.page}{page ? ` of ${page.pages}` : ""}</span> : null}
       </p>
       {s.ocr && <p className="muted">This text was extracted with OCR. Inspect the original page for diagrams and surrounding context.</p>}
-      {isLowOcr(s) && <p className="notice warn-box">Low OCR confidence: this text may be incomplete or inaccurate.</p>}
-      <blockquote className="excerpt">
-        {before}
-        {hit && <mark>{hit}</mark>}
-        {after}
-      </blockquote>
-      {s.kind === "Shared" && s.filename?.endsWith(".pdf") && (
-        <iframe className="pdf small" title={`${s.title}, page ${s.page}`} src={`/course-library/${s.filename}#page=${s.page ?? 1}`} />
+      {warning && <p className="notice warn-box" role="alert">{warning}</p>}
+
+      {shared ? (
+        <>
+          {load.state === "loading" && <p className="muted" role="status">Loading the page…</p>}
+          {load.state === "failed" && <p className="notice warn-box" role="alert">Couldn't load the page text ({load.message}). The original page is shown below.</p>}
+          {page && (
+            <div className="page-scroll" tabIndex={0} aria-label="Text of the cited page">
+              <PageView text={page.text} highlight={s.highlight} onHighlight={onHighlight} />
+            </div>
+          )}
+          {page && s.highlight && marked === false && (
+            <p className="muted">Showing the cited page without a highlight because the exact passage could not be located reliably.</p>
+          )}
+          {s.filename?.endsWith(".pdf") && (
+            <iframe className="pdf small" title={`${s.title}, page ${s.page}`} src={`/course-library/${s.filename}#page=${s.page ?? 1}`} />
+          )}
+        </>
+      ) : (
+        s.excerpt && <blockquote className="excerpt">{s.excerpt}</blockquote>
       )}
-      {idx < 0 && s.highlight === undefined && <p className="muted">Showing the cited page without a highlight because the exact passage could not be located reliably.</p>}
+
       <div className="row">
         <button onClick={openFile}>Open complete source file</button>
         <button className="ghost" onClick={onClose}>

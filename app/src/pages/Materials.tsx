@@ -1,11 +1,10 @@
 import { useRef, useState } from "react";
 import { GENERAL_ID, uid, useStore } from "../lib/store";
 import { ACCEPTED, parseUpload, removeIndexed, searchPersonal, storeFile } from "../lib/personal";
-import { TOPICS } from "../mock/topics";
 import { Citations } from "../components/Citation";
+import { PageView } from "../components/PageView";
+import { api, hitToSource, ServiceRejected } from "../lib/api";
 import type { PersonalFile, SourceRef } from "../types";
-
-const words = (s: string) => s.toLowerCase().split(/[^a-z0-9]+/).filter((t) => t.length > 2);
 
 export function Materials() {
   const { data, update } = useStore();
@@ -16,7 +15,8 @@ export function Materials() {
   const [replaceId, setReplaceId] = useState<string | null>(null);
   const [query, setQuery] = useState("");
   const [extra, setExtra] = useState<string[]>([]);
-  const [results, setResults] = useState<{ shared: SourceRef[]; personal: SourceRef[]; searched: boolean; declined: string[] } | null>(null);
+  const [results, setResults] = useState<{ shared: SourceRef[]; personal: SourceRef[]; declined: string[]; mode: string; error: string | null } | null>(null);
+  const [searching, setSearching] = useState(false);
   const [consentFor, setConsentFor] = useState<{ ids: string[]; resolve: (ok: boolean) => void } | null>(null);
   const colName = Object.fromEntries(data.collections.map((c) => [c.id, c.name]));
 
@@ -74,13 +74,18 @@ export function Materials() {
   const search = async () => {
     const q = query.trim();
     if (!q) return;
-    const qs = new Set(words(q));
-    const shared = TOPICS.flatMap((t) => t.sources)
-      .map((s) => ({ s, score: new Set(words(s.excerpt + " " + s.title).filter((w) => qs.has(w))).size }))
-      .filter((r) => r.score > 0)
-      .sort((a, b) => b.score - a.score)
-      .slice(0, 5)
-      .map((r) => r.s);
+    setSearching(true);
+    try {
+    let shared: SourceRef[] = [];
+    let mode = "semantic";
+    let error: string | null = null;
+    try {
+      const r = await api.search(q, 5);
+      shared = r.results.map(hitToSource);
+      mode = r.mode;
+    } catch (e) {
+      error = e instanceof ServiceRejected ? e.message : "Search of the course library is unavailable right now. Check that the study app is still running.";
+    }
     const allowed = new Set([GENERAL_ID, ...extra]);
     let personal = await searchPersonal(q, data.files, colName, allowed);
     const declined: string[] = [];
@@ -94,7 +99,10 @@ export function Materials() {
         personal = personal.filter((p) => !declined.includes(p.collection ?? ""));
       }
     }
-    setResults({ shared, personal, searched: true, declined });
+    setResults({ shared, personal, declined, mode, error });
+    } finally {
+      setSearching(false);
+    }
   };
 
   const live = data.files.filter((f) => !f.removed);
@@ -113,7 +121,7 @@ export function Materials() {
             <span>Ask about the course materials</span>
             <input value={query} onChange={(e) => setQuery(e.target.value)} onKeyDown={(e) => e.key === "Enter" && search()} placeholder="e.g. what is a sampling distribution?" />
           </label>
-          <button onClick={search}>Search</button>
+          <button onClick={search} disabled={searching}>{searching ? "Searching…" : "Search"}</button>
         </div>
         <fieldset>
           <legend>Personal collections to include (General is always included)</legend>
@@ -127,22 +135,29 @@ export function Materials() {
 
         {results && (
           <div aria-live="polite">
+            {results.error && <p className="notice warn-box" role="alert">{results.error}</p>}
+            {results.mode === "keyword" && (
+              <p className="muted">Matching by keywords only for now: the model that understands meaning has not been downloaded yet (it needs an internet connection once).</p>
+            )}
             {results.declined.length > 0 && (
               <p className="notice">Skipped {results.declined.join(", ")} because hosted requests for that collection were not allowed.</p>
             )}
-            {results.shared.length + results.personal.length === 0 ? (
+            {results.shared.length + results.personal.length === 0 && !results.error ? (
               <Citations sources={[]} empty="No relevant sources were found. Nothing here is presented as source-grounded. Try different wording, or upload material that covers it." />
-            ) : (
+            ) : results.shared.length + results.personal.length === 0 ? null : (
               <>
                 {results.shared.length > 0 && results.personal.length > 0 && (
                   <p className="notice">Both shared course materials and your personal materials matched. If they disagree, the shared course materials take priority because they are the official class sources used for grading.</p>
                 )}
                 <Citations sources={[...results.shared, ...results.personal]} />
-                <ul className="excerpts">
+                <ol className="excerpts">
                   {[...results.shared, ...results.personal].map((s) => (
-                    <li key={s.id}>{s.excerpt}</li>
+                    <li key={s.id}>
+                      <p className="muted small">{s.title}{s.page ? ` · p. ${s.page}` : ""}</p>
+                      {s.kind === "Shared" && s.excerpt ? <PageView text={s.excerpt} highlight={s.highlight} /> : <p>{s.excerpt}</p>}
+                    </li>
                   ))}
-                </ul>
+                </ol>
               </>
             )}
           </div>

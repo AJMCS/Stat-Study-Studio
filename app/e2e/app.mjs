@@ -11,7 +11,8 @@ const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, a
 const page = await ctx.newPage();
 page.setDefaultTimeout(8000);
 const problems = [];
-page.on("console", (m) => m.type() === "error" && problems.push(`console: ${m.text()}`));
+let expectNetworkFailure = false; // set while a step deliberately blocks a request
+page.on("console", (m) => m.type() === "error" && !(expectNetworkFailure && /Failed to load resource/.test(m.text())) && problems.push(`console: ${m.text()}`));
 page.on("pageerror", (e) => problems.push(`pageerror: ${e.message}`));
 
 let n = 0;
@@ -134,7 +135,10 @@ await step("exam timed hides aids", async () => {
 await step("citation preview dialog", async () => {
   await go(`/topic/${T}`);
   await page.click(".cite >> nth=0");
-  await page.waitForSelector("dialog[open] mark");
+  await page.waitForSelector("dialog[open] .page-view mark");
+  const hl = await page.locator("dialog[open] .page-view mark").first().innerText();
+  if (hl.length < 20) throw new Error("highlight too short to be a real passage: " + hl);
+  await page.waitForSelector("dialog[open] iframe.pdf");
   await page.waitForTimeout(800);
   await shot("citation-preview");
   await page.click("dialog button:has-text('Close')");
@@ -171,6 +175,72 @@ await step("materials: reject bad file, upload txt, search with consent", async 
   await page.click("dialog button:has-text('Allow')");
   await page.waitForSelector(".cite");
   await shot("materials-results");
+});
+
+await step("search: real passage, citation, highlight and PDF page", async () => {
+  await go("/materials");
+  await page.fill("input[placeholder*='sampling']", "what is a conjugate prior");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector("ol.excerpts li");
+  const first = page.locator("ol.excerpts li").first();
+  const txt = await first.innerText();
+  if (!/Lecture 3/.test(txt) || !/conjugate/i.test(txt)) throw new Error("top result is not Lecture 3 on conjugate priors: " + txt.slice(0, 120));
+  if (!(await first.locator("mark").count())) throw new Error("no highlighted passage in the top result");
+  await shot("search-results");
+  await page.click(".cite >> nth=0");
+  await page.waitForSelector("dialog[open] .page-view mark");
+  const title = await page.locator("dialog[open] #src-title").innerText();
+  if (!/Lecture 3/.test(title)) throw new Error("preview title: " + title);
+  const src = await page.locator("dialog[open] iframe.pdf").getAttribute("src");
+  if (!/lecture-03-the-posterior-distribution\.pdf#page=4/.test(src)) throw new Error("PDF not opened at the cited page: " + src);
+  await shot("search-preview");
+  await page.click("dialog button:has-text('Close')");
+});
+
+await step("search: nothing relevant says so and cites nothing", async () => {
+  await go("/materials");
+  await page.fill("input[placeholder*='sampling']", "zzzzqqqq xxyyzz");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector("text=No relevant sources were found");
+  if (await page.locator("ol.excerpts li").count()) throw new Error("results shown for nonsense");
+});
+
+await step("search: a service failure is explained, not shown as 'no sources'", async () => {
+  await go("/materials");
+  expectNetworkFailure = true;
+  await page.route("**/api/search**", (r) => r.abort());
+  await page.fill("input[placeholder*='sampling']", "what is a posterior");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector("text=unavailable right now");
+  await page.unroute("**/api/search**");
+  expectNetworkFailure = false;
+});
+
+await step("pages whose math was read automatically carry a warning, in results and in the preview", async () => {
+  const q = "probability a normal random variable is within k standard deviations of the mean";
+  const api = await (await page.request.get(`${BASE.split("#")[0]}api/search?q=${encodeURIComponent(q)}&k=5`)).json();
+  const flagged = api.results.findIndex((r) => r.warning);
+  if (flagged < 0) throw new Error("expected at least one automatically-read page in the results");
+  await go("/materials");
+  await page.fill("input[placeholder*='sampling']", q);
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector("ol.excerpts li");
+  const note = await page.locator(".citations .notice").first().innerText();
+  if (!/read automatically/.test(note)) throw new Error("no warning shown with the results: " + note);
+  await page.click(`.cite >> nth=${flagged}`);
+  await page.waitForSelector("dialog[open] .page-view");
+  const warn = await page.locator("dialog[open] .notice.warn-box").first().innerText();
+  if (!/read automatically/.test(warn)) throw new Error("no warning in the preview: " + warn);
+  await shot("preview-warning");
+  await page.click("dialog button:has-text('Close')");
+});
+
+await step("quiz answer keys are not offered as sources on the topic page", async () => {
+  await go("/topic/posterior-distribution");
+  const tags = await page.locator(".citations .cite").count();
+  const text = await page.locator("main").innerText();
+  if (/quiz/i.test(await page.locator(".citations").innerText())) throw new Error("quiz source listed before the quiz");
+  if (tags === 0) throw new Error("no lecture sources listed");
 });
 
 await step("lecture notes iframe", async () => {
