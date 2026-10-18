@@ -1,0 +1,100 @@
+# Maintaining Stats 132 Study Studio
+
+Written for the person who owns the shared course library and publishes the download. Commands assume Windows and
+the repo root as the working directory; on Mac/Linux use `venv/bin/python` instead of `venv/Scripts/python.exe`.
+
+## One-time setup
+
+```
+python -m venv venv
+venv/Scripts/python.exe -m pip install -r backend/requirements.txt pyinstaller
+cd app && npm install && cd ..
+```
+
+Push the repo to GitHub on branch `main` (`AJMCS/Stat-Study-Studio`, set in `backend/studio/channel.json`).
+**Course updates only reach students once `course-library/` is on `main`**, and the repo has to be public
+(students' apps read it from raw.githubusercontent.com). `docs/` is gitignored on purpose and stays local.
+
+## Checklist: new course material arrives (lecture, homework, discussion, reading)
+
+1. **Add the PDF** under `course-library/` in the right folder, named as in `course-library/README.md`
+   (e.g. `homework/homework-03.pdf`). Quiz reviews are `answer-key` material: searchable never, used only for grading.
+2. **Transcribe it.**
+   - Best quality: a hand transcript at `course-library/transcripts/<same path>.md` (page-aligned Markdown with
+     LaTeX, `<!-- page N -->` markers, frontmatter `source`, `method`, `pages`, `kind`). Check Greek letters and
+     symbols against the page image; LaTeX-made PDFs often have scrambled text layers.
+   - Quick path: `venv/Scripts/python.exe -m studio.ingest transcribe-missing` (run in `backend/`) writes automatic
+     transcripts and OCRs pages with scrambled symbols; those are flagged `text-layer-corrupted` in the app.
+3. **Rebuild the search index:** `python -m studio.ingest build-index` (in `backend/`).
+4. **Rebuild the update manifest:** `python -m studio.ingest build-manifest`. This bumps `course-library/library.json`
+   (file list with sha256 and a `version` number). Students are offered an update only when `version` goes up.
+5. **Run the tests** (below). They fail if a PDF has no transcript, a transcript points at a missing PDF, the index is
+   stale, or the manifest is stale.
+6. **Topics and citations** (if the material changes what is taught): edit `app/src/mock/topics.ts` and
+   `app/src/mock/learning.ts`. Citation highlights must be a verbatim run of plain text on the cited page;
+   `npx vitest run` checks every one.
+7. **Commit and push to `main`.** Announce in Discord; students click "Check for updates" (the app also checks
+   itself on start).
+
+Still missing from the library: Quiz 1, annotated lecture notes (video-only), Discussion 4 annotations, Homework 3.
+
+## Before every release
+
+```
+cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (111 at last count)
+cd ../app && npx vitest run                               # expect all pass (41)
+cd app && npm run build && npm run e2e                    # real service + real browser, prints "E2E passed"
+```
+
+The e2e needs Chrome or Edge (set `BROWSER_PATH` otherwise).
+
+## Building the Windows download
+
+```
+venv/Scripts/python.exe packaging/build_windows.py        # ~2 minutes
+packaging/dist/StatsStudio/StatsStudio.exe --selftest     # all five lines must say ok
+cd app && STUDIO_EXE="<full path>/packaging/dist/StatsStudio/StatsStudio.exe" npm run e2e
+```
+
+Output: `packaging/dist/StatsStudio-windows.zip` (~425 MB). Run it from a normal folder (not while your shell sits inside
+`packaging/dist`; the build deletes it). Alternative without your machine: GitHub > Actions > "Build Windows package" >
+Run workflow (or push a tag like `v0.1.0`), then download the artifact.
+
+**The package contains a snapshot of the course library.** Students who already have the app get new material through
+updates; only brand-new students need a fresh zip, so rebuild it occasionally (not after every lecture).
+A new copy of the app program itself (code changes) has no auto-update: students must download the new zip.
+Their saved progress lives in `%LOCALAPPDATA%\StatsStudio` and survives replacing the folder.
+
+Things that have bitten before:
+- Old Visual C++ runtime DLLs in the bundle crash onnxruntime. The build script replaces them; if `--selftest`
+  segfaults after a Python/PyInstaller upgrade, look there first.
+- New Python dependencies may need adding to the `collect_all` list in `packaging/studio.spec`.
+- Unsigned exe: Windows shows SmartScreen ("More info" > "Run anyway"). Code signing costs money; skip unless
+  complaints pile up. Zipped copies can also trigger antivirus false positives; sending a link rather than an
+  attachment helps.
+
+## Resources and what they cost you
+
+| Thing | Where | Notes |
+|---|---|---|
+| Course library | `course-library/` in the repo | Public. Everything in it is visible to anyone; do not add answer keys you wouldn't want public. |
+| Update channel | GitHub `main` + `channel.json` | Free. If the repo is renamed or goes private, update `channel.json` and release a new zip, or students' checks fail (they fail gracefully). |
+| Search model | bundled (all-MiniLM-L6-v2, ~90 MB) | Source builds download it on first run to a cache. Changing the model means rebuilding the index and the manifest; the updater refuses a library built with a different model. |
+| Hosted AI (Milestone 2) | each student's own API key | No cost to you. Keys are stored only on the student's computer. |
+| Student data | `%LOCALAPPDATA%\StatsStudio` | Never uploaded. Students can export/delete in Settings. |
+
+## When something breaks
+
+- **"Can't reach the study service"** in the browser: the black window was closed. Restart the exe.
+- **Update check fails**: the repo is not pushed or not public, `library.json` is missing on `main`, or a file's hash
+  does not match (you edited a file and forgot `build-manifest`). Students keep their current library either way.
+- **Search says nothing relevant for something that should match**: add it to `backend/eval/queries.json` and look at
+  how the query ranks (`backend/README.md` has the evaluation notes). Known weak spots: queries written as formulas.
+- **Reset a test install**: delete `%LOCALAPPDATA%\StatsStudio` (progress, uploads, downloaded updates).
+- Tests use `STUDIO_AUTOCHECK=0` so they never touch the network; set `STUDIO_UPDATE_BASE` to point the app at a
+  local test server.
+
+## End of semester
+
+Nothing needs to stay running; there is no server. Leaving the repo up keeps updates available. Archive or make it
+private whenever you like (students' existing installs keep working offline).
