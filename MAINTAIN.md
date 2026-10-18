@@ -86,27 +86,46 @@ Things you own here:
 - Google's free tier may not be available in every country (check ai.google.dev terms if a classmate abroad can't
   connect).
 
-## Building the Windows download
+## Building the downloads (Windows, Mac, Linux)
+
+On your Windows machine:
 
 ```
-venv/Scripts/python.exe packaging/build_windows.py        # ~2 minutes
-packaging/dist/StatsStudio/StatsStudio.exe --selftest     # all six lines must say ok
-cd app && STUDIO_EXE="<full path>/packaging/dist/StatsStudio/StatsStudio.exe" npm run e2e
+venv/Scripts/python.exe packaging/build.py                # ~2 minutes
+venv/Scripts/python.exe packaging/smoke_test.py           # starts the built app and checks it end to end
+cd app && STUDIO_EXE="<full path>/packaging/dist/StatsStudio/StatsStudio.exe" npm run e2e    # the full browser tests
 ```
 
 Output: `packaging/dist/StatsStudio-windows.zip` (~425 MB). Run it from a normal folder (not while your shell sits inside
-`packaging/dist`; the build deletes it). Alternative without your machine: GitHub > Actions > "Build Windows package" >
-Run workflow (or push a tag like `v0.1.0`), then download the artifact.
+`packaging/dist`; the build deletes it).
+
+**Mac and Linux are built by GitHub, not by you.** PyInstaller cannot cross-compile. Go to GitHub > Actions > "Build
+packages" > Run workflow (or push a tag like `v0.1.0`, which also publishes everything on the repo's Releases page).
+It builds on four machines (Windows, Mac with Apple chips, Mac with Intel chips, Ubuntu), runs `smoke_test.py` on each
+(self-test, app page, semantic search with a citation, local-only protection), and attaches the downloads:
+`StatsStudio-windows.zip`, `StatsStudio-macos-arm64.zip`, `StatsStudio-macos-x86_64.zip`,
+`StatsStudio-linux-x86_64.tar.gz`. If one machine's job is red, that platform's build is not shipping-ready; the log
+shows which self-test line or smoke check failed.
+
+**The Mac and Linux builds have never run on a real Mac or Linux machine** (they were written on Windows). Before
+telling classmates they work, get one person on each to download from Releases, follow `README-FIRST.txt`, and do a
+topic tutorial plus a search. Known things to expect: macOS shows an "unidentified developer" warning (the
+README-FIRST explains Open Anyway, and you can avoid it only by paying Apple for signing); some Linux desktops need
+`libgl1` installed and may not offer "Run in terminal" on double-click. The runner labels (`macos-latest`,
+`macos-15-intel`, `ubuntu-24.04`) are GitHub's and change: if a job never starts, check their runner list. Intel Macs
+are on a runner GitHub plans to retire in 2027; after that Intel Mac students can run from source.
 
 **The package contains a snapshot of the course library.** Students who already have the app get new material through
 updates; only brand-new students need a fresh zip, so rebuild it occasionally (not after every lecture).
 A new copy of the app program itself (code changes) has no auto-update: students must download the new zip.
-Their saved progress lives in `%LOCALAPPDATA%\StatsStudio` and survives replacing the folder.
+Their saved progress lives in `%LOCALAPPDATA%\StatsStudio` (Windows), `~/Library/Application Support/StatsStudio` (Mac)
+or `~/.local/share/StatsStudio` (Linux) and survives replacing the folder.
 
 Things that have bitten before:
 - Old Visual C++ runtime DLLs in the bundle crash onnxruntime. The build script replaces them; if `--selftest`
   segfaults after a Python/PyInstaller upgrade, look there first.
 - New Python dependencies may need adding to the `collect_all` list in `packaging/studio.spec`.
+- Windows only: the Visual C++ runtime fix is in `build.py` (it is skipped on Mac and Linux).
 - Unsigned exe: Windows shows SmartScreen ("More info" > "Run anyway"). Code signing costs money; skip unless
   complaints pile up. Zipped copies can also trigger antivirus false positives; sending a link rather than an
   attachment helps.

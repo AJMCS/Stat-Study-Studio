@@ -1,5 +1,6 @@
-# PyInstaller recipe for the double-click package. Build with:  python packaging/build_windows.py
+# PyInstaller recipe for the double-click package. Build with:  python packaging/build.py
 # One folder (not one file): starts faster, and is less likely to be flagged by antivirus.
+import sys
 from pathlib import Path
 
 from PyInstaller.utils.hooks import collect_all, collect_submodules
@@ -8,12 +9,15 @@ ROOT = Path(SPECPATH).parent
 BUILD = ROOT / "packaging" / "build"
 
 datas, binaries, hiddenimports = [], [], []
-for package in ("rapidocr", "fastembed", "onnxruntime", "pymupdf", "tokenizers", "docx", "rank_bm25", "multipart", "platformdirs", "huggingface_hub", "keyring", "httpx"):
+PACKAGES = ["rapidocr", "fastembed", "onnxruntime", "pymupdf", "tokenizers", "docx", "rank_bm25", "multipart", "platformdirs", "huggingface_hub", "keyring", "httpx"]
+if sys.platform.startswith("linux"):
+    PACKAGES += ["secretstorage", "jeepney"]  # how keyring talks to the desktop's keyring service
+for package in PACKAGES:
     d, b, h = collect_all(package)
     datas += d
     binaries += b
     hiddenimports += h
-hiddenimports += collect_submodules("studio") + collect_submodules("uvicorn") + collect_submodules("keyring.backends") + ["multipart", "python_multipart", "win32ctypes.core"]
+hiddenimports += collect_submodules("studio") + collect_submodules("uvicorn") + collect_submodules("keyring.backends") + ["multipart", "python_multipart"] + (["win32ctypes.core"] if sys.platform == "win32" else [])
 
 datas += [
     (str(ROOT / "course-library"), "course-library"),  # the shared course library, so the app works offline

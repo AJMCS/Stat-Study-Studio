@@ -32,12 +32,15 @@ cd app && npm install && npm run build
 cd ../backend && ../venv/Scripts/python.exe -m studio.server              # opens http://127.0.0.1:8765
 ```
 
-## Make the Windows download
+## Make the downloads
 
 ```
 venv/Scripts/python.exe -m pip install pyinstaller
-venv/Scripts/python.exe packaging/build_windows.py     # -> packaging/dist/StatsStudio-windows.zip
+venv/Scripts/python.exe packaging/build.py             # -> packaging/dist/StatsStudio-windows.zip (this OS only)
+venv/Scripts/python.exe packaging/smoke_test.py        # checks the build works
 ```
+
+Mac and Linux builds come from the "Build packages" GitHub workflow (see MAINTAIN.md).
 
 ## Test it
 
@@ -53,4 +56,5 @@ Milestone 1 (everything above) is built, including course-material updates and t
 Milestone 2 is built: connect your own Google Gemini key in Settings for the adaptive tutor, four-criterion scoring of
 written answers, and exam questions written around a focus, or your own Anthropic or OpenAI API key, or a model running on your own computer through Ollama (all optional; the app is
 complete without them).
-Milestone 3 adds Mac and Linux builds, Anthropic/OpenAI, and optional AI transcription of uploads.
+Milestone 3 is built too: Anthropic and OpenAI keys, "Improve with AI" for handwriting and scans, and Mac and Linux
+builds (the Mac and Linux ones have not been run on real machines yet).

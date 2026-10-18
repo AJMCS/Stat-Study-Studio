@@ -162,14 +162,19 @@ library is test-loaded, and only then is it switched in (`<data>/library/v<N>/`,
 kept). Any failure leaves the current library untouched. Offline, the check just reports that it could not reach the
 internet. Overrides for testing: `STUDIO_UPDATE_BASE`, `STUDIO_AUTOCHECK=0`.
 
-## Windows package
+## Packages (Windows, Mac, Linux)
 
-`python packaging/build_windows.py` (needs the venv with `pyinstaller`, and Node) builds
-`packaging/dist/StatsStudio/` and `StatsStudio-windows.zip` (about 640 MB unpacked, 425 MB zipped): the program, the
+`python packaging/build.py` (needs the venv with `pyinstaller`, and Node) builds for the OS it runs on:
+`packaging/dist/StatsStudio/` and `StatsStudio-windows.zip` / `-macos-<arch>.zip` / `-linux-<arch>.tar.gz` (Windows: about
+640 MB unpacked, 425 MB zipped): the program, the
 web app, the course library and the search model, so it needs no Python and no internet. Entry point:
 `studio/launcher.py` (opens the browser, reuses an already-running copy, moves to the next port if 8765 is busy).
 `StatsStudio.exe --selftest` checks that the search model, PDF reader and text recognition load. The build replaces
 PyInstaller's bundled Visual C++ runtime with the current one, because onnxruntime crashes on the older copy.
+`packaging/smoke_test.py` starts the built program on a spare port with an empty data folder and checks the app page,
+the library, semantic search with a citation and the local-only protections; it is the same on every OS and runs in CI.
+Mac gets a `Start Stats Studio.command` starter and Linux a `start-stats-studio.sh`; each package has a `README-FIRST.txt`.
+The workflow `.github/workflows/build-packages.yml` builds all of them (PyInstaller cannot cross-compile).
 Run the browser tests against the package with `STUDIO_EXE=<path to StatsStudio.exe> npm run e2e`.
 
 Transcript `kind` (frontmatter) decides how a file is used: `lecture`, `problem-set`, `worked-solutions`,
