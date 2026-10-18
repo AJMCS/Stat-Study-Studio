@@ -1,0 +1,76 @@
+{
+  "course": "STAT 132",
+  "note": "Single source of truth mapping topics to shared-library files. Paths are relative to course-library/. Update via pull request.",
+  "topics": [
+    {
+      "id": "probability-review-and-inference",
+      "title": "Probability Review & Introduction to Statistical Inference",
+      "lecture": 1,
+      "lectureNotes": "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf",
+      "relatedDiscussion": [],
+      "readings": ["readings/reading-ch01-probability-and-logic-of-inference.pdf"],
+      "quizzes": [],
+      "prerequisites": ["prerequisites-stat131/notes-01-classic-probability-theory.pdf", "prerequisites-stat131/common-distributions-table.pdf"]
+    },
+    {
+      "id": "frequentist-vs-bayesian",
+      "title": "Frequentist vs. Bayesian Inference",
+      "lecture": 2,
+      "lectureNotes": "lecture-notes/lecture-02-frequentist-vs-bayesian-inference.pdf",
+      "relatedDiscussion": [],
+      "readings": [],
+      "quizzes": [],
+      "prerequisites": []
+    },
+    {
+      "id": "posterior-distribution",
+      "title": "The Posterior Distribution",
+      "lecture": 3,
+      "lectureNotes": "lecture-notes/lecture-03-the-posterior-distribution.pdf",
+      "relatedDiscussion": ["discussion-sections/disc-01.pdf", "discussion-sections/disc-01-annotated.pdf", "discussion-sections/disc-02.pdf", "discussion-sections/disc-02-annotated.pdf"],
+      "readings": [],
+      "quizzes": ["quizzes/quiz-02-bayesian-estimation.pdf"],
+      "prerequisites": ["prerequisites-stat131/notes-06-conditional-distributions.pdf"]
+    },
+    {
+      "id": "loss-functions-bayes-estimators",
+      "title": "Loss Functions and Bayes Estimators",
+      "lecture": 4,
+      "lectureNotes": "lecture-notes/lecture-04-loss-functions-and-bayes-estimators.pdf",
+      "relatedDiscussion": ["discussion-sections/disc-02.pdf", "discussion-sections/disc-02-annotated.pdf"],
+      "readings": ["readings/reading-ch04-loss-functions-and-bayes-estimators.pdf"],
+      "quizzes": ["quizzes/quiz-02-bayesian-estimation.pdf"],
+      "prerequisites": ["prerequisites-stat131/notes-07-expectation.pdf"]
+    },
+    {
+      "id": "maximum-likelihood-estimation",
+      "title": "Maximum Likelihood Estimation",
+      "lecture": 5,
+      "lectureNotes": "lecture-notes/lecture-05-maximum-likelihood-estimation.pdf",
+      "relatedDiscussion": ["discussion-sections/disc-03.pdf", "discussion-sections/disc-03-annotated.pdf"],
+      "readings": [],
+      "quizzes": ["quizzes/quiz-03-mle-and-sampling-distributions.pdf"],
+      "prerequisites": ["prerequisites-stat131/notes-00-calculus-review.pdf"]
+    },
+    {
+      "id": "maximum-likelihood-properties",
+      "title": "Maximum Likelihood Properties",
+      "lecture": 6,
+      "lectureNotes": "lecture-notes/lecture-06-maximum-likelihood-properties.pdf",
+      "relatedDiscussion": ["discussion-sections/disc-04.pdf"],
+      "readings": [],
+      "quizzes": ["quizzes/quiz-03-mle-and-sampling-distributions.pdf"],
+      "prerequisites": ["prerequisites-stat131/notes-08-variance-and-higher-moments.pdf"]
+    },
+    {
+      "id": "sampling-distributions",
+      "title": "Sampling Distributions",
+      "lecture": 7,
+      "lectureNotes": "lecture-notes/lecture-07-sampling-distributions.pdf",
+      "relatedDiscussion": ["discussion-sections/disc-04.pdf"],
+      "readings": [],
+      "quizzes": ["quizzes/quiz-03-mle-and-sampling-distributions.pdf"],
+      "prerequisites": ["prerequisites-stat131/notes-09-normal-distribution.pdf"]
+    }
+  ]
+}
