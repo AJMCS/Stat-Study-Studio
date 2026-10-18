@@ -4,13 +4,14 @@ import {
   CRITERION_WHY,
   type CriterionFeedback,
   type CriterionScores,
-  type ExamQuestion,
   type Topic,
 } from "../types";
 import { clamp } from "../lib/scoring";
 
 /**
- * Mock AI layer. Every function here is a stand-in for a model call that the backend phase will replace.
+ * Mock AI layer, used only by the conversational tutor, which is switched off until an AI service can be connected
+ * (see lib/ai.ts). Scoring and exam questions no longer come from here: without a model, learners score themselves
+ * against reference answers. Every function here is a stand-in for a model call that Milestone 2 will replace.
  * Signatures are async so swapping in a real on-device or hosted model does not change callers.
  */
 
@@ -134,40 +135,6 @@ export async function tutorReply(topic: Topic, stage: TutorStage, learnerText: s
     default:
       return { stage: "done", text: "We're all set for this topic. Pick another activity whenever you like." };
   }
-}
-
-export interface DraftExam {
-  title: string;
-  questions: ExamQuestion[];
-  adapted: boolean;
-}
-
-/** Draw from the topic's uploaded/bank questions; add model-created ones when a focus is given. */
-export async function generateExam(topic: Topic, focus: string): Promise<DraftExam> {
-  await delay(700);
-  const questions = [...topic.examBank];
-  const f = focus.trim();
-  if (f) {
-    questions.push({
-      id: `gen-${Date.now()}`,
-      prompt: `Focused question (${f}): Using the lecture notation, set up and solve a problem on this area, then explain why each setup choice is appropriate.`,
-      hint: "Write down what is given and what you want, then pick the formula from the notes that connects them.",
-      concept: f,
-      sourceIds: topic.sources.map((s) => s.id),
-      keyPoints: ["identifies given quantities", "chooses appropriate formula", "justifies the setup"],
-    });
-  }
-  return { title: `${topic.title} exam`, questions, adapted: !!f };
-}
-
-/** Grade a multi-step written solution on setup choices and reasoning, not just the final answer. */
-export async function gradeExamAnswer(q: ExamQuestion, answer: string) {
-  const { criteria, feedback } = await scoreExplanation(answer);
-  return {
-    criteria,
-    feedback: feedback.map((f) => f.suggestion).join(" "),
-    keyPointNote: `Key points a full solution covers: ${q.keyPoints.join("; ")}.`,
-  };
 }
 
 /** Assemble exactly 10 quiz questions: authored ones first, then model-generated open-ended fillers. */

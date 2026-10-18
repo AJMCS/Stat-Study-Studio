@@ -60,7 +60,7 @@ export function Settings() {
         <p>
           Everything you do here is stored on this device. On-device models are preferred; any hosted-model use is disclosed and needs your consent before learner data is sent. Hosted requests using personal materials are controlled per collection in Course materials.
         </p>
-        <p className="muted">Current build uses built-in sample responses; no data leaves your device.</p>
+        <p className="muted">No AI service is connected, so nothing you write is sent anywhere. Open-ended answers are scored by you against reference answers, and marked self-scored.</p>
       </section>
 
       <section className="panel">

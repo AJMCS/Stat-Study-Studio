@@ -27,12 +27,24 @@ export function criteriaBelowCutoff(c: CriterionScores, cfg: ScoringConfig = DEF
   return CRITERIA.filter((k) => c[k] < cfg.criterionCutoffs[k]);
 }
 
-/** Only counted, non-deleted attempts feed analytics. Sorted oldest -> newest. */
-export function analyticsAttempts(attempts: Attempt[], topicId?: string): Attempt[] {
+/**
+ * Only counted, non-deleted attempts feed analytics. Sorted oldest -> newest.
+ * Self-scored attempts (scored by the learner against a reference answer) are included unless the learner hides them.
+ */
+export function analyticsAttempts(attempts: Attempt[], topicId?: string, includeSelfScored = true): Attempt[] {
   return attempts
-    .filter((a) => a.counted && (!topicId || a.topicId === topicId))
+    .filter((a) => a.counted && (!topicId || a.topicId === topicId) && (includeSelfScored || !a.selfScored))
     .sort((a, b) => a.at.localeCompare(b.at));
 }
+
+/** A score from a self-check: every criterion gets the same number, flagged so the UI never shows it as a breakdown. */
+export const uniformCriteria = (score: number): CriterionScores => {
+  const n = clamp(score);
+  return { core: n, depth: n, relevance: n, application: n };
+};
+
+/** Percentage of reference key points a learner says their answer covered. */
+export const selfScore = (got: boolean[]): number => (got.length ? clamp((100 * got.filter(Boolean).length) / got.length) : 0);
 
 /**
  * Recency-weighted average of the latest `window` attempts.
@@ -86,6 +98,7 @@ export function applyRecall(
   at: string,
   criteria: CriterionScores,
   cfg: ScoringConfig = DEFAULT_CONFIG,
+  selfScored = false,
 ): TopicState {
   const state = prev ?? EMPTY_TOPIC_STATE;
   const comp = composite(criteria, cfg);
@@ -95,7 +108,8 @@ export function applyRecall(
     streak: qualified ? state.streak + 1 : state.streak,
     misses: qualified ? state.misses : state.misses + 1,
     flagged: qualified ? false : true,
-    warnCriteria: criteriaBelowCutoff(criteria, cfg),
+    // A self-score has one number, not four, so there is no per-criterion warning to show.
+    warnCriteria: selfScored ? [] : criteriaBelowCutoff(criteria, cfg),
     recallHistory: [...state.recallHistory, { at, composite: comp, qualified }],
   };
 }

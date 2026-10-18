@@ -3,10 +3,11 @@ import { GENERAL_ID, uid, useStore } from "../lib/store";
 import { Citations, SourcePreview } from "../components/Citation";
 import { PageView } from "../components/PageView";
 import { PlainText } from "../components/PlainText";
+import { useAi } from "../lib/ai";
 import { api, hitToSource, personalHitToSource, ServiceRejected, ServiceUnavailable, type UploadReport } from "../lib/api";
 import type { PersonalFile, SourceRef } from "../types";
 
-const ACCEPTED = ".pdf,.doc,.docx,.txt,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp";
+const ACCEPTED = ".pdf,.docx,.txt,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp";
 const POLL_MS = 500;
 
 interface UploadRow {
@@ -42,6 +43,7 @@ export function Materials() {
   const [results, setResults] = useState<{ sources: SourceRef[]; mode: string; error: string | null; both: boolean } | null>(null);
   const [searching, setSearching] = useState(false);
   const [review, setReview] = useState<SourceRef | null>(null);
+  const ai = useAi();
 
   useEffect(() => {
     alive.current = true;
@@ -210,6 +212,12 @@ export function Materials() {
       <section className="panel" aria-label="Upload">
         <h2>Upload to a personal collection</h2>
         <p className="muted">PDF (including scans), Word (.docx), .txt and photos or images of notes. Scans and photos are read with OCR on this device.</p>
+        {!ai.connected && (
+          <p className="notice" role="note">
+            <b>Handwriting:</b> without an AI service connected, only typed or printed text is read reliably. Handwritten notes will usually come out
+            incomplete or wrong, and any math in them will be missed. For a good transcription of handwriting, connect an AI service ({ai.comingSoon ? "coming soon" : "in Settings"}).
+          </p>
+        )}
         <div className="row">
           <label className="field">
             <span>Collection</span>

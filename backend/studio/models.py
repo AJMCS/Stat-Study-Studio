@@ -42,6 +42,8 @@ class Attempt(Wire):
     criteria: Criteria
     note: str | None = None
     self_scored: bool = False
+    # True only when an AI rubric scored the four criteria; every other score has no per-criterion breakdown.
+    ai_scored: bool = False
 
 
 class RecallEntry(Wire):

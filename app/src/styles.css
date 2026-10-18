@@ -157,3 +157,11 @@ ul.uploads li { display: flex; flex-direction: column; gap: 0.35rem; padding: 0.
 ul.uploads li.failed { border-color: var(--bad); }
 ul.uploads progress { width: 100%; }
 .chip { margin-left: 0.4rem; }
+
+.selfcheck h3, .selfcheck h4 { margin: 0.8rem 0 0.3rem; }
+.reference { border-left: 3px solid var(--accent); padding: 0.1rem 0 0.1rem 0.9rem; margin: 0.4rem 0 0.8rem; }
+.example { border-left: 4px solid var(--accent); }
+ul.ticks { list-style: none; padding: 0; margin: 0.4rem 0; }
+ul.ticks li.got { color: var(--ok); }
+ul.ticks li.missed { color: var(--muted); }
+details summary { cursor: pointer; font-weight: 600; margin: 0.4rem 0; }

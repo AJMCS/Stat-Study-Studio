@@ -20,12 +20,47 @@ export function ScoreBreakdown({
   criteria,
   cfg,
   feedback,
+  selfScored = false,
+  marked = false,
 }: {
   criteria: CriterionScores;
   cfg: ScoringConfig;
   feedback?: CriterionFeedback[];
+  /** A self-score is one number from the learner, so no per-criterion breakdown is shown. */
+  selfScored?: boolean;
+  /** Marked automatically (multiple choice): one score, no per-criterion breakdown. */
+  marked?: boolean;
 }) {
   const comp = composite(criteria, cfg);
+  if (marked) {
+    return (
+      <div className="breakdown">
+        <div className="composite">
+          <strong>{comp}</strong>
+          <span>/ 100</span>
+          <span className={comp >= cfg.compositeCutoff ? "chip ok" : "chip flag"}>
+            {comp >= cfg.compositeCutoff ? "Meets cutoff" : `Below ${cfg.compositeCutoff}`}
+          </span>
+        </div>
+        <p className="muted small">Multiple-choice questions are marked automatically. The four-criterion breakdown only applies to written explanations scored by an AI service.</p>
+      </div>
+    );
+  }
+  if (selfScored) {
+    return (
+      <div className="breakdown">
+        <div className="composite">
+          <strong>{comp}</strong>
+          <span>/ 100 self-score</span>
+          <span className={comp >= cfg.compositeCutoff ? "chip ok" : "chip flag"}>
+            {comp >= cfg.compositeCutoff ? "Meets cutoff" : `Below ${cfg.compositeCutoff}`}
+          </span>
+          <span className="chip">Self-scored</span>
+        </div>
+        <p className="muted small">You scored this against the reference answer. The four-criterion breakdown (core idea, depth, relevance, application) needs an AI service to read your explanation.</p>
+      </div>
+    );
+  }
   return (
     <div className="breakdown">
       <div className="composite">

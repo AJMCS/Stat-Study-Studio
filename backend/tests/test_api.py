@@ -48,7 +48,7 @@ def test_fresh_state_is_empty_but_has_general_collection(client):
 
 
 def test_slice_roundtrip_preserves_order_and_fields(client):
-    items = [attempt(2), attempt(0, note=None), attempt(1, selfScored=True)]
+    items = [attempt(2, aiScored=True), attempt(0, note=None), attempt(1, selfScored=True)]
     items[1].pop("note")
     assert put(client, "attempts", items).status_code == 200
     got = client.get("/api/state").json()
@@ -56,6 +56,7 @@ def test_slice_roundtrip_preserves_order_and_fields(client):
     out = got["state"]["attempts"]
     assert [a["id"] for a in out] == ["a2", "a0", "a1"]
     assert "note" not in out[1] and out[2]["selfScored"] is True and "selfScored" not in out[0]
+    assert out[0]["aiScored"] is True and "aiScored" not in out[1] and "aiScored" not in out[2]
 
 
 def test_every_slice_roundtrips(client):

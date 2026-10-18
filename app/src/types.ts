@@ -66,12 +66,23 @@ export interface Topic {
   quiz: QuizQuestion[];
   /** Extra questions for the exam bank. */
   examBank: ExamQuestion[];
+  /** A from-memory prompt with a reference answer, used for revisits and recall. */
+  recall: Recall;
   sources: SourceRef[];
+}
+
+export interface Recall {
+  prompt: string;
+  /** Markdown with LaTeX. */
+  reference: string;
+  keyPoints: string[];
 }
 
 export interface TutorialStep {
   heading: string;
   body: string;
+  /** Worked examples shown under this step: try it first, then reveal the solution. */
+  examples?: { prompt: string; solution: string }[];
   /** LaTeX, shown in display mode. */
   formula?: string;
   sourceId?: string;
@@ -91,6 +102,8 @@ export interface QuizQuestion {
 export interface ExamQuestion {
   id: string;
   prompt: string;
+  /** Full reference solution (Markdown with LaTeX), shown after the learner has written their own. */
+  solution: string;
   hint: string;
   concept: string;
   sourceIds: string[];
@@ -105,8 +118,13 @@ export interface Attempt {
   /** Only the first response of a low-stakes practice counts toward analytics. */
   counted: boolean;
   composite: number;
+  /** For a self-scored attempt every criterion equals the composite and must not be shown as a breakdown. */
   criteria: CriterionScores;
   note?: string;
+  /** Scored by the learner against a reference answer, not by a model. */
+  selfScored?: boolean;
+  /** Scored by an AI rubric on the four criteria. Only these have a real per-criterion breakdown. */
+  aiScored?: boolean;
 }
 
 export interface QuizResult {
@@ -125,8 +143,11 @@ export interface QuizResult {
     concept: string;
     sourceId?: string;
     unanswered?: boolean;
+    /** Scored by the learner against the reference answer. */
+    selfScored?: boolean;
   }[];
   flaggedConcepts: string[];
+  selfScored?: boolean;
 }
 
 export interface ExamRecord {
@@ -145,8 +166,12 @@ export interface ExamRecord {
     feedback: string;
     sourceIds: string[];
     composite: number;
+    /** Reference solution and the key points the learner ticked, for the self-scored review. */
+    solution?: string;
+    keyPoints?: { text: string; got: boolean }[];
   }[];
   sources: SourceRef[];
+  selfScored?: boolean;
 }
 
 export interface ChatMessage {

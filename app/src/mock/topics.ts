@@ -1,4 +1,5 @@
-import type { Topic, SourceRef, QuizQuestion } from "../types";
+import type { Topic, SourceRef, QuizQuestion, TutorialStep, ExamQuestion } from "../types";
+import { EXAMPLES, RECALL, SOLUTIONS } from "./learning";
 
 /**
  * STAT 132 topics, one per lecture, grounded in course-library/ (see course-library/manifest.json).
@@ -128,7 +129,12 @@ const l7 = [
 
 /* ------------------------------------------------------------------ Topics */
 
-export const TOPICS: Topic[] = [
+type RawTopic = Omit<Topic, "recall" | "tutorial" | "examBank"> & {
+  tutorial: Omit<TutorialStep, "examples">[];
+  examBank: Omit<ExamQuestion, "solution">[];
+};
+
+const RAW_TOPICS: RawTopic[] = [
   {
     id: "probability-review-and-inference",
     title: "Probability Review & Introduction to Inference",
@@ -753,6 +759,17 @@ export const TOPICS: Topic[] = [
     ],
   },
 ];
+
+/** Topics with their reference material (worked examples, recall prompt, exam solutions) attached. */
+export const TOPICS: Topic[] = RAW_TOPICS.map((t) => ({
+  ...t,
+  recall: RECALL[t.id],
+  tutorial: t.tutorial.map((step, i) => ({
+    ...step,
+    examples: (EXAMPLES[t.id] ?? []).filter((e) => e.step === i).map(({ prompt, solution }) => ({ prompt, solution })),
+  })),
+  examBank: t.examBank.map((q) => ({ ...q, solution: SOLUTIONS[q.id] })),
+}));
 
 export const topicById = (id: string) => TOPICS.find((t) => t.id === id);
 

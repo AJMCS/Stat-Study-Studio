@@ -28,7 +28,7 @@ from .models import (
     Record,
 )
 
-SCHEMA_VERSION = 2
+SCHEMA_VERSION = 3
 
 SCHEMA_V1 = """
 CREATE TABLE attempts (
@@ -71,6 +71,9 @@ CREATE TABLE personal_chunks (
 CREATE INDEX personal_chunks_file ON personal_chunks (file_id);
 """
 
+# v3: remember which attempts were scored by an AI rubric (the only ones with a per-criterion breakdown).
+SCHEMA_V3 = "ALTER TABLE attempts ADD COLUMN ai_scored INTEGER NOT NULL DEFAULT 0;"
+
 _statements = lambda sql: [x for x in (s.strip() for s in sql.split(";")) if x]  # noqa: E731
 
 _adapters = {name: TypeAdapter(list[model]) for name, model in LIST_SLICES.items()}
@@ -98,6 +101,9 @@ class Database:
                     self._seed_general()
                 if version < 2:
                     for stmt in _statements(SCHEMA_V2):
+                        self._conn.execute(stmt)
+                if version < 3:
+                    for stmt in _statements(SCHEMA_V3):
                         self._conn.execute(stmt)
                 self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         elif version > SCHEMA_VERSION:
@@ -155,6 +161,7 @@ class Database:
                     "composite": r["composite"], "criteria": json.loads(r["criteria"]),
                     **({"note": r["note"]} if r["note"] is not None else {}),
                     **({"selfScored": True} if r["self_scored"] else {}),
+                    **({"aiScored": True} if r["ai_scored"] else {}),
                 }
                 for r in q("SELECT * FROM attempts ORDER BY position")
             ]
@@ -221,9 +228,9 @@ class Database:
     def _write_attempts(c: sqlite3.Connection, items: list[Attempt]) -> None:
         c.execute("DELETE FROM attempts")
         c.executemany(
-            "INSERT INTO attempts (position, id, topic_id, at, kind, counted, composite, criteria, note, self_scored) VALUES (?,?,?,?,?,?,?,?,?,?)",
+            "INSERT INTO attempts (position, id, topic_id, at, kind, counted, composite, criteria, note, self_scored, ai_scored) VALUES (?,?,?,?,?,?,?,?,?,?,?)",
             [
-                (i, a.id, a.topic_id, a.at, a.kind, int(a.counted), a.composite, json.dumps(a.criteria.dump()), a.note, int(a.self_scored))
+                (i, a.id, a.topic_id, a.at, a.kind, int(a.counted), a.composite, json.dumps(a.criteria.dump()), a.note, int(a.self_scored), int(a.ai_scored))
                 for i, a in enumerate(items)
             ],
         )

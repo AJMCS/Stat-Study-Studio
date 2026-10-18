@@ -11,6 +11,7 @@ const port = process.env.E2E_PORT ?? "8765";
 const origin = `http://127.0.0.1:${port}`;
 const dataDir = mkdtempSync(join(tmpdir(), "studio-e2e-data-"));
 const outDir = join(tmpdir(), "studio-e2e-out");
+rmSync(outDir, { recursive: true, force: true }); // screenshots from earlier runs would be confusing
 mkdirSync(outDir, { recursive: true });
 
 const server = spawn(python, ["-m", "studio.server", "--no-browser", "--port", port], {

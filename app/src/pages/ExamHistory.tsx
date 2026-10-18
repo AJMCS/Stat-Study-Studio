@@ -5,6 +5,7 @@ import { useStore } from "../lib/store";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
 import { RichText } from "../components/Math";
+import { PageView } from "../components/PageView";
 import type { ExamRecord } from "../types";
 
 function downloadPdf(e: ExamRecord, title: string) {
@@ -24,13 +25,14 @@ function downloadPdf(e: ExamRecord, title: string) {
     }
   };
   line(`${title} · attempt ${e.attempt}`, 16, true);
-  line(`${new Date(e.at).toLocaleString()} · ${e.timed ? "Timed" : "Untimed"} · composite ${e.composite}/100`);
+  line(`${new Date(e.at).toLocaleString()} · ${e.timed ? "Timed" : "Untimed"} · ${e.selfScored ? "self-score" : "composite"} ${e.composite}/100`);
   if (e.focus) line(`Focus: ${e.focus}`);
   y += 3;
   e.items.forEach((it, n) => {
     line(`Q${n + 1}. ${it.prompt}`, 12, true);
     line(`Your answer: ${it.answer || "(unanswered)"}`);
     line(`Feedback: ${it.feedback}`);
+    it.keyPoints?.forEach((k) => line(`[${k.got ? "x" : " "}] ${k.text}`));
     y += 3;
   });
   doc.save(`${title.replace(/\s+/g, "-")}-attempt-${e.attempt}.pdf`);
@@ -77,7 +79,7 @@ export function ExamReview() {
       <p><Link to="/exams">← Exam history</Link></p>
       <h1>{t?.title} exam · attempt {e.attempt}</h1>
       <p className="muted">{new Date(e.at).toLocaleString()} · {e.timed ? "Timed" : "Untimed"}{e.focus && ` · Focus: ${e.focus}`}</p>
-      <ScoreBreakdown criteria={e.criteria} cfg={data.config} />
+      <ScoreBreakdown criteria={e.criteria} cfg={data.config} selfScored={e.selfScored} />
       <ol className="review-list">
         {e.items.map((it) => (
           <li key={it.questionId}>
@@ -85,6 +87,22 @@ export function ExamReview() {
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
             <p><b>Score {it.composite}.</b> {it.feedback}</p>
+            {it.keyPoints && (
+              <ul className="ticks" aria-label="Key points">
+                {it.keyPoints.map((k, n) => (
+                  <li key={n} className={k.got ? "got" : "missed"}>
+                    <span aria-hidden>{k.got ? "✓" : "○"}</span> <span className="sr-only">{k.got ? "Covered: " : "Not covered: "}</span>
+                    <RichText text={k.text} />
+                  </li>
+                ))}
+              </ul>
+            )}
+            {it.solution && (
+              <details>
+                <summary>Reference solution</summary>
+                <div className="reference"><PageView text={it.solution} /></div>
+              </details>
+            )}
             <h3>Source materials</h3>
             <Citations sources={e.sources.filter((s) => it.sourceIds.includes(s.id))} />
           </li>

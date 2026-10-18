@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
+import { useAi } from "../lib/ai";
 import { topicById } from "../mock/topics";
 import { tutorOpening, tutorReply, type TutorStage, type TutorTurn } from "../mock/ai";
 import { useStore } from "../lib/store";
@@ -9,7 +10,7 @@ import { ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
 import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores } from "../types";
 
-export function Tutor() {
+function TutorChat() {
   const { id } = useParams();
   const topic = topicById(id ?? "");
   const { data, update, recordAttempt } = useStore();
@@ -129,3 +130,40 @@ export function Tutor() {
   );
 }
 
+
+/** The conversational tutor reads the learner's own words, so it needs an AI service. Until one is connected, say so
+ * and point to what works without one (the tutorial, quiz, exam and recall are all available). */
+export function Tutor() {
+  const { id } = useParams();
+  const topic = topicById(id ?? "");
+  const ai = useAi();
+  if (ai.connected) return <TutorChat />;
+  return (
+    <>
+      <p><Link to={topic ? `/topic/${topic.id}` : "/"}>← {topic?.title ?? "All topics"}</Link></p>
+      <h1>Adaptive tutor</h1>
+      <p className="notice" role="status">
+        The tutor talks with you, reads your explanations, finds the gaps and builds from there. That needs an AI service, and none is connected
+        {ai.comingSoon ? " yet (connecting one is coming soon)" : ""}. Everything else here works without one.
+      </p>
+      {topic && (
+        <>
+          <h2>Learn it without the tutor</h2>
+          <div className="grid two">
+            <Link to={`/topic/${topic.id}/tutorial`} className="card">
+              <h3>Guided tutorial</h3>
+              <p>Lecture-grounded explanations with worked examples: try each one, then reveal the full solution.</p>
+            </Link>
+            <Link to={`/topic/${topic.id}/quiz`} className="card">
+              <h3>Practice quiz</h3>
+              <p>Feedback after each answer. Written answers are compared with a reference answer, and you score yourself.</p>
+            </Link>
+          </div>
+          <p className="muted">
+            Without the tutor, the step from "I see where I'm missing it" to fixing it is yours: compare your work with the reference solutions, note what you missed, and go back to the tutorial step and lecture page it came from.
+          </p>
+        </>
+      )}
+    </>
+  );
+}

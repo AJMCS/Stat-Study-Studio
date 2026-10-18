@@ -4,6 +4,7 @@ import { TOPICS, topicById } from "../mock/topics";
 import { useStore } from "../lib/store";
 import { analyticsAttempts, classify, recencyWeighted, trend } from "../lib/scoring";
 import { StreakIndicator } from "../components/Score";
+import { useIncludeSelfScored } from "../lib/prefs";
 
 const ACTIVITY_PATH = { tutor: "tutor", tutorial: "tutorial", quiz: "quiz", exam: "exam" } as const;
 
@@ -11,6 +12,7 @@ export function Overview() {
   const { data, setSession } = useStore();
   const nav = useNavigate();
   const [hideResume, setHideResume] = useState(false);
+  const [includeSelf] = useIncludeSelfScored();
   const s = data.session;
   const resumeTopic = s ? topicById(s.topicId) : undefined;
   const units = [...new Set(TOPICS.map((t) => t.unit))];
@@ -48,7 +50,7 @@ export function Overview() {
           <h2 id={`u-${u}`}>{u}</h2>
           <div className="grid">
             {TOPICS.filter((t) => t.unit === u).map((t) => {
-              const at = analyticsAttempts(data.attempts, t.id);
+              const at = analyticsAttempts(data.attempts, t.id, includeSelf);
               const score = recencyWeighted(at, data.config.recencyWindow);
               const state = data.topicState[t.id];
               const cls = classify(score, data.config);

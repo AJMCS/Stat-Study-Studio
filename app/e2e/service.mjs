@@ -25,6 +25,17 @@ const newPage = async (ctx) => {
   }
   return page;
 };
+
+/** Recall flow: write, compare with the reference, tick everything, save. */
+const recall = async (page, text) => {
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", text);
+  await page.click("button:has-text('Compare with the reference')");
+  await page.waitForSelector("h3:has-text('Reference solution')");
+  for (const box of await page.locator("fieldset input[type=checkbox]").all()) await box.check();
+  await page.click("button:has-text('Save my self-score')");
+  await page.waitForSelector(".composite");
+};
 const state = async (page) => (await page.request.get(`${ORIGIN}/api/state`)).json();
 
 const legacy = {
@@ -83,10 +94,7 @@ await step("progress is visible from a brand-new browser profile", async () => {
 await step("a recall attempt is saved to the service", async () => {
   const page = ctx1.pages()[0];
   await page.goto(BASE + "/topic/maximum-likelihood-estimation");
-  await page.click("button:has-text('Try a recall')");
-  await page.fill("textarea", "The MLE maximizes the likelihood because it makes the observed data most probable, for example with n=10.");
-  await page.click("button:has-text('Score my recall')");
-  await page.waitForSelector(".composite");
+  await recall(page, "The MLE maximizes the likelihood because it makes the observed data most probable, for example with n=10.");
   await page.waitForTimeout(600);
   const s = await state(page);
   if (s.state.attempts.length !== 2) throw new Error(`expected 2 attempts saved, got ${s.state.attempts.length}`);
@@ -111,9 +119,7 @@ await step("failed save shows a banner and retry succeeds", async () => {
   await page.waitForSelector("nav");
   await page.route("**/api/state/**", (r) => r.abort());
   await page.goto(BASE + "/topic/frequentist-vs-bayesian");
-  await page.click("button:has-text('Try a recall')");
-  await page.fill("textarea", "A likelihood is the data's probability as a function of the parameter because the data are fixed.");
-  await page.click("button:has-text('Score my recall')");
+  await recall(page, "A likelihood is the data's probability as a function of the parameter because the data are fixed.");
   await page.waitForSelector("text=Try saving again");
   await page.unroute("**/api/state/**");
   await page.click("button:has-text('Try saving again')");

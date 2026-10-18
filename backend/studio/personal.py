@@ -204,6 +204,10 @@ class PersonalStore:
         self._prune_jobs()
         name = Path(filename).name.strip() or "upload"
         ext = Path(name).suffix.lower()
+        if ext == ".doc":
+            raise UploadRejected(
+                f'"{name}" is an older Word format (.doc), which this app does not read. In Word, choose File > Save As and pick Word Document (.docx) or PDF, then upload that copy.'
+            )
         if ext not in ACCEPTED_SUFFIXES:
             raise UploadRejected(
                 f'"{name}" is not a supported type. Upload a PDF, Word file (.docx), .txt, or an image (PNG, JPG, TIFF, BMP, WebP).'

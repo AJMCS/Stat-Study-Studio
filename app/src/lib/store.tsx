@@ -193,7 +193,7 @@ export function StoreProvider({ children }: { children: ReactNode }) {
           // Only recall (revisit) attempts drive the retention streak.
           topicState:
             a.kind === "recall"
-              ? { ...d.topicState, [a.topicId]: applyRecall(d.topicState[a.topicId], attempt.at, a.criteria, d.config) }
+              ? { ...d.topicState, [a.topicId]: applyRecall(d.topicState[a.topicId], attempt.at, a.criteria, d.config, !!a.selfScored) }
               : d.topicState,
         }));
         return attempt;

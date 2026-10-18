@@ -30,136 +30,6 @@ const step = async (name, fn) => {
 const go = (p) => page.goto(BASE + p).then(() => page.waitForTimeout(250));
 const T = "maximum-likelihood-estimation";
 
-await step("overview lists 7 topics", async () => {
-  await go("/");
-  const cards = await page.locator("a.card").count();
-  if (cards !== 7) throw new Error(`expected 7 topic cards, got ${cards}`);
-  await shot("overview");
-});
-
-await step("topic page", async () => {
-  await page.locator("a.card", { hasText: "Maximum Likelihood Estimation" }).click();
-  await page.waitForSelector("h1:has-text('Maximum Likelihood Estimation')");
-  await shot("topic");
-});
-
-await step("tutorial renders math and steps through", async () => {
-  await go(`/topic/${T}/tutorial`);
-  await page.waitForSelector(".katex");
-  await shot("tutorial");
-  while (await page.locator("button:has-text('Next')").count()) await page.click("button:has-text('Next')");
-  await page.waitForSelector("text=Talk it through with the tutor");
-});
-
-await step("tutor full flow", async () => {
-  await go(`/topic/${T}/tutor`);
-  const send = async (txt) => {
-    await page.fill("textarea", txt);
-    await page.click("button:has-text('Send')");
-    await page.waitForTimeout(900);
-  };
-  await send("The MLE is the value of the parameter that makes the observed data most likely, because the likelihood measures how well each value explains the data.");
-  await send("It matters because we need one best guess for the parameter, for example from a sample of size 10.");
-  await page.waitForSelector("text=Proposed plan");
-  await page.click("button:has-text('Accept plan')");
-  await page.waitForTimeout(900);
-  await send("The two classmates got different estimates because samples vary.");
-  await send("$\\hat{\\theta} = \\arg\\max_\\theta L(\\theta)$ because logs are increasing, so the likelihood maximizer is the log-likelihood maximizer.");
-  await page.waitForSelector("text=Session saved", { timeout: 5000 });
-  await shot("tutor-done");
-});
-
-await step("quiz graded flow with unanswered + review + summary", async () => {
-  await go(`/topic/${T}/quiz`);
-  await page.click("button:has-text('Graded quiz')");
-  await page.waitForSelector("text=Question 1 of 10");
-  await page.click("input[type=radio] >> nth=1");
-  await page.click("button:has-text('Next')");
-  await page.click("button:has-text('Back')");
-  await page.click("button:has-text('Next')");
-  await shot("quiz-q2");
-  await page.click("button:has-text('Review') >> nth=-1");
-  await page.waitForSelector("text=Review before submitting");
-  await shot("quiz-review");
-  await page.click("button:has-text('Submit quiz')");
-  await page.waitForSelector("text=Quiz summary", { timeout: 20000 });
-  await shot("quiz-summary");
-});
-
-await step("quiz practice mode locks first response", async () => {
-  await go("/");
-  await go(`/topic/${T}/quiz`);
-  await page.click("button:has-text('Low-stakes practice')");
-  await page.click("input[type=radio] >> nth=0");
-  await page.click("button:has-text('Check answer')");
-  await page.waitForSelector("text=first response, now locked");
-  const disabled = await page.locator("input[type=radio]").first().isDisabled();
-  if (!disabled) throw new Error("choices not locked after feedback");
-  await shot("quiz-practice");
-});
-
-await step("exam untimed: hint, source toggle, submit, review, history, pdf", async () => {
-  await go(`/topic/${T}/exam`);
-  await page.fill("input[placeholder*='Focus'], label:has-text('Focus') input", "Uniform edge case");
-  await page.click("button:has-text('Start exam')");
-  await page.waitForSelector("text=Question 1 of");
-  await page.click("button:has-text('Hint')");
-  await page.waitForSelector("text=Hint:");
-  await page.click("button:has-text('Show source material')");
-  await page.waitForSelector(".cite");
-  await shot("exam-aids");
-  for (let i = 0; i < 6; i++) {
-    await page.fill("textarea", "Write the log-likelihood, differentiate, set to zero, so theta-hat = sum x / (2n) because it is the maximizer. For example 9/6.");
-    if (await page.locator("button:has-text('Submit exam')").count()) break;
-    await page.click("button:has-text('Next')");
-  }
-  await page.click("button:has-text('Submit exam')");
-  await page.waitForSelector("text=attempt 1", { timeout: 20000 });
-  await shot("exam-review");
-  await go("/exams");
-  await page.waitForSelector("text=Download PDF");
-  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 8000 }), page.click("button:has-text('Download PDF')")]);
-  console.log("     pdf:", dl.suggestedFilename());
-});
-
-await step("exam timed hides aids", async () => {
-  await go("/");
-  await go(`/topic/${T}/exam`);
-  await page.click("input[name=mode] >> nth=1");
-  await page.click("button:has-text('Start exam')");
-  await page.waitForSelector("[role=timer]");
-  if (await page.locator("button:has-text('Hint')").count()) throw new Error("hint visible in timed exam");
-  if (await page.locator("button:has-text('source material')").count()) throw new Error("source toggle visible in timed exam");
-});
-
-await step("citation preview dialog", async () => {
-  await go(`/topic/${T}`);
-  await page.click(".cite >> nth=0");
-  await page.waitForSelector("dialog[open] .page-view mark");
-  const hl = await page.locator("dialog[open] .page-view mark").first().innerText();
-  if (hl.length < 20) throw new Error("highlight too short to be a real passage: " + hl);
-  await page.waitForSelector("dialog[open] iframe.pdf");
-  await page.waitForTimeout(800);
-  await shot("citation-preview");
-  await page.click("dialog button:has-text('Close')");
-});
-
-await step("recall on topic page updates streak", async () => {
-  await go(`/topic/${T}`);
-  await page.click("button:has-text('Try a recall')");
-  await page.fill("textarea", "The MLE maximizes the likelihood because it makes the observed data most probable. It matters since it gives a point estimate, for example n=10. Consistent and invariant.");
-  await page.click("button:has-text('Score my recall')");
-  await page.waitForSelector("text=composite", { timeout: 8000 });
-  await shot("recall");
-});
-
-await step("progress page", async () => {
-  await go("/progress");
-  await page.waitForSelector("text=Stats 132 summary");
-  await page.click("button:has-text('Inspect criteria and attempts') >> nth=0").catch(() => {});
-  await shot("progress");
-});
-
 const mainInput = () => page.locator("input[type=file]").first();
 const apiGet = async (path) => (await page.request.get(`${BASE.split("#")[0]}api/${path}`)).json();
 
@@ -197,9 +67,201 @@ async function photoOf(html) {
   return png;
 }
 
+await step("overview lists 7 topics", async () => {
+  await go("/");
+  const cards = await page.locator("a.card").count();
+  if (cards !== 7) throw new Error(`expected 7 topic cards, got ${cards}`);
+  await shot("overview");
+});
+
+await step("topic page", async () => {
+  await page.locator("a.card", { hasText: "Maximum Likelihood Estimation" }).click();
+  await page.waitForSelector("h1:has-text('Maximum Likelihood Estimation')");
+  await shot("topic");
+});
+
+await step("tutorial: math renders and a worked example shows its solution only on request", async () => {
+  await go(`/topic/${T}/tutorial`);
+  await page.waitForSelector(".katex");
+  await shot("tutorial");
+  await page.click("button:has-text('Next')");
+  await page.click("button:has-text('Next')");
+  await page.waitForSelector("text=Worked example 1: try it first");
+  if (await page.locator("[aria-label='Solution to worked example 1']").count()) throw new Error("solution visible before it was asked for");
+  await page.click("button:has-text('Show the solution') >> nth=0");
+  await page.waitForSelector("[aria-label='Solution to worked example 1'] .katex");
+  await shot("tutorial-example");
+  while (await page.locator("button:has-text('Next')").count()) await page.click("button:has-text('Next')");
+  await page.waitForSelector("text=Take the quiz");
+});
+
+await step("tutor: says it needs an AI service and points to what works without one", async () => {
+  await go(`/topic/${T}/tutor`);
+  await page.waitForSelector("text=needs an AI service");
+  await page.waitForSelector("a:has-text('Guided tutorial')");
+  if (await page.locator("textarea").count()) throw new Error("a chat box is offered with no AI service connected");
+  await shot("tutor-gated");
+});
+
+await step("quiz graded flow with unanswered + review + summary", async () => {
+  await go(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Graded quiz')");
+  await page.waitForSelector("text=Question 1 of 10");
+  await page.click("input[type=radio] >> nth=1");
+  await page.click("button:has-text('Next')");
+  await page.click("button:has-text('Back')");
+  await page.click("button:has-text('Next')");
+  await shot("quiz-q2");
+  await page.click("button:has-text('Review') >> nth=-1");
+  await page.waitForSelector("text=Review before submitting");
+  await shot("quiz-review");
+  await page.click("button:has-text('Submit quiz')");
+  await page.waitForSelector("text=Quiz summary", { timeout: 20000 });
+  await shot("quiz-summary");
+});
+
+await step("quiz: written answers are self-scored, labeled, and saved as self-scored", async () => {
+  await go("/");
+  await go(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Graded quiz')");
+  for (let k = 0; k < 5; k++) await page.click("button:has-text('Next')");
+  await page.waitForSelector("text=Question 6 of 10");
+  await page.fill("textarea", "The likelihood is the probability of the data as a function of theta, and the MLE is the value that maximizes it.");
+  await page.click("button:has-text('Review') >> nth=-1");
+  await page.click("button:has-text('Submit quiz')");
+  await page.waitForSelector("text=Score your written answers");
+  await page.waitForSelector("text=Reference answer");
+  const finish = page.locator("button:has-text('Finish and save')");
+  if (!(await finish.isDisabled())) throw new Error("finishing should wait until the answer is rated");
+  await page.click("label:has-text('Partly') input");
+  await shot("quiz-selfcheck");
+  await finish.click();
+  await page.waitForSelector("text=Quiz summary");
+  await page.waitForSelector("text=self-score");
+  await page.waitForTimeout(700); // saves are batched for a moment before they reach the service
+  const state = await apiGet("state");
+  const last = state.state.attempts.filter((a) => a.kind === "quiz").at(-1);
+  if (!last.selfScored) throw new Error("a quiz with a rated written answer must be saved as self-scored");
+});
+
+await step("quiz practice mode locks the first response; a retry is saved separately", async () => {
+  await go("/");
+  await go(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Low-stakes practice')");
+  await page.click("input[type=radio] >> nth=0");
+  await page.click("button:has-text('Check answer')");
+  await page.waitForSelector("text=first response, now locked");
+  const disabled = await page.locator("input[type=radio]").first().isDisabled();
+  if (!disabled) throw new Error("choices not locked after feedback");
+  await page.click("button:has-text('Try again')");
+  await page.click("input[type=radio] >> nth=1");
+  await page.click("button:has-text('Check retry')");
+  await page.waitForSelector("text=does not change your first-attempt score");
+  await shot("quiz-practice");
+});
+
+await step("exam untimed: focus, hint, source toggle, self-score against the reference, review, history, pdf", async () => {
+  await go("/");
+  await go(`/topic/${T}/exam`);
+  await page.fill("label:has-text('Focus') input", "Uniform edge case");
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector("text=Question 1 of");
+  await page.waitForSelector("text=that match your focus");
+  await page.click("button:has-text('Hint')");
+  await page.waitForSelector("text=Hint:");
+  await page.click("button:has-text('Show source material')");
+  await page.waitForSelector(".cite");
+  await shot("exam-aids");
+  for (let i = 0; i < 6; i++) {
+    await page.fill("textarea", "Write the log-likelihood, differentiate, set to zero, so theta-hat = sum x / (2n) because it is the maximizer. For example 9/6.");
+    if (await page.locator("button:has-text('Submit and score')").count()) break;
+    await page.click("button:has-text('Next')");
+  }
+  await page.click("button:has-text('Submit and score')");
+  await page.waitForSelector("text=Score your exam");
+  await page.waitForSelector("h3:has-text('Reference solution')");
+  await shot("exam-selfcheck");
+  await page.locator("fieldset input[type=checkbox]").first().check();
+  await page.click("button:has-text('Finish and save')");
+  await page.waitForSelector("text=attempt 1", { timeout: 20000 });
+  await page.waitForSelector(".chip:has-text('Self-scored')");
+  await page.waitForSelector("summary:has-text('Reference solution')");
+  await shot("exam-review");
+  await go("/exams");
+  await page.waitForSelector("text=Download PDF");
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 8000 }), page.click("button:has-text('Download PDF')")]);
+  console.log("     pdf:", dl.suggestedFilename());
+});
+
+await step("exam: a focus that matches nothing says so and gives the full exam", async () => {
+  await go("/");
+  await go(`/topic/${T}/exam`);
+  await page.fill("label:has-text('Focus') input", "chocolate cake recipes");
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector("text=No question matched that focus");
+});
+
+await step("exam timed hides aids", async () => {
+  await go("/");
+  await go(`/topic/${T}/exam`);
+  await page.click("input[name=mode] >> nth=1");
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector("[role=timer]");
+  if (await page.locator("button:has-text('Hint')").count()) throw new Error("hint visible in timed exam");
+  if (await page.locator("button:has-text('source material')").count()) throw new Error("source toggle visible in timed exam");
+});
+
+await step("citation preview dialog", async () => {
+  await go(`/topic/${T}`);
+  await page.click(".cite >> nth=0");
+  await page.waitForSelector("dialog[open] .page-view mark");
+  const hl = await page.locator("dialog[open] .page-view mark").first().innerText();
+  if (hl.length < 20) throw new Error("highlight too short to be a real passage: " + hl);
+  await page.waitForSelector("dialog[open] iframe.pdf");
+  await page.waitForTimeout(800);
+  await shot("citation-preview");
+  await page.click("dialog button:has-text('Close')");
+});
+
+await step("recall: compare with the reference, self-score, and the streak updates", async () => {
+  await go("/");
+  await go(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", "The MLE maximizes the likelihood because it makes the observed data most probable. It matters since it gives a point estimate, for example n=10.");
+  await page.click("button:has-text('Compare with the reference')");
+  await page.waitForSelector("h3:has-text('Reference solution')");
+  for (const box of await page.locator("fieldset input[type=checkbox]").all()) await box.check();
+  await page.click("button:has-text('Save my self-score')");
+  await page.waitForSelector(".composite");
+  await page.waitForSelector("text=Qualifying recall added to your streak");
+  await page.waitForSelector(".chip:has-text('Self-scored')");
+  await shot("recall");
+});
+
+await step("progress: self-scored attempts are labeled and can be hidden", async () => {
+  await go("/progress");
+  await page.waitForSelector("text=Stats 132 summary");
+  await page.waitForSelector("text=Include self-scored attempts");
+  await page.click("button:has-text('Inspect criteria and attempts') >> nth=0");
+  await page.waitForSelector("td .chip:has-text('Self-scored')");
+  await page.waitForSelector("text=need an AI service");
+  if (!(await page.locator("button:has-text('Core idea')").first().isDisabled())) throw new Error("criterion trends should be unavailable without automatic scoring");
+  await shot("progress");
+  const summary = () => page.locator("section[aria-label='Stats 132 summary'] .stats b").first().innerText();
+  const withSelf = await summary();
+  await page.uncheck("label:has-text('Include self-scored attempts') input");
+  await page.waitForFunction((was) => document.querySelector("section[aria-label='Stats 132 summary'] .stats b")?.textContent !== was, withSelf);
+  const without = await summary();
+  if (without !== "10") throw new Error(`hiding self-scored attempts should leave only the auto-marked quiz (10), got ${without}`);
+  await page.check("label:has-text('Include self-scored attempts') input");
+  await page.waitForFunction((was) => document.querySelector("section[aria-label='Stats 132 summary'] .stats b")?.textContent === was, withSelf);
+});
+
 await step("uploads: unsupported and unreadable files are rejected with a reason and never added", async () => {
   expectNetworkFailure = true; // the browser logs the service's 422 refusals
   await go("/materials");
+  await page.waitForSelector("text=Handwriting:");
+  if ((await page.locator("input[type=file]").first().getAttribute("accept")).includes(".doc,")) throw new Error(".doc should not be offered");
   await mainInput().setInputFiles({ name: "program.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ not a document") });
   await page.waitForSelector("text=not a supported type");
   await mainInput().setInputFiles({ name: "broken.pdf", mimeType: "application/pdf", buffer: Buffer.from("this is not a pdf") });

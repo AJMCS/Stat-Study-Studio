@@ -13,9 +13,6 @@ from __future__ import annotations
 
 import io
 import re
-import shutil
-import subprocess
-import tempfile
 import unicodedata
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -32,7 +29,7 @@ MIN_TEXT_CHARS = 40
 OCR_DPI = 150
 MAX_PDF_PAGES = 400
 IMAGE_SUFFIXES = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
-ACCEPTED_SUFFIXES = {".pdf", ".docx", ".doc", ".txt"} | IMAGE_SUFFIXES
+ACCEPTED_SUFFIXES = {".pdf", ".docx", ".txt"} | IMAGE_SUFFIXES
 
 Progress = Callable[[int, int], None]
 
@@ -204,23 +201,6 @@ def extract_docx(path: Path) -> list[PageText]:
     return _pseudo_pages(blocks)
 
 
-def extract_doc(path: Path) -> list[PageText]:
-    """Legacy .doc has no pure-Python reader. Use LibreOffice if the learner happens to have it; otherwise explain."""
-    soffice = shutil.which("soffice") or shutil.which("libreoffice")
-    if soffice:
-        with tempfile.TemporaryDirectory() as out:
-            try:
-                subprocess.run([soffice, "--headless", "--convert-to", "docx", "--outdir", out, str(path)], check=True, capture_output=True, timeout=120)
-                converted = next(Path(out).glob("*.docx"), None)
-                if converted:
-                    return extract_docx(converted)
-            except (subprocess.SubprocessError, OSError):
-                pass
-    raise ParseError(
-        "Older Word files (.doc) can't be read here. In Word, choose File > Save As and pick Word Document (.docx) or PDF, then upload that copy."
-    )
-
-
 def extract(path: Path, force_ocr: bool = False, progress: Progress | None = None) -> list[PageText]:
     suffix = path.suffix.lower()
     if suffix == ".pdf":
@@ -229,8 +209,6 @@ def extract(path: Path, force_ocr: bool = False, progress: Progress | None = Non
         return extract_text_file(path)
     if suffix == ".docx":
         return extract_docx(path)
-    if suffix == ".doc":
-        return extract_doc(path)
     if suffix in IMAGE_SUFFIXES:
         return extract_image(path)
     raise ParseError(

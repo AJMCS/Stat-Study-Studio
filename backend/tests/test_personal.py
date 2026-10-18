@@ -176,6 +176,7 @@ def assert_nothing_added(client):
     [
         ("program.exe", b"MZ....", "not a supported type"),
         ("empty.txt", b"", "empty"),
+        ("legacy.doc", b"\xd0\xcf\x11\xe0 old word file", "Save As"),
     ],
 )
 def test_rejected_immediately_with_a_reason(client, name, data, message):
@@ -188,7 +189,6 @@ def test_rejected_immediately_with_a_reason(client, name, data, message):
     "name,data,message",
     [
         ("broken.pdf", b"this is not a pdf at all", "could not be opened"),
-        ("legacy.doc", b"\xd0\xcf\x11\xe0 old word file", "Save As"),
         ("binary.txt", bytes(range(256)) * 20, "binary"),
         ("blank.png", None, "No readable text"),
         ("fake.docx", b"PK not really a docx", "could not be opened"),
@@ -387,6 +387,7 @@ def test_database_upgrades_from_the_first_schema(tmp_path):
     db = Database(path)
     state = db.get_state()
     assert state["files"][0]["filename"] == "old.pdf" and state["files"][0]["flaggedPages"] == 0
-    assert db.read("PRAGMA user_version")[0][0] == 2
+    assert db.read("PRAGMA user_version")[0][0] == 3
+    db.read("SELECT ai_scored FROM attempts")
     db.read("SELECT * FROM personal_chunks")
     db.close()
