@@ -23,7 +23,10 @@
       "title": "Frequentist vs. Bayesian Inference",
       "lecture": 2,
       "lectureNotes": "lecture-notes/lecture-02-frequentist-vs-bayesian-inference.pdf",
-      "relatedDiscussion": [],
+      "relatedDiscussion": [
+        "discussion-sections/disc-01.pdf",
+        "discussion-sections/disc-01-annotated.pdf"
+      ],
       "readings": [],
       "quizzes": [],
       "prerequisites": [],
@@ -37,8 +40,6 @@
       "lecture": 3,
       "lectureNotes": "lecture-notes/lecture-03-the-posterior-distribution.pdf",
       "relatedDiscussion": [
-        "discussion-sections/disc-01.pdf",
-        "discussion-sections/disc-01-annotated.pdf",
         "discussion-sections/disc-02.pdf",
         "discussion-sections/disc-02-annotated.pdf"
       ],
@@ -101,7 +102,8 @@
       "lecture": 6,
       "lectureNotes": "lecture-notes/lecture-06-maximum-likelihood-properties.pdf",
       "relatedDiscussion": [
-        "discussion-sections/disc-04.pdf"
+        "discussion-sections/disc-03.pdf",
+        "discussion-sections/disc-03-annotated.pdf"
       ],
       "readings": [],
       "quizzes": [
