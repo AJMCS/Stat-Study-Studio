@@ -10,7 +10,8 @@ const LEGACY_BACKUP_KEY = "stats132-studio-v1-backup-before-service";
 
 export const GENERAL_ID = "general";
 
-const SLICES: Slice[] = ["attempts", "quizzes", "exams", "topicState", "session", "collections", "files", "config", "hostedDisclosureAck", "chats"];
+// `files` is deliberately not here: the service owns uploaded files and the app only reads them.
+const SLICES: Slice[] = ["attempts", "quizzes", "exams", "topicState", "session", "collections", "config", "hostedDisclosureAck", "chats"];
 const SAVE_DELAY_MS = 150;
 
 const empty = (): AppData => ({
@@ -76,6 +77,8 @@ interface Store {
   deleteAttempt: (id: string) => void;
   saveQuiz: (q: QuizResult) => void;
   saveExam: (e: ExamRecord) => void;
+  /** Reload the list of uploaded files from the service (after an upload, replace, remove or reconnect). */
+  refreshFiles: () => Promise<void>;
   exportData: () => Promise<string>;
   deleteAll: () => Promise<void>;
   /** Set when the last attempt to save failed. Cleared by a successful save or `retrySave`. */
@@ -198,6 +201,11 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteAttempt: (id) => update((d) => ({ ...d, attempts: d.attempts.filter((a) => a.id !== id) })),
       saveQuiz: (q) => update((d) => ({ ...d, quizzes: [q, ...d.quizzes] })),
       saveExam: (e) => update((d) => ({ ...d, exams: [e, ...d.exams] })),
+      refreshFiles: async () => {
+        const files = await api.listFiles();
+        if (saved.current) saved.current = { ...saved.current, files };
+        setData((d) => ({ ...d, files }));
+      },
       exportData: () => api.exportText(),
       deleteAll: async () => {
         await api.deleteAll();

@@ -69,7 +69,6 @@ def test_every_slice_roundtrips(client):
             {"id": "general", "name": "General", "consent": False, "searchByDefault": True},
             {"id": "c2", "name": "Homework 3", "consent": True, "searchByDefault": False},
         ],
-        "files": [{"id": "f1", "collectionId": "c2", "filename": "n.txt", "version": 2, "uploadedAt": "x", "pages": 3, "ocr": True, "ocrConfidence": 0.55, "removed": False, "supersedes": "f0", "linkBroken": True}],
         "config": CONFIG,
         "hostedDisclosureAck": True,
         "chats": {"t1": [{"role": "tutor", "text": "hi"}]},
@@ -77,6 +76,7 @@ def test_every_slice_roundtrips(client):
     for name, value in state.items():
         assert put(client, name, value).status_code == 200, name
     got = client.get("/api/state").json()["state"]
+    assert got.pop("files") == []  # owned by the service, not a slice the app can write
     assert got == state
 
 

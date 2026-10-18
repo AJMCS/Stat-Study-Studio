@@ -160,21 +160,133 @@ await step("progress page", async () => {
   await shot("progress");
 });
 
-await step("materials: reject bad file, upload txt, search with consent", async () => {
+const mainInput = () => page.locator("input[type=file]").first();
+const apiGet = async (path) => (await page.request.get(`${BASE.split("#")[0]}api/${path}`)).json();
+
+/** A small valid PDF with one line of text per page. */
+function makePdf(lines) {
+  const objs = [];
+  const add = (body) => objs.push(body) && objs.length;
+  const pageIds = [];
+  add("<</Type/Catalog/Pages 2 0 R>>");
+  add("PAGES");
+  add("<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>"); // object 3
+  for (const line of lines) {
+    const content = `BT /F1 14 Tf 72 720 Td (${line}) Tj ET`;
+    const contentId = add(`<</Length ${content.length}>>\nstream\n${content}\nendstream`);
+    pageIds.push(add(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents ${contentId} 0 R/Resources<</Font<</F1 3 0 R>>>>>>`));
+  }
+  objs[1] = `<</Type/Pages/Kids[${pageIds.map((i) => `${i} 0 R`).join(" ")}]/Count ${pageIds.length}>>`;
+  let out = "%PDF-1.4\n";
+  const offsets = [];
+  objs.forEach((body, i) => {
+    offsets.push(out.length);
+    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
+  });
+  const xref = out.length;
+  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
+  out += `trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF`;
+  return Buffer.from(out, "latin1");
+}
+
+async function photoOf(html) {
+  const tmp = await ctx.newPage();
+  await tmp.setContent(`<body style="margin:0;background:#fff"><div style="font:44px Arial;padding:30px;width:1400px;color:#000">${html}</div></body>`);
+  const png = await tmp.screenshot({ clip: { x: 0, y: 0, width: 1460, height: 220 } });
+  await tmp.close();
+  return png;
+}
+
+await step("uploads: unsupported and unreadable files are rejected with a reason and never added", async () => {
+  expectNetworkFailure = true; // the browser logs the service's 422 refusals
   await go("/materials");
-  writeFileSync(`${OUT}/bad.xyz`, "nope");
-  writeFileSync(`${OUT}/notes.txt`, "The sampling distribution of the maximum likelihood estimator describes variability.\n\nMy own tip: always check the second derivative.");
-  await page.setInputFiles("input[type=file]", `${OUT}/bad.xyz`).catch(() => {});
-  await page.waitForTimeout(400);
-  await page.setInputFiles("input[type=file]", `${OUT}/notes.txt`);
-  await page.waitForSelector("text=notes.txt");
-  await page.fill("input[placeholder*='sampling']", "second derivative maximum likelihood");
+  await mainInput().setInputFiles({ name: "program.exe", mimeType: "application/octet-stream", buffer: Buffer.from("MZ not a document") });
+  await page.waitForSelector("text=not a supported type");
+  await mainInput().setInputFiles({ name: "broken.pdf", mimeType: "application/pdf", buffer: Buffer.from("this is not a pdf") });
+  await page.waitForSelector("text=could not be opened");
+  await shot("upload-rejected");
+  const files = await apiGet("files");
+  if (files.length) throw new Error("a rejected file was added: " + JSON.stringify(files));
+  await page.click("button:has-text('Dismiss') >> nth=0");
+  expectNetworkFailure = false;
+});
+
+await step("uploads: a text file becomes searchable and is cited as Personal with collection, filename and page", async () => {
+  await go("/materials");
+  await mainInput().setInputFiles({
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("The sampling distribution of the maximum likelihood estimator describes variability.\n\nMy own tip: always check that the second derivative is negative at the candidate maximum."),
+  });
+  await page.waitForSelector("text=it is searchable now");
+  await page.fill("input[placeholder*='sampling']", "check the second derivative is negative at the maximum");
   await page.click("button:has-text('Search')");
-  await page.waitForSelector("dialog[open] >> text=Send to a hosted model?");
-  await shot("consent");
-  await page.click("dialog button:has-text('Allow')");
-  await page.waitForSelector(".cite");
-  await shot("materials-results");
+  await page.waitForSelector(".cite:has-text('Personal · General · notes.txt · p. 1')");
+  await page.click(".cite:has-text('notes.txt')");
+  await page.waitForSelector("dialog[open] .plain-page mark");
+  await shot("personal-preview");
+  await page.click("dialog button:has-text('Close')");
+});
+
+await step("uploads: a photo of notes is read with OCR, flagged as OCR, and its page picture is shown", async () => {
+  await go("/materials");
+  const png = await photoOf("Maximum likelihood estimation chooses the parameter<br>that makes the observed data most likely");
+  await mainInput().setInputFiles({ name: "photo.png", mimeType: "image/png", buffer: png });
+  await page.waitForSelector("text=Added photo.png");
+  await page.waitForSelector("text=read with OCR");
+  await page.fill("input[placeholder*='sampling']", "maximum likelihood estimation chooses the parameter that makes the observed data likely");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector(".cite:has-text('photo.png')");
+  await page.click(".cite:has-text('photo.png')");
+  await page.waitForSelector("dialog[open] img.page-image");
+  const loaded = await page.locator("dialog[open] img.page-image").evaluate((img) => img.complete && img.naturalWidth > 0);
+  if (!loaded) throw new Error("page picture did not load");
+  if (!/OCR/.test(await page.locator("dialog[open]").innerText())) throw new Error("no OCR note in the preview");
+  await shot("personal-ocr-preview");
+  await page.click("dialog button:has-text('Close')");
+});
+
+await step("uploads: PDF pages keep their numbers", async () => {
+  await go("/materials");
+  await mainInput().setInputFiles({
+    name: "two-pages.pdf",
+    mimeType: "application/pdf",
+    buffer: makePdf(["Page one covers conjugate priors", "Page two covers the delta method and asymptotic variance"]),
+  });
+  await page.waitForSelector("text=Added two-pages.pdf");
+  await page.fill("input[placeholder*='sampling']", "delta method asymptotic variance");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector(".cite:has-text('two-pages.pdf · p. 2')");
+});
+
+await step("uploads: replacing makes version 2 and only the new text is searched", async () => {
+  await go("/materials");
+  const row = page.locator("section[aria-label='Your collections'] li", { hasText: "notes.txt" }).first();
+  await row.locator("button:has-text('Replace')").click();
+  await page.setInputFiles("[data-testid=replace-input]", {
+    name: "notes.txt",
+    mimeType: "text/plain",
+    buffer: Buffer.from("Updated tip: a conjugate prior keeps the posterior in the same family as the prior distribution."),
+  });
+  await page.waitForSelector("section[aria-label='Your collections'] li:has-text('notes.txt') >> text=v2");
+  const hits = (await apiGet("search?q=" + encodeURIComponent("second derivative negative at the candidate maximum"))).personal;
+  if (hits.some((h) => /second derivative/.test(h.text))) throw new Error("old version is still searched");
+  const fresh = (await apiGet("search?q=" + encodeURIComponent("conjugate prior keeps the posterior in the same family"))).personal;
+  if (!fresh.some((h) => h.filename === "notes.txt" && h.version === 2)) throw new Error("new version not found");
+});
+
+await step("uploads: removing a file takes it out of search and says what is kept", async () => {
+  await go("/materials");
+  const row = page.locator("section[aria-label='Your collections'] li", { hasText: "photo.png" }).first();
+  await row.locator("button:has-text('Remove')").click();
+  await page.click("button:has-text('Remove for good')");
+  await page.waitForSelector("text=was removed from search and from this device");
+  const files = await apiGet("files");
+  const photo = files.find((f) => f.filename === "photo.png");
+  if (!photo || !photo.removed) throw new Error("record should be kept, marked removed");
+  const hits = (await apiGet("search?q=" + encodeURIComponent("maximum likelihood estimation chooses the parameter"))).personal;
+  if (hits.some((h) => h.filename === "photo.png")) throw new Error("removed file still searched");
+  if ((await page.request.get(`${BASE.split("#")[0]}api/files/${photo.id}/original`)).status() !== 404) throw new Error("removed original still served");
 });
 
 await step("search: real passage, citation, highlight and PDF page", async () => {

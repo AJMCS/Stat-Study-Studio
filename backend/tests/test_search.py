@@ -115,7 +115,7 @@ def test_page_endpoint(client):
 # ---------------------------------------------------------------- keyword fallback
 def test_search_still_works_when_the_embedding_model_is_unavailable(monkeypatch):
     idx = SharedIndex()
-    monkeypatch.setattr(idx, "_ensure_model", lambda: None)
+    monkeypatch.setattr(idx.embedder, "ensure", lambda: None)
     hits = idx.search("conjugate prior definition", k=3)
     assert idx.mode == "keyword"
     assert any(h.source.endswith("lecture-03-the-posterior-distribution.pdf") and h.page == 4 for h in hits)

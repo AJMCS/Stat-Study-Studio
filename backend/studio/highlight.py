@@ -51,14 +51,28 @@ def candidates(markdown: str) -> list[str]:
     return [c for c in out if MIN_LEN <= len(c) <= MAX_LEN]
 
 
-def best_highlight(page_text: str, query: str) -> str | None:
-    """The best matching passage, as a verbatim substring of `page_text`, or None if nothing matches well."""
+def plain_candidates(text: str) -> list[str]:
+    """Candidate passages for plain text (personal uploads), which has no markup to avoid: one line at a time."""
+    out: list[str] = []
+    for line in text.split("\n"):
+        sentences = [s.strip() for s in _SENTENCE_BREAK.split(line) if s.strip()]
+        for i, sent in enumerate(sentences):
+            out.append(sent)
+            if i + 1 < len(sentences):
+                out.append(f"{sent} {sentences[i + 1]}")
+    return [c for c in out if MIN_LEN <= len(c) <= MAX_LEN]
+
+
+def best_highlight(page_text: str, query: str, markdown: bool = True) -> str | None:
+    """The best matching passage, as a verbatim substring of `page_text`, or None if nothing matches well.
+
+    `markdown=False` is for plain text, which is shown as is, so any line can hold a highlight."""
     terms = content_terms(query)
     if not terms:
         return None
     need = min(2, len(terms))
     best, best_score = None, 0.0
-    for cand in candidates(page_text):
+    for cand in (candidates(page_text) if markdown else plain_candidates(page_text)):
         if cand not in page_text:  # sentence pairs are joined with one space; keep only true substrings
             continue
         hits = len(terms & content_terms(cand))

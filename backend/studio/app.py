@@ -9,13 +9,15 @@ from __future__ import annotations
 
 import json
 import os
+import shutil
 import sqlite3
+import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
-from fastapi import Body, FastAPI, HTTPException, Query, Request
+from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from platformdirs import user_data_dir
@@ -24,9 +26,11 @@ from pydantic import ValidationError
 from . import __version__
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
+from .embedder import DEFAULT_MODEL, Embedder
 from .highlight import best_highlight
 from .models import ALL_SLICES
 from .pages import PageStore
+from .personal import MAX_BYTES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
 
 DEFAULT_PORT = 8765
@@ -59,8 +63,14 @@ def create_app(
     async def lifespan(app: FastAPI):
         app.state.db = Database(data_dir / "studio.sqlite3")
         app.state.pages = PageStore(library_dir)
-        app.state.index = SharedIndex(index_dir, cache_dir=Path(model_cache) if model_cache else None) if (index_dir / "index.json").exists() else None
+        model_name = DEFAULT_MODEL
+        if (index_dir / "index.json").exists():
+            model_name = json.loads((index_dir / "index.json").read_text(encoding="utf-8"))["embedding_model"]
+        app.state.embedder = Embedder(model_name, Path(model_cache) if model_cache else None)
+        app.state.index = SharedIndex(index_dir, embedder=app.state.embedder) if (index_dir / "index.json").exists() else None
+        app.state.personal = PersonalStore(app.state.db, data_dir, app.state.embedder)
         yield
+        app.state.personal.shutdown()
         app.state.db.close()
 
     app = FastAPI(title="Stats 132 Study Studio", version=__version__, lifespan=lifespan, docs_url=None, redoc_url=None)
@@ -90,21 +100,31 @@ def create_app(
         }
 
     @app.get("/api/search")
-    def search(q: str = Query(min_length=1, max_length=500), k: int = Query(5, ge=1, le=10)) -> dict[str, Any]:
-        """Passages from the shared course library that match the question, each with a citation."""
+    def search(
+        q: str = Query(min_length=1, max_length=500),
+        k: int = Query(5, ge=1, le=10),
+        collection: list[str] = Query(default=[]),
+    ) -> dict[str, Any]:
+        """Passages that match the question, each with a citation.
+
+        `results` come from the shared course library; `personal` from the learner's uploads. The General collection
+        is always searched; `collection` adds named ones."""
         index: SharedIndex | None = app.state.index
-        if index is None:
-            raise HTTPException(503, "The course library index is missing. Ask the maintainer to rebuild it.")
         pages: PageStore = app.state.pages
         results = []
-        for hit in index.search(q, k=k):
-            page = pages.get(hit.source, hit.page)
-            d = hit.as_dict()
-            d["title"] = pages.title(hit.source)
-            d["highlight"] = best_highlight(page.text, q) if page else None
-            d["warning"] = page.warning if page else None
-            results.append(d)
-        return {"query": q, "mode": index.mode, "results": results}
+        if index is not None:
+            for hit in index.search(q, k=k):
+                page = pages.get(hit.source, hit.page)
+                d = hit.as_dict()
+                d["title"] = pages.title(hit.source)
+                d["highlight"] = best_highlight(page.text, q) if page else None
+                d["warning"] = page.warning if page else None
+                results.append(d)
+        personal = app.state.personal.search(q, k=k, collection_ids=set(collection))
+        if index is None and not personal and not app.state.db.read("SELECT 1 FROM files LIMIT 1"):
+            raise HTTPException(503, "The course library index is missing. Ask the maintainer to rebuild it.")
+        mode = "semantic" if app.state.embedder.available else "keyword"
+        return {"query": q, "mode": mode, "results": results, "personal": personal}
 
     @app.get("/api/page")
     def get_page(source: str = Query(max_length=300), page: int = Query(ge=1)) -> dict[str, Any]:
@@ -113,6 +133,99 @@ def create_app(
         if found is None:
             raise HTTPException(404, "That page is not in the course library")
         return found.as_dict()
+
+    # ------------------------------------------------------------------ personal files
+    async def _receive(upload: UploadFile) -> Path:
+        """Stream an upload to disk (never into memory) and enforce the size limit."""
+        name = Path(upload.filename or "upload").name or "upload"
+        folder = app.state.personal.incoming_dir / uuid.uuid4().hex
+        folder.mkdir(parents=True)
+        dest = folder / f"original{Path(name).suffix.lower() or '.bin'}"
+        size = 0
+        try:
+            with dest.open("wb") as out:
+                while chunk := await upload.read(1024 * 1024):
+                    size += len(chunk)
+                    if size > MAX_BYTES:
+                        raise UploadRejected(f'"{name}" is larger than {MAX_BYTES // (1024 * 1024)} MB. Split it into smaller files.', 413)
+                    out.write(chunk)
+        except BaseException:
+            shutil.rmtree(folder, ignore_errors=True)
+            raise
+        return dest
+
+    @app.post("/api/uploads", status_code=202)
+    async def upload(file: UploadFile = File(...), collectionId: str = Form(...), replaceId: str | None = Form(None)) -> dict[str, Any]:
+        """Start adding a file. Parsing and OCR run in the background; poll /api/uploads/{id} for progress."""
+        store: PersonalStore = app.state.personal
+        try:
+            dest = await _receive(file)
+            try:
+                job = store.submit(dest, file.filename or "upload", collectionId, replaceId)
+            except BaseException:
+                shutil.rmtree(dest.parent, ignore_errors=True)
+                raise
+        except UploadRejected as e:
+            raise HTTPException(e.status, str(e)) from e
+        return job.as_dict()
+
+    @app.get("/api/uploads/{upload_id}")
+    def upload_status(upload_id: str) -> dict[str, Any]:
+        job = app.state.personal.job(upload_id)
+        if job is None:
+            raise HTTPException(404, "Unknown upload")
+        return job.as_dict()
+
+    @app.get("/api/files")
+    def list_files() -> list[dict[str, Any]]:
+        return app.state.db.get_state()["files"]
+
+    @app.delete("/api/files/{file_id}")
+    def remove_file(file_id: str) -> dict[str, bool]:
+        if not app.state.personal.remove(file_id):
+            raise HTTPException(404, "That file is not in your collections")
+        return {"ok": True}
+
+    @app.post("/api/files/{file_id}/reconnect")
+    async def reconnect_file(file_id: str, file: UploadFile = File(...)) -> dict[str, bool]:
+        try:
+            dest = await _receive(file)
+            try:
+                app.state.personal.reconnect(file_id, dest)
+            finally:
+                shutil.rmtree(dest.parent, ignore_errors=True)
+        except UploadRejected as e:
+            raise HTTPException(e.status, str(e)) from e
+        return {"ok": True}
+
+    @app.get("/api/files/{file_id}/original")
+    def original_file(file_id: str) -> FileResponse:
+        path = app.state.personal.original_path(file_id)
+        if path is None:
+            raise HTTPException(404, "The original file is not available on this device")
+        row = app.state.db.read("SELECT filename FROM files WHERE id=?", (file_id,))[0]
+        return FileResponse(
+            path,
+            media_type=MEDIA_TYPES.get(path.suffix.lower(), "application/octet-stream"),
+            filename=row["filename"],
+            content_disposition_type="inline",
+            headers={"X-Content-Type-Options": "nosniff"},
+        )
+
+    @app.get("/api/files/{file_id}/pages/{page}")
+    def file_page(file_id: str, page: int) -> dict[str, Any]:
+        found = app.state.personal.get_page(file_id, page)
+        if found is None:
+            raise HTTPException(404, "That page is not available")
+        return found
+
+    @app.get("/api/files/{file_id}/pages/{page}/image")
+    def file_page_image(file_id: str, page: int) -> Response:
+        found = app.state.personal.page_image(file_id, page)
+        if found is None:
+            raise HTTPException(404, "No picture of that page is available")
+        data, media = found
+        return Response(data, media_type=media, headers={"X-Content-Type-Options": "nosniff"})
 
     @app.get("/api/state")
     def get_state() -> dict[str, Any]:
@@ -133,6 +246,7 @@ def create_app(
         if db().initialized() and not overwrite:
             raise HTTPException(409, "Study data already exists on this device")
         try:
+            app.state.personal.wipe()  # an import replaces everything, including uploaded files
             db().import_state(state)
         except (ValidationError, ValueError, sqlite3.IntegrityError) as e:
             raise HTTPException(422, _explain(e)) from e
@@ -154,6 +268,7 @@ def create_app(
 
     @app.delete("/api/data")
     def delete_all() -> dict[str, bool]:
+        app.state.personal.wipe()
         db().wipe()
         return {"ok": True}
 

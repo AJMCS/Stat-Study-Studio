@@ -47,6 +47,10 @@ export interface SourceRef {
   highlight?: string;
   lowConfidence?: boolean;
   warning?: string | null;
+  /** Personal sources: the file on this device, for the preview and "open the original". */
+  fileId?: string;
+  /** True when a past activity cites a version that has since been replaced; its upload date is then shown. */
+  olderVersion?: boolean;
   ocr?: boolean;
   ocrConfidence?: number;
   unavailable?: boolean;
@@ -186,6 +190,10 @@ export interface PersonalFile {
   removed: boolean;
   supersedes?: string;
   linkBroken?: boolean;
+  size?: number;
+  /** Pages that may be missing symbols or were read with low confidence. */
+  flaggedPages?: number;
+  lowConfidence?: boolean;
 }
 
 export interface AppData {

@@ -9,7 +9,6 @@ from __future__ import annotations
 
 import json
 import logging
-import threading
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -17,7 +16,8 @@ import numpy as np
 from rank_bm25 import BM25Okapi
 
 from .config import INDEX_DIR, SEARCHABLE_KINDS
-from .textnorm import latex_to_text, tokenize
+from .embedder import Embedder
+from .textnorm import tokenize
 
 # How strongly each kind of source is preferred when results are otherwise close.
 KIND_WEIGHT = {
@@ -68,64 +68,16 @@ class SharedIndex:
     """`mode` is "semantic" when the embedding model is loaded and "keyword" when it is not (for example on first
     run without internet, before the model has been downloaded). Keyword search keeps working either way."""
 
-    def __init__(self, index_dir: Path = INDEX_DIR, cache_dir: Path | None = None):
-        self.cache_dir = cache_dir
+    def __init__(self, index_dir: Path = INDEX_DIR, cache_dir: Path | None = None, embedder: Embedder | None = None):
         self.mode = "semantic"
-        self._loading = False
-        self._lock = threading.Lock()
         meta = json.loads((index_dir / "index.json").read_text(encoding="utf-8"))
         self.meta = meta
+        self.embedder = embedder or Embedder(meta["embedding_model"], cache_dir)
         self.rows = [json.loads(line) for line in (index_dir / "chunks.jsonl").read_text(encoding="utf-8").splitlines()]
         self.emb = np.load(index_dir / "embeddings.npy").astype(np.float32)
         if len(self.rows) != len(self.emb):
             raise ValueError("index is inconsistent: chunk and embedding counts differ; rebuild it")
         self._bm25 = BM25Okapi([tokenize(f"{r['heading']}. {r['text']}") for r in self.rows])
-        self._model = None
-
-    # ------------------------------------------------------------------ embedding
-    def _load_model(self, local_only: bool):
-        from fastembed import TextEmbedding
-
-        kwargs = {"model_name": self.meta["embedding_model"], "local_files_only": local_only}
-        if self.cache_dir:
-            kwargs["cache_dir"] = str(self.cache_dir)
-        return TextEmbedding(**kwargs)
-
-    def _download_in_background(self) -> None:
-        def work():
-            try:
-                model = self._load_model(local_only=False)
-                with self._lock:
-                    self._model = model
-                log.info("Embedding model downloaded; semantic search is on.")
-            except Exception as e:  # offline, blocked, disk full: keep using keyword search
-                log.info("Embedding model unavailable (%s); using keyword search.", e)
-            finally:
-                self._loading = False
-
-        self._loading = True
-        threading.Thread(target=work, daemon=True).start()
-
-    def _ensure_model(self):
-        with self._lock:
-            if self._model is not None:
-                return self._model
-            if self._loading:
-                return None
-            try:
-                self._model = self._load_model(local_only=True)
-                return self._model
-            except Exception:
-                pass
-        self._download_in_background()
-        return None
-
-    def _embed_query(self, query: str) -> np.ndarray | None:
-        model = self._ensure_model()
-        if model is None:
-            return None
-        v = np.array(list(model.query_embed([latex_to_text(query)])))[0].astype(np.float32)
-        return v / np.linalg.norm(v)
 
     # ------------------------------------------------------------------ search
     def search(
@@ -147,7 +99,7 @@ class SharedIndex:
         if not allowed:
             return []
         idx = np.array(allowed)
-        qv = self._embed_query(query)
+        qv = self.embedder.embed_query(query)
         self.mode = "semantic" if qv is not None else "keyword"
         dense = self.emb[idx] @ qv if qv is not None else np.zeros(len(idx))
         bm = np.asarray(self._bm25.get_scores(tokenize(query)))[idx]

@@ -10,7 +10,7 @@ ingestion and retrieval code.
 python -m venv venv
 venv/Scripts/python.exe -m pip install -r backend/requirements.txt     # Windows
 cd backend
-../venv/Scripts/python.exe -m pytest                                   # 47 tests
+../venv/Scripts/python.exe -m pytest                                   # 79 tests
 ```
 
 ## Running the service
@@ -28,8 +28,14 @@ It serves the built web app (`app/dist`), the course PDFs at `/course-library/`,
 | endpoint | purpose |
 | --- | --- |
 | `GET /api/health` | version and shared-library index info |
-| `GET /api/search?q=...&k=5` | passages from the shared library with citations; each has a `highlight` that is verbatim text on its page, or `null` when no passage matches well |
+| `GET /api/search?q=...&k=5&collection=id` | `results` (shared library) and `personal` (uploads; General is always searched, `collection` adds named ones), each with a citation; each has a `highlight` that is verbatim text on its page, or `null` when no passage matches well |
 | `GET /api/page?source=...&page=N` | the text of one cited page, for the preview (only documents in the library can be read) |
+| `POST /api/uploads` | add a personal file (multipart: `file`, `collectionId`, optional `replaceId`); returns an upload id and works in the background |
+| `GET /api/uploads/{id}` | progress (`page 3 of 12`), then the new file record and a report of pages that need a second look, or a reason it was rejected |
+| `GET /api/files` | personal files, including removed ones (kept as records) |
+| `DELETE /api/files/{id}` | remove a file: out of search, text and original deleted, record kept |
+| `POST /api/files/{id}/reconnect` | restore a file whose original went missing (must be the same bytes) |
+| `GET /api/files/{id}/original`, `/pages/{n}`, `/pages/{n}/image` | the original, the extracted text of a page, and a picture of the page |
 | `GET /api/state` | everything the app needs on load, plus `initialized` |
 | `PUT /api/state/{slice}` | replace one slice (`attempts`, `quizzes`, `exams`, `topicState`, `session`, `collections`, `files`, `config`, `hostedDisclosureAck`, `chats`) in one transaction |
 | `POST /api/import` | one-time move of old browser-storage data (refuses to overwrite unless `?overwrite=true`) |
@@ -44,6 +50,27 @@ Any site open in the learner's browser can try to call `localhost`. The service 
 not localhost (blocks DNS rebinding), refuses every state-changing request whose `Origin` is not the app itself,
 and sends no CORS headers, so a foreign page cannot read responses either. The end-to-end test confirms a foreign
 page can neither read nor delete study data.
+
+## Personal uploads
+
+Files are copied to `<data dir>/personal/<file id>/original.<ext>`; extracted text, pages and the search index live
+in the same SQLite file. Nothing leaves the device.
+
+- **Formats:** PDF (text or scanned, OCR per page), Word `.docx`, `.txt`, and images (PNG, JPG, TIFF, BMP, WebP).
+  Legacy `.doc` is read only if LibreOffice happens to be installed; otherwise the learner is told to save as `.docx`
+  or PDF. Limits: 200 MB per file, 400 PDF pages.
+- **Rejected with a reason, never added or searchable:** wrong type, empty, damaged, password-protected, binary
+  `.txt`, an exact duplicate, a name that already exists in the collection (use Replace), and anything with no
+  readable text.
+- **Warnings, not blocks:** pages read by OCR, with low confidence, or whose math may be missing symbols are flagged;
+  the file is searchable immediately and the learner can "accept as is" or review the page.
+- **Versions:** Replace creates version N+1 and the old version stops being searched. Its pages and original are
+  kept so past activity can still show what it cited. Removing a file also deletes its older versions' data and
+  leaves only a record marked removed.
+- **Moved or missing originals** are excluded from search until reconnected (same bytes) or re-added.
+- **Embeddings** are computed at upload when the model is available; otherwise chunks are keyword-searched and
+  embedded later (`personal_chunks.embedding` is null until then).
+- Personal results are never mixed into the shared index or returned as shared; shared results always come first.
 
 ## End-to-end tests
 
@@ -130,5 +157,5 @@ studio/db.py          SQLite storage (one transaction per slice)
 studio/models.py      validation models, camelCase on the wire
 studio/server.py      `python -m studio.server`
 eval/                 retrieval and OCR bake-offs
-tests/                47 tests (library, retrieval, search, API, security)
+tests/                79 tests (library, retrieval, search, API, security, personal uploads)
 ```

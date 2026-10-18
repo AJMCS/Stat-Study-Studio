@@ -1,8 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SourceRef } from "../types";
-import { api, type PageInfo } from "../lib/api";
-import { getBlob } from "../lib/personal";
+import { api, type PageInfo, type PersonalPageInfo } from "../lib/api";
 import { PageView } from "./PageView";
+import { PlainText } from "./PlainText";
 
 export const LOW_OCR = 0.7;
 
@@ -19,7 +19,7 @@ export function SourceTag({ s }: { s: SourceRef }) {
   return (
     <span className="tag">
       {parts.filter(Boolean).join(" · ")}
-      {s.uploadedAt && s.version && s.version > 1 && <span className="muted"> ({new Date(s.uploadedAt).toLocaleDateString()})</span>}
+      {s.olderVersion && s.uploadedAt && <span className="muted"> ({new Date(s.uploadedAt).toLocaleDateString()})</span>}
       {s.unavailable && <span className="muted"> (unavailable)</span>}
     </span>
   );
@@ -61,14 +61,16 @@ export function Citations({ sources, empty }: { sources: SourceRef[]; empty?: st
   );
 }
 
-type Load = { state: "loading" } | { state: "ready"; page: PageInfo } | { state: "failed"; message: string };
+type Load<T> = { state: "loading" } | { state: "ready"; page: T } | { state: "failed"; message: string };
 
 export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => void }) {
   const ref = useRef<HTMLDialogElement>(null);
   const [fileMsg, setFileMsg] = useState("");
-  const [load, setLoad] = useState<Load>({ state: "loading" });
+  const [shared, setShared] = useState<Load<PageInfo>>({ state: "loading" });
+  const [personal, setPersonal] = useState<Load<PersonalPageInfo>>({ state: "loading" });
   const [marked, setMarked] = useState<boolean | null>(null);
-  const shared = s.kind === "Shared" && !!s.filename && s.page !== undefined;
+  const isShared = s.kind === "Shared" && !!s.filename && s.page !== undefined;
+  const isPersonal = s.kind === "Personal" && !!s.fileId && s.page !== undefined;
 
   useEffect(() => {
     const d = ref.current;
@@ -77,58 +79,68 @@ export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => voi
   }, []);
 
   useEffect(() => {
-    if (!shared) return;
     let cancelled = false;
-    api
-      .page(s.filename!, s.page!)
-      .then((page) => !cancelled && setLoad({ state: "ready", page }))
-      .catch((e) => !cancelled && setLoad({ state: "failed", message: e instanceof Error ? e.message : "The page text could not be loaded." }));
+    const fail = (e: unknown) => ({ state: "failed" as const, message: e instanceof Error ? e.message : "The page text could not be loaded." });
+    if (isShared) api.page(s.filename!, s.page!).then((page) => !cancelled && setShared({ state: "ready", page })).catch((e) => !cancelled && setShared(fail(e)));
+    if (isPersonal) api.personalPage(s.fileId!, s.page!).then((page) => !cancelled && setPersonal({ state: "ready", page })).catch((e) => !cancelled && setPersonal(fail(e)));
     return () => {
       cancelled = true;
     };
-  }, [shared, s.filename, s.page]);
+  }, [isShared, isPersonal, s.filename, s.fileId, s.page]);
 
   const onHighlight = useCallback((found: boolean) => setMarked(found), []);
 
-  const openFile = async () => {
+  const openFile = () => {
     if (s.unavailable) return setFileMsg("The original file is no longer available.");
-    if (s.kind === "Personal") {
-      const id = s.id.split("-")[0];
-      const blob = await getBlob(id);
-      if (!blob) return setFileMsg("The file could not be found on this device. Reconnect or re-add it in Course materials.");
-      window.open(URL.createObjectURL(blob), "_blank");
+    if (isPersonal) {
+      const info = personal.state === "ready" ? personal.page : null;
+      if (info && !info.available) return setFileMsg("The original file can't be found on this device. Reconnect or re-add it in Course materials.");
+      window.open(`/api/files/${s.fileId}/original${s.page && /\.pdf$/i.test(s.filename ?? "") ? `#page=${s.page}` : ""}`, "_blank");
     } else {
       window.open(`/course-library/${s.filename}${s.page ? `#page=${s.page}` : ""}`, "_blank");
     }
   };
 
-  const page = load.state === "ready" ? load.page : null;
-  const warning = page?.warning ?? s.warning ?? (isLowOcr(s) ? "Low OCR confidence: this text may be incomplete or inaccurate." : null);
+  const sharedPage = shared.state === "ready" ? shared.page : null;
+  const personalPage = personal.state === "ready" ? personal.page : null;
+  const warning = sharedPage?.warning ?? personalPage?.warning ?? s.warning ?? (isLowOcr(s) ? "Low OCR confidence: this text may be incomplete or inaccurate." : null);
+  const load = isShared ? shared : personal;
+  const total = sharedPage?.pages ?? personalPage?.pages;
 
   return (
     <dialog ref={ref} className="modal wide" onClose={onClose} aria-labelledby="src-title">
-      <h3 id="src-title">{page?.title ?? s.title}</h3>
+      <h3 id="src-title">{sharedPage?.title ?? s.title}</h3>
       <p>
         <SourceTag s={s} />
-        {s.page ? <span className="muted"> · page {s.page}{page ? ` of ${page.pages}` : ""}</span> : null}
+        {s.page ? <span className="muted"> · page {s.page}{total ? ` of ${total}` : ""}</span> : null}
       </p>
-      {s.ocr && <p className="muted">This text was extracted with OCR. Inspect the original page for diagrams and surrounding context.</p>}
+      {(s.ocr || personalPage?.method === "ocr") && (
+        <p className="muted">This text was extracted with OCR. Look at the original page below for diagrams and surrounding context.</p>
+      )}
       {warning && <p className="notice warn-box" role="alert">{warning}</p>}
 
-      {shared ? (
+      {(isShared || isPersonal) ? (
         <>
           {load.state === "loading" && <p className="muted" role="status">Loading the page…</p>}
-          {load.state === "failed" && <p className="notice warn-box" role="alert">Couldn't load the page text ({load.message}). The original page is shown below.</p>}
-          {page && (
+          {load.state === "failed" && <p className="notice warn-box" role="alert">Couldn't load the page text ({load.message}).</p>}
+          {sharedPage && (
             <div className="page-scroll" tabIndex={0} aria-label="Text of the cited page">
-              <PageView text={page.text} highlight={s.highlight} onHighlight={onHighlight} />
+              <PageView text={sharedPage.text} highlight={s.highlight} onHighlight={onHighlight} />
             </div>
           )}
-          {page && s.highlight && marked === false && (
+          {personalPage && (
+            <div className="page-scroll" tabIndex={0} aria-label="Extracted text of the cited page">
+              <PlainText text={personalPage.text} highlight={s.highlight} onHighlight={onHighlight} />
+            </div>
+          )}
+          {(sharedPage || personalPage) && s.highlight && marked === false && (
             <p className="muted">Showing the cited page without a highlight because the exact passage could not be located reliably.</p>
           )}
-          {s.filename?.endsWith(".pdf") && (
+          {isShared && s.filename?.endsWith(".pdf") && (
             <iframe className="pdf small" title={`${s.title}, page ${s.page}`} src={`/course-library/${s.filename}#page=${s.page ?? 1}`} />
+          )}
+          {isPersonal && personalPage?.hasImage && (
+            <img className="page-image" alt={`Original page ${s.page} of ${s.filename}`} src={`/api/files/${s.fileId}/pages/${s.page}/image`} />
           )}
         </>
       ) : (

@@ -73,20 +73,6 @@ class Collection(Wire):
     search_by_default: bool
 
 
-class PersonalFile(Wire):
-    id: str
-    collection_id: str
-    filename: str
-    version: int = Field(ge=1)
-    uploaded_at: str
-    pages: int = Field(ge=0)
-    ocr: bool
-    ocr_confidence: float | None = None
-    removed: bool
-    supersedes: str | None = None
-    link_broken: bool = False
-
-
 class ScoringConfig(Wire):
     weights: Weights
     composite_cutoff: float = Score
@@ -105,7 +91,8 @@ class Record(BaseModel):
 
 
 # Slice name -> how to validate it. `list` slices take a JSON array; the rest take a value.
-LIST_SLICES = {"attempts": Attempt, "quizzes": Record, "exams": Record, "collections": Collection, "files": PersonalFile}
+# Personal files are not a slice: the service owns them (uploads, versions, removal) and the app only reads them.
+LIST_SLICES = {"attempts": Attempt, "quizzes": Record, "exams": Record, "collections": Collection}
 MAP_SLICES = {"topicState": TopicState}
 VALUE_SLICES = {"session": Session, "config": ScoringConfig}
 FLAG_SLICES = {"hostedDisclosureAck"}

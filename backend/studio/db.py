@@ -25,13 +25,12 @@ from .models import (
     VALUE_SLICES,
     Attempt,
     Collection,
-    PersonalFile,
     Record,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 2
 
-SCHEMA = """
+SCHEMA_V1 = """
 CREATE TABLE attempts (
   position INTEGER PRIMARY KEY, id TEXT NOT NULL UNIQUE, topic_id TEXT NOT NULL, at TEXT NOT NULL,
   kind TEXT NOT NULL, counted INTEGER NOT NULL, composite REAL NOT NULL, criteria TEXT NOT NULL,
@@ -53,6 +52,27 @@ CREATE TABLE files (
 CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
 """
 
+# v2: personal uploads are parsed and indexed by the service.
+SCHEMA_V2 = """
+ALTER TABLE files ADD COLUMN sha256 TEXT NOT NULL DEFAULT '';
+ALTER TABLE files ADD COLUMN size INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE files ADD COLUMN ext TEXT NOT NULL DEFAULT '';
+ALTER TABLE files ADD COLUMN flagged_pages INTEGER NOT NULL DEFAULT 0;
+ALTER TABLE files ADD COLUMN low_confidence INTEGER NOT NULL DEFAULT 0;
+CREATE TABLE personal_pages (
+  file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE, page INTEGER NOT NULL, text TEXT NOT NULL,
+  method TEXT NOT NULL, confidence REAL NOT NULL, flags TEXT NOT NULL DEFAULT '',
+  PRIMARY KEY (file_id, page)
+);
+CREATE TABLE personal_chunks (
+  id TEXT PRIMARY KEY, file_id TEXT NOT NULL REFERENCES files(id) ON DELETE CASCADE, page INTEGER NOT NULL,
+  ordinal INTEGER NOT NULL, heading TEXT NOT NULL, text TEXT NOT NULL, embedding BLOB
+);
+CREATE INDEX personal_chunks_file ON personal_chunks (file_id);
+"""
+
+_statements = lambda sql: [x for x in (s.strip() for s in sql.split(";")) if x]  # noqa: E731
+
 _adapters = {name: TypeAdapter(list[model]) for name, model in LIST_SLICES.items()}
 
 
@@ -70,11 +90,15 @@ class Database:
     # ------------------------------------------------------------------ plumbing
     def _migrate(self) -> None:
         version = self._conn.execute("PRAGMA user_version").fetchone()[0]
-        if version == 0:
+        if version < SCHEMA_VERSION:
             with self._tx():
-                for stmt in filter(None, (s.strip() for s in SCHEMA.split(";"))):
-                    self._conn.execute(stmt)
-                self._seed_general()
+                if version == 0:
+                    for stmt in _statements(SCHEMA_V1):
+                        self._conn.execute(stmt)
+                    self._seed_general()
+                if version < 2:
+                    for stmt in _statements(SCHEMA_V2):
+                        self._conn.execute(stmt)
                 self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         elif version > SCHEMA_VERSION:
             raise RuntimeError(f"{self.path} was written by a newer version of the app (schema {version}).")
@@ -90,6 +114,14 @@ class Database:
                 raise
             else:
                 self._conn.execute("COMMIT")
+
+    def read(self, sql: str, params: tuple = ()) -> list[sqlite3.Row]:
+        with self._lock:
+            return self._conn.execute(sql, params).fetchall()
+
+    def transaction(self):
+        """`with db.transaction() as conn:` runs several statements atomically."""
+        return self._tx()
 
     def close(self) -> None:
         with self._lock:
@@ -134,6 +166,7 @@ class Database:
                 {
                     "id": r["id"], "collectionId": r["collection_id"], "filename": r["filename"], "version": r["version"],
                     "uploadedAt": r["uploaded_at"], "pages": r["pages"], "ocr": bool(r["ocr"]), "removed": bool(r["removed"]),
+                    "size": r["size"], "flaggedPages": r["flagged_pages"], "lowConfidence": bool(r["low_confidence"]),
                     **({"ocrConfidence": r["ocr_confidence"]} if r["ocr_confidence"] is not None else {}),
                     **({"supersedes": r["supersedes"]} if r["supersedes"] else {}),
                     **({"linkBroken": True} if r["link_broken"] else {}),
@@ -220,17 +253,6 @@ class Database:
             [(i, x.id, x.name, int(x.consent), int(x.search_by_default)) for i, x in enumerate(items)],
         )
 
-    @staticmethod
-    def _write_files(c: sqlite3.Connection, items: list[PersonalFile]) -> None:
-        c.execute("DELETE FROM files")
-        c.executemany(
-            "INSERT INTO files (position, id, collection_id, filename, version, uploaded_at, pages, ocr, ocr_confidence, removed, supersedes, link_broken) VALUES (?,?,?,?,?,?,?,?,?,?,?,?)",
-            [
-                (i, f.id, f.collection_id, f.filename, f.version, f.uploaded_at, f.pages, int(f.ocr), f.ocr_confidence, int(f.removed), f.supersedes, int(f.link_broken))
-                for i, f in enumerate(items)
-            ],
-        )
-
     def import_state(self, state: dict[str, Any]) -> None:
         """Replace everything from a full state object (migration from browser storage, or a restored export)."""
         unknown = set(state) - ALL_SLICES
@@ -246,7 +268,7 @@ class Database:
             self._set_setting(c, "initialized", True)
 
     def _wipe_tables(self, c: sqlite3.Connection) -> None:
-        for table in ("attempts", "quizzes", "exams", "topic_state", "collections", "files", "settings"):
+        for table in ("attempts", "quizzes", "exams", "topic_state", "collections", "personal_chunks", "personal_pages", "files", "settings"):
             c.execute(f"DELETE FROM {table}")
 
     def wipe(self) -> None:
