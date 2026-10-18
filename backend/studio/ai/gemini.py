@@ -42,7 +42,7 @@ class Gemini:
     def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
         body: dict = {
             "systemInstruction": {"parts": [{"text": system}]},
-            "contents": [{"role": "model" if m.role == "assistant" else "user", "parts": [{"text": m.text}]} for m in messages],
+            "contents": _contents(messages),
             "generationConfig": {"temperature": temperature},
         }
         if json_output:
@@ -59,6 +59,20 @@ class Gemini:
             reason = candidates[0].get("finishReason", "")
             raise AiError("blocked" if reason in ("SAFETY", "PROHIBITED_CONTENT", "RECITATION") else "bad_response", reason or "empty")
         return text
+
+
+def _contents(messages: list[Message]) -> list[dict]:
+    """Gemini wants the conversation to start with the user and to alternate; make it so without changing the meaning."""
+    out: list[dict] = []
+    for m in messages:
+        role = "model" if m.role == "assistant" else "user"
+        if not out and role == "model":
+            out.append({"role": "user", "parts": [{"text": "(The student has just opened the conversation.)"}]})
+        if out and out[-1]["role"] == role:
+            out[-1]["parts"][0]["text"] += "\n\n" + m.text
+        else:
+            out.append({"role": role, "parts": [{"text": m.text}]})
+    return out
 
 
 def _from_status(r: httpx.Response) -> AiError:

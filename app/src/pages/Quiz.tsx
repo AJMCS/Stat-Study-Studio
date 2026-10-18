@@ -1,7 +1,7 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { sourceById, topicById } from "../mock/topics";
-import { buildQuiz } from "../mock/ai";
+import { buildQuiz } from "../mock/quiz";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";

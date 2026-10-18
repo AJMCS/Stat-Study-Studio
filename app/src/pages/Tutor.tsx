@@ -2,30 +2,38 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 import { useAi } from "../lib/ai";
 import { topicById } from "../mock/topics";
-import { tutorOpening, tutorReply, type TutorStage, type TutorTurn } from "../mock/ai";
+import { api, hitToSource, personalHitToSource, ServiceRejected, type TutorStage } from "../lib/api";
+import { Citations } from "../components/Citation";
 import { useStore } from "../lib/store";
 import { Pad, emptyPad, padToText } from "../components/Pad";
 import { RichText } from "../components/Math";
 import { ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
-import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores } from "../types";
+import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores, type SourceRef } from "../types";
+
+const OPENING = (title: string) =>
+  `Let's start with what you already know. In your own words, what is "${title.toLowerCase()}" about? Informal answers are perfect here, and a quick sketch is welcome too.`;
+
+interface Msg extends ChatMessage {
+  sources?: SourceRef[];
+}
 
 function TutorChat() {
   const { id } = useParams();
   const topic = topicById(id ?? "");
   const { data, update, recordAttempt } = useStore();
-  const [msgs, setMsgs] = useState<ChatMessage[]>([]);
+  const [msgs, setMsgs] = useState<Msg[]>([]);
   const [stage, setStage] = useState<TutorStage>("probe");
   const [plan, setPlan] = useState<string[] | null>(null);
   const [adjust, setAdjust] = useState("");
   const [pad, setPad] = useState(emptyPad());
   const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
   const [final, setFinal] = useState<CriterionScores | null>(null);
-  const [step, setStep] = useState(0);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (topic) setMsgs([{ role: "tutor", text: tutorOpening(topic).text }]);
+    if (topic) setMsgs([{ role: "tutor", text: OPENING(topic.title) }]);
   }, [topic?.id]);
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: "end" });
@@ -33,53 +41,58 @@ function TutorChat() {
 
   if (!topic) return <p>Topic not found.</p>;
 
-  const apply = (turn: TutorTurn) => {
-    setMsgs((m) => [...m, { role: "tutor", text: turn.text }]);
-    setStage(turn.stage);
-    if (turn.plan) setPlan(turn.plan);
-    if (turn.assess) {
-      const a = turn.assess;
-      const strengths = CRITERIA.filter((k) => a[k] >= data.config.criterionCutoffs[k]).map((k) => CRITERION_LABELS[k]);
-      const gaps = CRITERIA.filter((k) => a[k] < data.config.criterionCutoffs[k]).map((k) => CRITERION_LABELS[k]);
-      // Persist strengths and gaps for this topic across sessions.
-      update((d) => ({
-        ...d,
-        topicState: {
-          ...d.topicState,
-          [topic.id]: { ...EMPTY_TOPIC_STATE, ...d.topicState[topic.id], strengths, gaps },
-        },
-      }));
-      if (turn.stage === "done") {
-        recordAttempt({ topicId: topic.id, kind: "tutor", counted: true, criteria: a, note: "Tutor session" });
+  /** Send the conversation so far plus the learner's new message. Nothing changes on screen unless the reply arrives,
+   * so a failure never loses what the learner wrote. */
+  const ask = async (learnerText: string, shown: string, from: TutorStage, clearPad: boolean) => {
+    setBusy(true);
+    setError("");
+    const sent: Msg = { role: "learner", text: shown };
+    try {
+      const turn = await api.aiTutor(topic.title, from, [...msgs, sent].map((m) => ({ role: m.role, text: m === sent ? learnerText : m.text })));
+      const sources = turn.sources.map((h) => (h.scope === "shared" ? hitToSource(h) : personalHitToSource(h)));
+      setMsgs((m) => [...m, sent, { role: "tutor", text: turn.text, sources }]);
+      if (clearPad) setPad(emptyPad());
+      setStage(turn.stage);
+      setPlan(turn.plan);
+      if (turn.stage === "done" && turn.assess) {
+        const a = turn.assess;
+        const fallback = (below: boolean) => CRITERIA.filter((k) => (a[k] < data.config.criterionCutoffs[k]) === below).map((k) => CRITERION_LABELS[k]);
+        update((d) => ({
+          ...d,
+          topicState: {
+            ...d.topicState,
+            [topic.id]: { ...EMPTY_TOPIC_STATE, ...d.topicState[topic.id], strengths: turn.strengths.length ? turn.strengths : fallback(false), gaps: turn.gaps.length ? turn.gaps : fallback(true) },
+          },
+        }));
+        recordAttempt({ topicId: topic.id, kind: "tutor", counted: true, aiScored: true, criteria: a, note: "Tutor session" });
         setFinal(a);
       }
+      setAdjust("");
+    } catch (e) {
+      setError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service. Your message is kept; try again.");
+    } finally {
+      setBusy(false);
     }
   };
 
-  const send = async () => {
+  const send = () => {
     const text = padToText(pad).trim();
     if (!text || busy) return;
-    setMsgs((m) => [...m, { role: "learner", text: pad.text + (pad.drawing ? "\n[drawing attached]" : "") }]);
-    setPad(emptyPad());
-    setBusy(true);
-    const turn = await tutorReply(topic, stage, text, step);
-    if (stage === "build") setStep((s) => s + 1);
-    apply(turn);
-    setBusy(false);
+    void ask(text, pad.text + (pad.drawing ? "\n[drawing attached; only the typed text is sent]" : ""), stage, true);
   };
 
-  const acceptPlan = async () => {
-    setBusy(true);
-    const note = adjust.trim() ? `Adjustment: ${adjust}` : "Plan accepted";
-    setMsgs((m) => [...m, { role: "learner", text: note }]);
-    const turn = await tutorReply(topic, "plan", note);
-    setPlan(null);
-    apply(turn);
-    setBusy(false);
-  };
+  const acceptPlan = () => void ask(adjust.trim() ? `Please adjust the plan: ${adjust.trim()}` : "That plan works for me. Let's start.", adjust.trim() ? `Adjustment: ${adjust.trim()}` : "Plan accepted", "plan", false);
 
   const needsPlan = stage === "plan" && plan;
-  const mockComposite = final ? composite(final, data.config) : null;
+  const finalComposite = final ? composite(final, data.config) : null;
+  const restart = () => {
+    setMsgs([{ role: "tutor", text: OPENING(topic.title) }]);
+    setStage("probe");
+    setPlan(null);
+    setFinal(null);
+    setError("");
+    setPad(emptyPad());
+  };
 
   return (
     <>
@@ -90,11 +103,17 @@ function TutorChat() {
           <div key={i} className={`bubble ${m.role}`}>
             <b className="sr-only">{m.role === "tutor" ? "Tutor: " : "You: "}</b>
             <RichText text={m.text} />
+            {m.sources && m.sources.length > 0 && <Citations sources={m.sources} />}
           </div>
         ))}
         {busy && <div className="bubble tutor muted">Thinking…</div>}
         <div ref={endRef} />
       </div>
+      {error && (
+        <p className="notice warn-box" role="alert">
+          {error} <Link to={`/topic/${topic.id}/tutorial`}>The tutorial</Link> and quiz work without the tutor.
+        </p>
+      )}
 
       {needsPlan && (
         <section className="panel" aria-label="Learning plan">
@@ -104,24 +123,24 @@ function TutorChat() {
             <span>Want to adjust it? (optional)</span>
             <input value={adjust} onChange={(e) => setAdjust(e.target.value)} placeholder="e.g. skip the scenario and go straight to the formula" />
           </label>
-          <button onClick={acceptPlan} disabled={busy}>{adjust.trim() ? "Use my adjustment" : "Accept plan"}</button>
+          <button onClick={acceptPlan} disabled={busy}>{error ? "Try again" : adjust.trim() ? "Use my adjustment" : "Accept plan"}</button>
         </section>
       )}
 
       {!needsPlan && stage !== "done" && (
         <>
           <Pad value={pad} onChange={setPad} label={stage === "bridge" ? "Write the formal statement" : "Your reply"} disabled={busy} />
-          <button onClick={send} disabled={busy || !pad.text.trim()}>Send</button>
+          <button onClick={send} disabled={busy || !pad.text.trim()}>{error ? "Try again" : "Send"}</button>
         </>
       )}
-      {stage === "diagnose" && <p className="muted">Quick follow-up above, then I'll propose a learning plan.</p>}
 
       {final && (
         <section className="panel">
-          <h2>Session saved · {mockComposite}</h2>
+          <h2>Session saved · {finalComposite}</h2>
           <ScoreBreakdown criteria={final} cfg={data.config} />
           <div className="row">
             <Link className="button" to={`/topic/${topic.id}/quiz`}>Take the quiz</Link>
+            <button className="ghost" onClick={restart}>Start another conversation</button>
             <Link className="button ghost" to="/progress">See progress</Link>
           </div>
         </section>

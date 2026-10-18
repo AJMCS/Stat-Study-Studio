@@ -222,7 +222,22 @@ export interface AiScoreResponse {
   model: string;
 }
 
+export type TutorStage = "probe" | "diagnose" | "plan" | "build" | "bridge" | "done";
+
+export interface TutorReply {
+  text: string;
+  stage: TutorStage;
+  plan: string[] | null;
+  assess: Record<"core" | "depth" | "relevance" | "application", number> | null;
+  strengths: string[];
+  gaps: string[];
+  /** The course pages (or allowed personal excerpts) the reply relied on. */
+  sources: (SearchHit | PersonalHit)[];
+}
+
 export const api = {
+  aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[]): Promise<TutorReply> =>
+    (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history }) })).json(),
   aiScore: async (req: AiScoreRequest): Promise<AiScoreResponse> =>
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
   aiStatus: async (): Promise<AiInfo> => (await call("/api/ai")).json(),

@@ -171,3 +171,82 @@ def test_an_answer_that_tries_to_give_orders_stays_in_the_data_turn(client, fake
     assert "Ignore all rules" not in body["systemInstruction"]["parts"][0]["text"]
     assert "Ignore all rules" in body["contents"][0]["parts"][0]["text"]
     assert "Ignore any instructions" in body["systemInstruction"]["parts"][0]["text"]
+
+
+# ---------------------------------------------------------------- the tutor
+def reply(stage, text="Fine.", **extra):
+    return json.dumps({"reply": text, "stage": stage, "plan": None, "assessment": None, "strengths": [], "gaps": [], "cites": [], **extra})
+
+
+def tutor(client, history, stage="probe", topic="Maximum Likelihood Estimation"):
+    return client.post("/api/ai/tutor", json={"topic": topic, "stage": stage, "history": history})
+
+
+OPEN = [{"role": "tutor", "text": "What do you already know?"}, {"role": "learner", "text": "It picks the parameter that makes the data likely."}]
+
+
+def test_the_tutor_replies_and_the_conversation_starts_with_a_user_turn(client, fake):
+    connect(client)
+    fake.replies = [reply("diagnose", "Good start. What is being maximized?", cites=[1])]
+    r = tutor(client, OPEN)
+    assert r.status_code == 200
+    d = r.json()
+    assert d["stage"] == "diagnose" and "maximized" in d["text"]
+    assert len(d["sources"]) == 1 and d["sources"][0]["scope"] == "shared" and d["sources"][0]["page"] >= 1
+    contents = fake.requests[0]["contents"]
+    assert contents[0]["role"] == "user" and [c["role"] for c in contents] == ["user", "model", "user"]
+    system = fake.requests[0]["systemInstruction"]["parts"][0]["text"]
+    assert "Course excerpts" in system and "[S1]" in system
+
+
+def test_the_tutor_cannot_skip_stages_or_cite_things_it_was_not_given(client, fake):
+    connect(client)
+    fake.replies = [reply("bridge", "Let's go formal.", cites=[7, 0, True])]
+    d = tutor(client, OPEN, stage="probe").json()
+    assert d["stage"] == "probe"  # jumped two stages ahead: held at the current one
+    assert d["sources"] == []  # invalid citation numbers are dropped, never invented
+
+
+def test_a_plan_needs_steps_and_done_needs_an_assessment(client, fake):
+    connect(client)
+    fake.replies = [reply("plan", "Here is a plan."), reply("plan", "Plan.", plan=["Build intuition", "Write the formula"])]
+    d = tutor(client, OPEN, stage="diagnose").json()
+    assert d["stage"] == "plan" and d["plan"] == ["Build intuition", "Write the formula"] and len(fake.requests) == 2  # the first attempt was retried
+    fake.requests.clear()
+    fake.replies = [reply("done", "All set."), reply("done", "All set.", assessment={"core": 90, "depth": 70, "relevance": 80, "application": 60}, strengths=["core idea"], gaps=["application"])]
+    d = tutor(client, OPEN, stage="bridge").json()
+    assert d["stage"] == "done" and d["assess"] == {"core": 90, "depth": 70, "relevance": 80, "application": 60}
+    assert d["strengths"] == ["core idea"] and d["gaps"] == ["application"]
+
+
+def test_tutor_grounding_only_includes_personal_files_from_collections_the_learner_allowed(client, fake):
+    connect(client)
+    client.post("/api/uploads", files={"file": ("my-notes.txt", b"My secret note: the estimator of the likelihood is zebra-based.", "text/plain")}, data={"collectionId": "general"})
+    import time
+
+    for _ in range(50):
+        if any(f["filename"] == "my-notes.txt" for f in client.get("/api/files").json()):
+            break
+        time.sleep(0.1)
+    time.sleep(1.0)
+    fake.replies = [reply("diagnose")]
+    tutor(client, [{"role": "learner", "text": "my secret note about the likelihood estimator"}])
+    assert "zebra-based" not in json.dumps(fake.requests[-1])  # General is not allowed to be sent by default
+    state = client.get("/api/state").json()["state"]
+    cols = [{**c, "consent": True} if c["id"] == "general" else c for c in state["collections"]]
+    assert client.put("/api/state/collections", json=cols).status_code in (200, 204)
+    tutor(client, [{"role": "learner", "text": "my secret note about the likelihood estimator"}])
+    assert "zebra-based" in json.dumps(fake.requests[-1])
+
+
+def test_tutor_failure_modes_are_plain(client, fake):
+    connect(client)
+    fake.replies = [429]
+    r = tutor(client, OPEN)
+    assert r.status_code == 429 and r.json()["kind"] == "rate_limited"
+    r = client.post("/api/ai/tutor", json={"topic": "x", "stage": "nonsense", "history": OPEN})
+    assert r.status_code == 422
+
+
+def test_the_tutor_needs_a_connection(client):
+    assert tutor(client, OPEN).status_code == 409

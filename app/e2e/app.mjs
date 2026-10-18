@@ -585,6 +585,40 @@ await step("ai: an exam is scored by the AI on request and the review shows its 
   await shot("ai-exam-review");
 });
 
+await step("ai: the tutor talks, proposes a plan, builds with a cited course page, and saves a session", async () => {
+  await fresh(`/topic/${T}/tutor`);
+  await page.waitForSelector("text=Let's start with what you already know");
+  const say = async (text, wait) => {
+    await page.fill("textarea", text);
+    await page.click("button:has-text('Send')");
+    await page.waitForSelector(wait, { timeout: 15000 });
+  };
+  await say("It picks the parameter that makes the data most likely.", "text=What exactly is being maximized");
+  await say("The likelihood of theta.", "text=Proposed plan");
+  await shot("ai-tutor-plan");
+  await page.click("button:has-text('Accept plan')");
+  await page.waitForSelector("text=Imagine two classmates");
+  await page.waitForSelector(".bubble.tutor .cite", { timeout: 10000 }); // the page it relied on is cited
+  await say("The data are fixed and theta varies, so we compare how likely the data are at each theta.", "text=Now write the formal statement");
+  await say("L(theta) = prod f(x_i | theta) and theta-hat = argmax L", "text=Session saved");
+  await shot("ai-tutor-done");
+  await settleSaves();
+  const a = await lastAttempt("tutor");
+  if (!a.aiScored || a.composite < 70 || a.composite > 80) throw new Error("tutor attempt wrong: " + JSON.stringify(a));
+  const st = (await apiGet("state")).state.topicState[T];
+  if (!st.strengths.includes("Core idea") || !st.gaps.includes("Applying it to a new case")) throw new Error("strengths and gaps were not kept: " + JSON.stringify(st));
+});
+
+await step("ai: when the tutor cannot answer, the message stays in the box and the learner can retry", async () => {
+  await fresh(`/topic/${T}/tutor`);
+  await page.fill("textarea", "FAILME I think it picks theta");
+  await page.click("button:has-text('Send')");
+  await page.waitForSelector("[role=alert]:has-text('free allowance')");
+  if (!(await page.inputValue("textarea")).startsWith("FAILME")) throw new Error("the message was lost");
+  await page.waitForSelector("button:has-text('Try again')");
+  await page.waitForSelector("a:has-text('The tutorial')");
+});
+
 await step("ai: disconnecting removes the key and the AI-only controls", async () => {
   await go("/settings");
   await page.click("button:has-text('Disconnect and forget my key')");

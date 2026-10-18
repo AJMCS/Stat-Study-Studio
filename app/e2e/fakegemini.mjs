@@ -11,7 +11,20 @@ const rubric = () => ({
   application: { score: 88, feedback: "Your example was apt.", suggestion: "Try a second example." },
 });
 
-export function startFakeGemini(handlers = {}) {
+// The tutor script: reply n of a conversation. The conversation so far is (synthetic opener, tutor opening, learner 1, ...).
+const tutorScript = (body) => {
+  const n = (body.contents.length - 1) / 2;
+  const say = (stage, text, extra = {}) => JSON.stringify({ reply: text, stage, plan: null, assessment: null, strengths: [], gaps: [], cites: [], ...extra });
+  switch (n) {
+    case 1: return say("diagnose", "Thanks. What exactly is being maximized in the likelihood?");
+    case 2: return say("plan", "Here is what I found. You have the idea but not the notation yet.", { plan: ["Build intuition with a scenario", "Connect it to the lecture notation", "Write the formal statement"] });
+    case 3: return say("build", "Imagine two classmates who each collect a sample. The likelihood in the notes treats the data as fixed.", { cites: [1] });
+    case 4: return say("bridge", "Now write the formal statement using the lecture notation.");
+    default: return say("done", "Nice work. Next, try the quiz.", { assessment: { core: 90, depth: 80, relevance: 70, application: 60 }, strengths: ["Core idea"], gaps: ["Applying it to a new case"] });
+  }
+};
+
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

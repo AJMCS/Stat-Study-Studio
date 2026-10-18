@@ -51,6 +51,17 @@ class ModelBody(BaseModel):
     model: str | None = None
 
 
+class Turn(BaseModel):
+    role: str = Field(pattern="^(tutor|learner)$")
+    text: str = Field(max_length=6000)
+
+
+class TutorBody(BaseModel):
+    topic: str = Field(max_length=200)
+    stage: str = Field(pattern="^(probe|diagnose|plan|build|bridge|done)$")
+    history: list[Turn] = Field(min_length=1, max_length=60)
+
+
 class ScoreBody(BaseModel):
     topic: str = Field(max_length=200)
     question: str = Field(max_length=8000)
@@ -160,9 +171,43 @@ def create_app(
             "model": getattr(provider, "model", ""),
         }
 
+    @app.post("/api/ai/tutor")
+    def ai_tutor(body: TutorBody) -> dict[str, Any]:
+        """The tutor's next reply, grounded in course pages. The conversation lives in the browser; this holds nothing."""
+        provider = ai().provider()
+        last = next((t.text for t in reversed(body.history) if t.role == "learner"), "")
+        sources = grounding(f"{body.topic} {last}"[:500])
+        excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
+        turn = tasks.tutor_turn(provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts)
+        cited = [sources[i - 1] for i in turn.pop("cites")]
+        return {**turn, "sources": cited}
+
     @app.delete("/api/ai")
     def ai_disconnect() -> dict[str, Any]:
         return ai().disconnect()
+
+    def shared_results(q: str, k: int) -> list[dict[str, Any]]:
+        index: SharedIndex | None = app.state.library.index
+        pages: PageStore = app.state.library.pages
+        results = []
+        if index is not None:
+            for hit in index.search(q, k=k):
+                page = pages.get(hit.source, hit.page)
+                d = hit.as_dict()
+                d["title"] = pages.title(hit.source)
+                d["highlight"] = best_highlight(page.text, q) if page else None
+                d["warning"] = page.warning if page else None
+                results.append(d)
+        return results
+
+    def grounding(q: str, shared: int = 3, personal: int = 2) -> list[dict[str, Any]]:
+        """Passages to ground an AI reply: shared course pages, plus excerpts from personal collections the learner
+        has allowed to be sent to an AI service. Nothing else is ever sent."""
+        hits = shared_results(q, shared)
+        allowed = {r["id"] for r in db().read("SELECT id FROM collections WHERE consent=1")}
+        if allowed:
+            hits += [h for h in app.state.personal.search(q, k=personal, collection_ids=allowed) if h["collectionId"] in allowed]
+        return hits
 
     # ------------------------------------------------------------------ API
     @app.get("/api/health")
@@ -201,16 +246,7 @@ def create_app(
         `results` come from the shared course library; `personal` from the learner's uploads. The General collection
         is always searched; `collection` adds named ones."""
         index: SharedIndex | None = app.state.library.index
-        pages: PageStore = app.state.library.pages
-        results = []
-        if index is not None:
-            for hit in index.search(q, k=k):
-                page = pages.get(hit.source, hit.page)
-                d = hit.as_dict()
-                d["title"] = pages.title(hit.source)
-                d["highlight"] = best_highlight(page.text, q) if page else None
-                d["warning"] = page.warning if page else None
-                results.append(d)
+        results = shared_results(q, k)
         personal = app.state.personal.search(q, k=k, collection_ids=set(collection))
         if index is None and not personal and not app.state.db.read("SELECT 1 FROM files LIMIT 1"):
             raise HTTPException(503, "The course library index is missing. Ask the maintainer to rebuild it.")

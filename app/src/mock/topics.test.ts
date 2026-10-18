@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
 import { TOPICS, sourceById } from "./topics";
-import { buildQuiz } from "./ai";
+import { buildQuiz } from "./quiz";
 
 const LIBRARY = resolve(__dirname, "../../../course-library");
 
