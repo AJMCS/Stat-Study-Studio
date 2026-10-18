@@ -41,18 +41,42 @@ Still missing from the library: Quiz 1, annotated lecture notes (video-only), Di
 ## Before every release
 
 ```
-cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (111 at last count)
+cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (140 at last count)
 cd ../app && npx vitest run                               # expect all pass (41)
 cd app && npm run build && npm run e2e                    # real service + real browser, prints "E2E passed"
 ```
 
 The e2e needs Chrome or Edge (set `BROWSER_PATH` otherwise).
 
+## AI features (Gemini)
+
+The AI features are tested against a fake Gemini server, never the real one, so **before a release, try them once with
+a real key** (make a free one at aistudio.google.com/apikey):
+
+1. Settings > connect the key. Check it says "Connected" and that **Test connection** works.
+2. Topic page > **Try a recall** > **Score with AI**: you should see four scores with comments.
+3. Tutor: have a short conversation; it should reach a plan, cite a lecture page, and save a session.
+4. Exam > "Written for me by your AI service" > it should show AI-written questions with sources.
+5. Disconnect. (Windows: the key is in Credential Manager under "StatsStudio" until you do.)
+
+If a step fails with "bad response", look at what Google returned (`studio/ai/gemini.py`); Google changes model
+behavior and names. The default model is the alias `gemini-flash-latest`; if it ever stops working, students can
+type another model name in Settings, and you can change `DEFAULT_MODEL` in `backend/studio/ai/gemini.py`.
+
+Things you own here:
+- **The data notice** (`NOTICE` in `backend/studio/ai/service.py`) says Google's free tier may use submitted content
+  to improve its products. If Google's terms change, edit it and bump `CONSENT_VERSION`; everyone is asked again.
+- **Costs:** none to you. Each student's usage is on their own Google key and free allowance; a student who hits the
+  limit sees "used up its free allowance" and can self-score instead.
+- **Prompts** live in `backend/studio/ai/tasks.py` (rubric, tutor, exam). Change them there and run the tests.
+- Google's free tier may not be available in every country (check ai.google.dev terms if a classmate abroad can't
+  connect).
+
 ## Building the Windows download
 
 ```
 venv/Scripts/python.exe packaging/build_windows.py        # ~2 minutes
-packaging/dist/StatsStudio/StatsStudio.exe --selftest     # all five lines must say ok
+packaging/dist/StatsStudio/StatsStudio.exe --selftest     # all six lines must say ok
 cd app && STUDIO_EXE="<full path>/packaging/dist/StatsStudio/StatsStudio.exe" npm run e2e
 ```
 
@@ -80,7 +104,7 @@ Things that have bitten before:
 | Course library | `course-library/` in the repo | Public. Everything in it is visible to anyone; do not add answer keys you wouldn't want public. |
 | Update channel | GitHub `main` + `channel.json` | Free. If the repo is renamed or goes private, update `channel.json` and release a new zip, or students' checks fail (they fail gracefully). |
 | Search model | bundled (all-MiniLM-L6-v2, ~90 MB) | Source builds download it on first run to a cache. Changing the model means rebuilding the index and the manifest; the updater refuses a library built with a different model. |
-| Hosted AI (Milestone 2) | each student's own API key | No cost to you. Keys are stored only on the student's computer. |
+| Hosted AI | each student's own Gemini key | No cost to you. Keys are stored only on the student's computer (OS credential store). |
 | Student data | `%LOCALAPPDATA%\StatsStudio` | Never uploaded. Students can export/delete in Settings. |
 
 ## When something breaks

@@ -24,7 +24,21 @@ const tutorScript = (body) => {
   }
 };
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript }) {
+const examScript = (_body, lastUser) => {
+  const n = Number(/Number of questions: (\d+)/.exec(lastUser)?.[1] ?? 2);
+  return JSON.stringify({
+    questions: Array.from({ length: n }, (_, i) => ({
+      concept: `Generated concept ${i + 1}`,
+      prompt: `Generated question ${i + 1}: compute the MLE for a sample with $\\theta$ unknown.`,
+      solution: `Generated solution ${i + 1}: write the log-likelihood, differentiate, solve.`,
+      hint: `Generated hint ${i + 1}: start from the log-likelihood.`,
+      keyPoints: ["Writes the log-likelihood", "Differentiates and solves", "Checks it is a maximum"],
+      cites: [1],
+    })),
+  });
+};
+
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

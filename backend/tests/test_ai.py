@@ -250,3 +250,46 @@ def test_tutor_failure_modes_are_plain(client, fake):
 
 def test_the_tutor_needs_a_connection(client):
     assert tutor(client, OPEN).status_code == 409
+
+
+# ---------------------------------------------------------------- exam generation
+def question(n=1, **extra):
+    return {"concept": f"Concept {n}", "prompt": f"Compute the MLE in case {n}.", "solution": f"Step 1 ... answer {n}", "hint": "Start from the log-likelihood.", "keyPoints": ["Writes the log-likelihood", "Differentiates", "Checks it is a maximum"], "cites": [1], **extra}
+
+
+def exam_body(**extra):
+    return {"topic": "Maximum Likelihood Estimation", "focus": "edge cases", "count": 2, "examples": [{"concept": "MLE", "prompt": "Find the MLE for an exponential sample."}], **extra}
+
+
+def test_exam_generation_returns_questions_with_solutions_hints_and_sources(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"questions": [question(1), question(2)]})]
+    r = client.post("/api/ai/exam", json=exam_body())
+    assert r.status_code == 200
+    qs = r.json()["questions"]
+    assert len(qs) == 2 and qs[0]["hint"] and qs[0]["solution"] and len(qs[0]["keyPoints"]) == 3
+    assert qs[0]["sources"] and qs[0]["sources"][0]["scope"] == "shared"
+    sent = fake.requests[0]
+    assert "edge cases" in sent["contents"][0]["parts"][0]["text"] and "Find the MLE for an exponential sample." in sent["contents"][0]["parts"][0]["text"]
+    assert "edge cases" not in sent["systemInstruction"]["parts"][0]["text"]
+
+
+def test_incomplete_or_short_exams_are_retried_then_reported(client, fake):
+    connect(client)
+    broken = question(1)
+    del broken["hint"]
+    fake.replies = [json.dumps({"questions": [broken, question(2)]}), json.dumps({"questions": [question(1)]})]
+    r = client.post("/api/ai/exam", json=exam_body())
+    assert r.status_code == 502 and r.json()["kind"] == "bad_response" and len(fake.requests) == 2
+
+
+def test_bad_citations_are_dropped_and_limits_enforced(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"questions": [question(1, cites=[99, -1, "x"])]})]
+    assert client.post("/api/ai/exam", json=exam_body(count=1)).json()["questions"][0]["sources"] == []
+    assert client.post("/api/ai/exam", json=exam_body(count=50)).status_code == 422
+    assert client.post("/api/ai/exam", json=exam_body(focus="x" * 600)).status_code == 422
+
+
+def test_exam_generation_needs_a_connection(client):
+    assert client.post("/api/ai/exam", json=exam_body()).status_code == 409

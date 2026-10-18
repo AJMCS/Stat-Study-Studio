@@ -84,7 +84,7 @@ export function ExamReview() {
       <ol className="review-list">
         {e.items.map((it) => (
           <li key={it.questionId}>
-            <p className="prompt"><RichText text={it.prompt} /></p>
+            <p className="prompt"><RichText text={it.prompt} />{it.aiWritten && <span className="chip">AI-written</span>}</p>
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
             <p><b>Score {it.composite}.</b> {it.feedback}</p>

@@ -72,9 +72,34 @@ in the same SQLite file. Nothing leaves the device.
   embedded later (`personal_chunks.embedding` is null until then).
 - Personal results are never mixed into the shared index or returned as shared; shared results always come first.
 
+## AI service (Tier 1, optional)
+
+Nothing here runs unless the learner connects their own Google Gemini key in Settings and accepts the data notice.
+
+- **Key:** checked with Google first (listing models, which costs no quota), then stored in the OS credential store
+  (Windows Credential Manager, macOS Keychain, Secret Service). If a machine has none, a private file in the data
+  folder is used and Settings says so. The key never appears in the database, exports, logs or API responses.
+  Settings and consent (`ai.json`, with a notice version: changing the notice asks everyone again) live in the data
+  folder; "Delete all my data" also removes the key.
+- **Endpoints:** `GET /api/ai`, `POST /api/ai/connect`, `POST /api/ai/test`, `PUT /api/ai/model`, `DELETE /api/ai`,
+  `POST /api/ai/score` (four criteria with feedback), `POST /api/ai/tutor` (one tutor turn), `POST /api/ai/exam`
+  (new exam questions). Failures come back as `{detail, kind}` with a plain-language `detail`
+  (`invalid_key`, `rate_limited`, `offline`, `blocked`, `bad_response`, `server`, `not_connected`, `no_consent`).
+- **What is sent:** the learner's text, the question and reference text, and a few matching excerpts: shared course
+  pages, plus personal excerpts only from collections whose "may be sent to an AI service" switch is on. Never whole
+  files, drawings or progress history. Learner text is always in a user turn, never in the instructions.
+- **Model output is validated, not trusted:** scores are clamped to 0-100; the tutor can only stay at or advance one
+  stage, a plan needs 2-5 steps, "done" needs an assessment, and cited excerpt numbers must exist; exam questions
+  need a solution, hint and key points. Bad output is retried once, then reported.
+- **Model name:** `gemini-flash-latest` by default (Google keeps the alias on its current fast model); learners can
+  override it in Settings. Google's free tier may use submitted content to improve its products; the notice says so.
+- **Provider layer:** `studio/ai/provider.py` is the interface; `gemini.py` is the only implementation.
+- **Tests:** `tests/fakegemini.py` is a stand-in for the Gemini API, so tests never need a real key or network.
+  Browser tests use `app/e2e/fakegemini.mjs`.
+
 ## End-to-end tests
 
-`cd app && npm run build && npm run e2e` starts the real service on a throwaway data folder and drives the web app
+`cd app && npm run build && npm run e2e` starts the real service (and a fake Gemini) on a throwaway data folder and drives the web app
 in Chrome, Edge or Chromium (set `BROWSER_PATH` if it is not found). It covers every learner flow, moving old
 browser data into the service, surviving a browser-storage wipe, the service being down, a failed save, and the
 foreign-page check.

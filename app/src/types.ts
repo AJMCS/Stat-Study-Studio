@@ -110,6 +110,8 @@ export interface ExamQuestion {
   concept: string;
   sourceIds: string[];
   keyPoints: string[];
+  /** Written by an AI service for this exam, not authored; its solution can contain mistakes. */
+  aiWritten?: boolean;
 }
 
 export interface Attempt {
@@ -175,6 +177,8 @@ export interface ExamRecord {
     /** Reference solution and the key points the learner ticked, for the self-scored review. */
     solution?: string;
     keyPoints?: { text: string; got: boolean }[];
+    /** The question was written by an AI service for this exam. */
+    aiWritten?: boolean;
     /** When an AI service scored this answer: its criterion scores and comments. */
     criteria?: CriterionScores;
     aiFeedback?: CriterionFeedback[];

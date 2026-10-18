@@ -49,6 +49,7 @@ cd app && npm run build && npm run e2e                  # drives the real app in
 
 ## Status
 
-Milestone 1 (everything above) is built, including course-material updates and the Windows package (`packaging/`). Milestone 2 adds a hosted AI service (Gemini first): the tutor, rubric scoring,
-generated exam questions and optional AI transcription of uploads. Milestone 3 adds Mac and Linux builds and more
-providers.
+Milestone 1 (everything above) is built, including course-material updates and the Windows package (`packaging/`).
+Milestone 2 is built: connect your own Google Gemini key in Settings for the adaptive tutor, four-criterion scoring of
+written answers, and exam questions written around a focus (all optional; the app is complete without them).
+Milestone 3 adds Mac and Linux builds, Anthropic/OpenAI, and optional AI transcription of uploads.

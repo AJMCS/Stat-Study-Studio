@@ -35,7 +35,7 @@ IF WINDOWS SAYS "WINDOWS PROTECTED YOUR PC"
 
 YOUR PROGRESS AND FILES
   Everything is saved on this computer, in:  %LOCALAPPDATA%\\StatsStudio
-  Nothing is sent anywhere unless you choose to connect an AI service (not available yet).
+  Nothing is sent anywhere unless you choose to connect your own AI key in Settings (optional).
   You can export or delete it all from Settings inside the app.
 
 NEW COURSE MATERIALS

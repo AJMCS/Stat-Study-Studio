@@ -8,12 +8,12 @@ ROOT = Path(SPECPATH).parent
 BUILD = ROOT / "packaging" / "build"
 
 datas, binaries, hiddenimports = [], [], []
-for package in ("rapidocr", "fastembed", "onnxruntime", "pymupdf", "tokenizers", "docx", "rank_bm25", "multipart", "platformdirs", "huggingface_hub"):
+for package in ("rapidocr", "fastembed", "onnxruntime", "pymupdf", "tokenizers", "docx", "rank_bm25", "multipart", "platformdirs", "huggingface_hub", "keyring", "httpx"):
     d, b, h = collect_all(package)
     datas += d
     binaries += b
     hiddenimports += h
-hiddenimports += collect_submodules("studio") + collect_submodules("uvicorn") + ["multipart", "python_multipart"]
+hiddenimports += collect_submodules("studio") + collect_submodules("uvicorn") + collect_submodules("keyring.backends") + ["multipart", "python_multipart", "win32ctypes.core"]
 
 datas += [
     (str(ROOT / "course-library"), "course-library"),  # the shared course library, so the app works offline

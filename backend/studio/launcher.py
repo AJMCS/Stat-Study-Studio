@@ -121,6 +121,19 @@ def selftest() -> int:
 
         RapidOCR()
 
+    @step("credential store")
+    def _():
+        from studio.ai.keystore import KeyStore
+        import tempfile
+
+        with tempfile.TemporaryDirectory() as d:
+            store = KeyStore(Path(d), account="selftest")
+            store.set("selftest-value")
+            assert store.get() == "selftest-value", "could not read back what was stored"
+            store.delete()
+            assert store.get() is None, "could not remove it"
+            print(f"({store.where})", end=" ", flush=True)
+
     for name, fn in steps:
         print(f"  {name} ...", end=" ", flush=True)
         try:

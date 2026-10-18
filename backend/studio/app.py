@@ -62,6 +62,18 @@ class TutorBody(BaseModel):
     history: list[Turn] = Field(min_length=1, max_length=60)
 
 
+class ExampleQuestion(BaseModel):
+    concept: str = Field(default="", max_length=200)
+    prompt: str = Field(max_length=3000)
+
+
+class ExamBody(BaseModel):
+    topic: str = Field(max_length=200)
+    focus: str = Field(default="", max_length=500)
+    count: int = Field(default=4, ge=1, le=6)
+    examples: list[ExampleQuestion] = Field(default_factory=list, max_length=8)
+
+
 class ScoreBody(BaseModel):
     topic: str = Field(max_length=200)
     question: str = Field(max_length=8000)
@@ -181,6 +193,24 @@ def create_app(
         turn = tasks.tutor_turn(provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts)
         cited = [sources[i - 1] for i in turn.pop("cites")]
         return {**turn, "sources": cited}
+
+    @app.post("/api/ai/exam")
+    def ai_exam(body: ExamBody) -> dict[str, Any]:
+        """Write exam questions around a focus, adapting the question bank where useful, grounded in course pages."""
+        provider = ai().provider()
+        sources = grounding(f"{body.topic} {body.focus}".strip()[:500], shared=5, personal=3)
+        excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
+        questions = tasks.generate_exam(
+            provider,
+            topic=body.topic,
+            focus=body.focus,
+            count=body.count,
+            examples=[e.model_dump() for e in body.examples],
+            excerpts=excerpts,
+        )
+        for q in questions:
+            q["sources"] = [sources[i - 1] for i in q.pop("cites")]
+        return {"questions": questions, "model": getattr(provider, "model", "")}
 
     @app.delete("/api/ai")
     def ai_disconnect() -> dict[str, Any]:

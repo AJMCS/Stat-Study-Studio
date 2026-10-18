@@ -619,6 +619,53 @@ await step("ai: when the tutor cannot answer, the message stays in the box and t
   await page.waitForSelector("a:has-text('The tutorial')");
 });
 
+await step("ai: an exam is written around the focus, marked as AI-written, cites course pages, and can be scored and reviewed", async () => {
+  await fresh(`/topic/${T}/exam`);
+  await page.fill("label:has-text('Focus') input", "Uniform edge case");
+  await page.check("label:has-text('Written for me by your AI service') input");
+  await page.selectOption("select", "3");
+  await page.click("button:has-text('Write my exam')");
+  await page.waitForSelector("text=Generated question 1", { timeout: 15000 });
+  await page.waitForSelector(".chip:has-text('AI-written')");
+  const asked = JSON.stringify((await geminiLog()).at(-1));
+  if (!asked.includes("Uniform edge case") || !asked.includes("Number of questions: 3")) throw new Error("the focus and count were not sent");
+  await page.click("button:has-text('Hint')");
+  await page.waitForSelector("text=Generated hint 1");
+  await page.click("button:has-text('Show source material')");
+  await page.waitForSelector(".cite");
+  await shot("ai-exam-generated");
+  for (let i = 0; i < 6; i++) {
+    await page.fill("textarea", "Write the log-likelihood, differentiate, set to zero and solve because that is the maximizer. For example n=10.");
+    if (await page.locator("button:has-text('Submit and score')").count()) break;
+    await page.click("button:has-text('Next')");
+  }
+  await page.click("button:has-text('Submit and score')");
+  await page.waitForSelector("text=Score your exam");
+  await page.click("button:has-text('Score my answers with AI')");
+  await page.waitForSelector("button:has-text('All answers scored')", { timeout: 30000 });
+  await page.click("button:has-text('Finish and save')");
+  await page.waitForSelector("text=attempt", { timeout: 20000 });
+  await page.waitForSelector(".chip:has-text('AI-written')");
+  await page.waitForSelector("summary:has-text('Reference solution')");
+  await page.waitForSelector(".cite");
+  await shot("ai-exam-generated-review");
+  await go("/exams");
+  const [dl] = await Promise.all([page.waitForEvent("download", { timeout: 8000 }), page.click("button:has-text('Download PDF') >> nth=0")]);
+  console.log("     pdf:", dl.suggestedFilename());
+});
+
+await step("ai: if writing the exam fails the focus is kept and the question bank is one click away", async () => {
+  await fresh(`/topic/${T}/exam`);
+  await page.fill("label:has-text('Focus') input", "FAILME edge case");
+  await page.check("label:has-text('Written for me by your AI service') input");
+  await page.click("button:has-text('Write my exam')");
+  await page.waitForSelector("[role=alert]:has-text('free allowance')");
+  if (!(await page.inputValue("label:has-text('Focus') input")).startsWith("FAILME")) throw new Error("the focus was lost");
+  await page.click("button:has-text('Use the question bank instead')");
+  await page.waitForSelector("text=Question 1 of");
+  if ((await page.locator(".chip:has-text('AI-written')").count()) > 0) throw new Error("a bank exam must not be marked AI-written");
+});
+
 await step("ai: disconnecting removes the key and the AI-only controls", async () => {
   await go("/settings");
   await page.click("button:has-text('Disconnect and forget my key')");

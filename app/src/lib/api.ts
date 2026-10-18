@@ -235,7 +235,18 @@ export interface TutorReply {
   sources: (SearchHit | PersonalHit)[];
 }
 
+export interface AiExamQuestion {
+  concept: string;
+  prompt: string;
+  solution: string;
+  hint: string;
+  keyPoints: string[];
+  sources: (SearchHit | PersonalHit)[];
+}
+
 export const api = {
+  aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[]): Promise<{ questions: AiExamQuestion[] }> =>
+    (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples }) })).json(),
   aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[]): Promise<TutorReply> =>
     (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history }) })).json(),
   aiScore: async (req: AiScoreRequest): Promise<AiScoreResponse> =>

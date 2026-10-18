@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
 import { sourceById, topicById } from "../mock/topics";
 import { selectExam, type DraftExam } from "../lib/exam";
+import { api, hitToSource, personalHitToSource, ServiceRejected } from "../lib/api";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
@@ -38,6 +39,10 @@ export function Exam() {
   const [aiRes, setAiRes] = useState<Record<string, AiScored>>({});
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
+  const [writeNew, setWriteNew] = useState(false);
+  const [count, setCount] = useState(4);
+  const [genBusy, setGenBusy] = useState(false);
+  const [genError, setGenError] = useState("");
 
   const toCheck = () => {
     if (submitted.current) return;
@@ -59,6 +64,36 @@ export function Exam() {
 
   if (!topic) return <p>Topic not found.</p>;
 
+  const begin = (d: DraftExam) => {
+    setExam(d);
+    setLeft(d.questions.length * SECONDS_PER_QUESTION);
+  };
+
+  /** Ask the AI service for new questions around the focus. If that fails nothing is lost: the question bank is one click away. */
+  const generate = async () => {
+    setGenBusy(true);
+    setGenError("");
+    try {
+      const res = await api.aiExam(topic.title, focus, count, topic.examBank.slice(0, 6).map((q) => ({ concept: q.concept, prompt: q.prompt })));
+      const sources: SourceRef[] = [];
+      const questions = res.questions.map((q, n) => {
+        const ids = q.sources.map((h) => {
+          const src = h.scope === "shared" ? hitToSource(h) : personalHitToSource(h);
+          if (!sources.some((x) => x.id === src.id)) sources.push(src);
+          return src.id;
+        });
+        return { id: `ai-${uid()}-${n}`, prompt: q.prompt, solution: q.solution, hint: q.hint, concept: q.concept, sourceIds: ids, keyPoints: q.keyPoints, aiWritten: true };
+      });
+      begin({ title: `${topic.title} exam (AI-written${focus.trim() ? `: ${focus.trim()}` : ""})`, questions, focusMatched: null, sources });
+    } catch (e) {
+      setGenError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service to write the questions.");
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
+  const sourceFor = (id: string) => exam?.sources?.find((s) => s.id === id) ?? sourceById(id);
+
   if (!exam) {
     return (
       <>
@@ -74,16 +109,33 @@ export function Exam() {
           <span>Focus (optional)</span>
           <input value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. edge cases, bias, or the posterior mean" />
         </label>
-        <p className="muted">Questions come from the course materials, including prior homework. A focus chooses which existing questions to ask. New questions can be written once an AI service is connected.</p>
-        <button
-          onClick={() => {
-            const d = selectExam(topic, focus);
-            setExam(d);
-            setLeft(d.questions.length * SECONDS_PER_QUESTION);
-          }}
-        >
-          Start exam
-        </button>
+        {ai.connected ? (
+          <fieldset className="panel">
+            <legend>Questions</legend>
+            <label className="choice"><input type="radio" name="qsrc" checked={!writeNew} onChange={() => setWriteNew(false)} /> <span>From the question bank (authored from the course materials; a focus chooses which ones)</span></label>
+            <label className="choice"><input type="radio" name="qsrc" checked={writeNew} onChange={() => setWriteNew(true)} /> <span>Written for me by your AI service, around your focus and adapted from the bank</span></label>
+            {writeNew && (
+              <>
+                <label className="field">
+                  <span>Number of questions</span>
+                  <select value={count} onChange={(e) => setCount(Number(e.target.value))}>
+                    {[2, 3, 4, 5, 6].map((n) => <option key={n} value={n}>{n}</option>)}
+                  </select>
+                </label>
+                <p className="muted">AI-written questions and solutions can contain mistakes. Each one is marked, and cites the course pages it was based on so you can check.</p>
+              </>
+            )}
+          </fieldset>
+        ) : (
+          <p className="muted">Questions come from the course materials, including prior homework. A focus chooses which existing questions to ask. Connect an AI service in Settings to have new questions written around your focus.</p>
+        )}
+        {genError && <p className="notice warn-box" role="alert">{genError}</p>}
+        <div className="row">
+          <button onClick={() => (ai.connected && writeNew ? void generate() : begin(selectExam(topic, focus)))} disabled={genBusy}>
+            {genBusy ? "Writing your exam…" : genError ? "Try again" : ai.connected && writeNew ? "Write my exam" : "Start exam"}
+          </button>
+          {genError && <button className="ghost" onClick={() => begin(selectExam(topic, focus))}>Use the question bank instead</button>}
+        </div>
       </>
     );
   }
@@ -124,6 +176,7 @@ export function Exam() {
         sourceIds: q.sourceIds,
         composite: score,
         solution: q.solution,
+        ...(q.aiWritten ? { aiWritten: true } : {}),
         ...(scored ? { criteria: scored.criteria, aiFeedback: scored.feedback } : { keyPoints: q.keyPoints.map((text, k) => ({ text, got: has && !!ticks[k] })) }),
       };
     });
@@ -144,7 +197,7 @@ export function Exam() {
       composite: composite(criteria, data.config),
       criteria,
       items,
-      sources: [...new Set(exam.questions.flatMap((q) => q.sourceIds))].map(sourceById).filter((s): s is SourceRef => !!s),
+      sources: [...new Set(exam.questions.flatMap((q) => q.sourceIds))].map(sourceFor).filter((s): s is SourceRef => !!s),
       selfScored,
       ...(aiScored ? { aiScored } : {}),
     };
@@ -177,7 +230,7 @@ export function Exam() {
         )}
         {exam.questions.map((q, n) => (
           <section key={q.id} className="panel">
-            <h2>Question {n + 1}</h2>
+            <h2>Question {n + 1}{q.aiWritten && <span className="chip">AI-written</span>}</h2>
             <p className="prompt"><RichText text={q.prompt} /></p>
             {written(answers[q.id]) && aiRes[q.id] ? (
               <>
@@ -209,7 +262,7 @@ export function Exam() {
 
   const q = exam.questions[i];
   const a = answers[q.id] ?? emptyPad();
-  const srcs = q.sourceIds.map(sourceById).filter((s): s is SourceRef => !!s && !isAnswerKey(s));
+  const srcs = q.sourceIds.map(sourceFor).filter((s): s is SourceRef => !!s && !isAnswerKey(s));
   const mm = Math.max(0, Math.floor(left / 60));
   const ss = Math.max(0, left % 60).toString().padStart(2, "0");
 
@@ -219,11 +272,12 @@ export function Exam() {
       {exam.focusMatched === true && <p className="muted">Chose the {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"} that match your focus.</p>}
       {exam.focusMatched === false && <p className="notice" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}
       <div className="row between">
-        <span>Question {i + 1} of {exam.questions.length}</span>
+        <span>Question {i + 1} of {exam.questions.length}{q.aiWritten && <span className="chip">AI-written</span>}</span>
         {timed ? <span className="timer" role="timer" aria-label={`Time left ${mm} minutes ${ss} seconds`}>{mm}:{ss}</span> : <span className="chip">Untimed</span>}
       </div>
       <section className="panel">
         <p className="prompt"><RichText text={q.prompt} /></p>
+        {q.aiWritten && <p className="muted small">Written by your AI service for this exam. If a reference solution later disagrees with the lecture notes, trust the notes.</p>}
         <Pad value={a} onChange={(v) => setAnswers((m) => ({ ...m, [q.id]: v }))} label="Your full solution" />
         {!timed && (
           <div className="row">

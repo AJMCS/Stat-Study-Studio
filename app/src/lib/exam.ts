@@ -1,10 +1,12 @@
-import type { ExamQuestion, Topic } from "../types";
+import type { ExamQuestion, SourceRef, Topic } from "../types";
 
 export interface DraftExam {
   title: string;
   questions: ExamQuestion[];
   /** Set when a focus was typed: whether any question matched it. */
   focusMatched: boolean | null;
+  /** Sources cited by AI-written questions (not in the authored topic data). */
+  sources?: SourceRef[];
 }
 
 const STOP = new Set("the and for are but not you all any can how its let may who why what when where which that this with from into over than then them they their there about also does did have has find show give make use using like each some such only same other both between".split(" "));
