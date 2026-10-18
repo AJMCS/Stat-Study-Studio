@@ -1,0 +1,76 @@
+# Backend
+
+Local Python service for the STAT 132 study app. This folder currently holds the shared-library ingestion and
+retrieval code; the FastAPI service and storage layer come next.
+
+## Setup (maintainers)
+
+```
+python -m venv venv
+venv/Scripts/python.exe -m pip install -r backend/requirements.txt     # Windows
+cd backend
+../venv/Scripts/python.exe -m pytest                                   # 17 tests
+```
+
+## Updating the shared course library
+
+1. Drop the new PDF into the right `course-library/` folder, following the naming in `course-library/README.md`.
+2. Transcribe it. Hand transcripts (page-aligned Markdown with LaTeX, symbols checked against the page image) go in
+   `course-library/transcripts/<same path>.md`. Anything without a hand transcript gets an automatic one:
+   `python -m studio.ingest transcribe-missing`
+3. Rebuild the index: `python -m studio.ingest build-index`
+4. `pytest` fails if a PDF has no transcript, a transcript points at a missing PDF, or the index is stale.
+5. Commit the transcripts and `course-library/index/`, and open a pull request.
+
+Transcript `kind` (frontmatter) decides how a file is used: `lecture`, `problem-set`, `worked-solutions`,
+`reading` and `prerequisite` are searchable. `answer-key` files (the quiz reviews) are never returned by search, so
+answers cannot leak before a learner submits; they are used only to grade.
+
+## What the index is
+
+`course-library/index/` holds `chunks.jsonl` (text, page, source, kind, extraction quality), `embeddings.npy`
+(float16, 384 dimensions) and `index.json` (model, counts, per-transcript hashes). It is about 0.5 MB. A search is
+brute force over a few hundred chunks, so there is no vector database. Search is BM25 plus embeddings combined by
+reciprocal rank fusion, with lecture notes preferred over readings and STAT 131 prerequisites.
+
+## Decisions and the evidence for them
+
+Run `eval/retrieval_eval.py` and `eval/ocr_eval.py` to reproduce these.
+
+**Embedding model** (41 questions with known source pages, searched over the full 260-chunk index):
+
+| method | recall@1 | recall@3 | recall@5 |
+| --- | --- | --- | --- |
+| BM25 only | 0.54 | 0.85 | 0.88 |
+| all-MiniLM-L6-v2 (about 90 MB) | 0.71 | 0.88 | 0.95 |
+| all-MiniLM-L6-v2 + BM25 | 0.73 | 0.90 | 0.93 |
+| bge-small-en-v1.5 + BM25 | 0.66 | 0.90 | 0.93 |
+| snowflake-arctic-embed-xs + BM25 | 0.59 | 0.83 | 0.98 |
+| **shipped: MiniLM + BM25 + source weights** | **0.83** | **0.90** | **0.95** |
+
+The bake-off set is small, so differences of a few points between models are within noise. MiniLM was kept because
+it is the smallest and fastest. Known misses: "what is the standard error" and queries written as formulas.
+
+**OCR engine** (RapidOCR 3.x, ONNX, about 32 MB, CPU only, 1 to 2 seconds per page):
+
+| page | word recall | notes |
+| --- | --- | --- |
+| lecture page, clean print | 0.94 | Greek letters read correctly |
+| same page, phone-photo quality | 0.96 | 22 of 28 Greek symbols kept |
+| quiz page | 0.90 | |
+| handwritten work | about 0 | not usable; flag it |
+
+OCR reads letters, not math layout: fractions, sums and subscripts come out scrambled. Pages whose text layer is
+corrupted (LaTeX PDFs whose symbols decode wrongly) are OCR'd and flagged "math may be missing or out of order".
+
+## Layout
+
+```
+studio/chunking.py    transcript parsing, chunking, junk filter
+studio/textnorm.py    LaTeX to plain words for BM25 and embeddings
+studio/extract.py     PDF text layer, OCR fallback, per-page confidence and warnings
+studio/ingest.py      maintainer CLI: transcribe-missing, build-index
+studio/retrieval.py   SharedIndex.search()
+eval/                 retrieval and OCR bake-offs
+tests/                17 tests
+```

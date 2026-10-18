@@ -1,0 +1,7 @@
+fastembed>=0.9
+rank-bm25>=0.2.2
+numpy>=2.0
+pymupdf>=1.28
+pillow>=12
+rapidocr>=3.10
+pytest>=8
