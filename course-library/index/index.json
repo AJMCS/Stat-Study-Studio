@@ -21,18 +21,18 @@
     "transcripts/lecture-notes/lecture-05-maximum-likelihood-estimation.md": "69a55e8f42ce9d42",
     "transcripts/lecture-notes/lecture-06-maximum-likelihood-properties.md": "5868fcb577884ce3",
     "transcripts/lecture-notes/lecture-07-sampling-distributions.md": "dc92d72732853a0b",
-    "transcripts/prerequisites-stat131/notes-00-calculus-review.md": "9acb7edd33b5ce33",
-    "transcripts/prerequisites-stat131/notes-01-classic-probability-theory.md": "e2586a33c70cecc2",
-    "transcripts/prerequisites-stat131/notes-02-counting-and-conditional-probability.md": "a7e8e85e6169df76",
-    "transcripts/prerequisites-stat131/notes-03-independent-events.md": "a6584af1e55d6212",
-    "transcripts/prerequisites-stat131/notes-04-continuous-random-variables.md": "9d5343b599d3b920",
-    "transcripts/prerequisites-stat131/notes-05-bivariate-distributions.md": "e2e636f6ba4c47e3",
-    "transcripts/prerequisites-stat131/notes-06-conditional-distributions.md": "94f0b4c2b58a236f",
-    "transcripts/prerequisites-stat131/notes-07-expectation.md": "d80ad0559242cfd5",
-    "transcripts/prerequisites-stat131/notes-08-variance-and-higher-moments.md": "590b206406385be2",
-    "transcripts/prerequisites-stat131/notes-09-normal-distribution.md": "9a882990794c7ac2",
-    "transcripts/readings/reading-ch01-probability-and-logic-of-inference.md": "7d137f49ae4d2425",
-    "transcripts/readings/reading-ch04-loss-functions-and-bayes-estimators.md": "e94ebe2cd2555067"
+    "transcripts/prerequisites-stat131/notes-00-calculus-review.md": "2590b83dbf3f6545",
+    "transcripts/prerequisites-stat131/notes-01-classic-probability-theory.md": "a76d1bfd56e3620a",
+    "transcripts/prerequisites-stat131/notes-02-counting-and-conditional-probability.md": "167863fbbf254f9e",
+    "transcripts/prerequisites-stat131/notes-03-independent-events.md": "5b92eac2c4e3b32b",
+    "transcripts/prerequisites-stat131/notes-04-continuous-random-variables.md": "e62888440ca9c19f",
+    "transcripts/prerequisites-stat131/notes-05-bivariate-distributions.md": "7380af69fd63bf91",
+    "transcripts/prerequisites-stat131/notes-06-conditional-distributions.md": "6e059d921a17f8ac",
+    "transcripts/prerequisites-stat131/notes-07-expectation.md": "75ed07b884d4a9a4",
+    "transcripts/prerequisites-stat131/notes-08-variance-and-higher-moments.md": "91de9c8060584bed",
+    "transcripts/prerequisites-stat131/notes-09-normal-distribution.md": "5db6d2129b908bbd",
+    "transcripts/readings/reading-ch01-probability-and-logic-of-inference.md": "fbb50d326dc2c1a0",
+    "transcripts/readings/reading-ch04-loss-functions-and-bayes-estimators.md": "0a8b24f1e9b1c293"
   },
-  "built_at": "2026-10-18T03:11:48Z"
+  "built_at": "2026-10-18T03:13:42Z"
 }
