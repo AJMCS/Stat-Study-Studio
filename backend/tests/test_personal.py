@@ -387,7 +387,7 @@ def test_database_upgrades_from_the_first_schema(tmp_path):
     db = Database(path)
     state = db.get_state()
     assert state["files"][0]["filename"] == "old.pdf" and state["files"][0]["flaggedPages"] == 0
-    assert db.read("PRAGMA user_version")[0][0] == 3
+    assert db.read("PRAGMA user_version")[0][0] == 4
     db.read("SELECT ai_scored FROM attempts")
     db.read("SELECT * FROM personal_chunks")
     db.close()
