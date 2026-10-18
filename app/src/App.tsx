@@ -11,11 +11,32 @@ import { Progress } from "./pages/Progress";
 import { Materials } from "./pages/Materials";
 import { Notes } from "./pages/Notes";
 import { Settings } from "./pages/Settings";
+import { useStore } from "./lib/store";
 
 /** Remount a topic screen when the topic changes so quiz, exam and tutor state never leaks between topics. */
 function PerTopic({ children }: { children: ReactNode }) {
   const { id } = useParams();
   return <div key={id}>{children}</div>;
+}
+
+function Banners() {
+  const { saveError, retrySave, notice, dismissNotice } = useStore();
+  return (
+    <>
+      {saveError && (
+        <div className="banner bad" role="alert">
+          <span>{saveError}</span>
+          <button onClick={retrySave}>Try saving again</button>
+        </div>
+      )}
+      {notice && (
+        <div className="banner" role="status">
+          <span>{notice}</span>
+          <button className="ghost" onClick={dismissNotice}>Dismiss</button>
+        </div>
+      )}
+    </>
+  );
 }
 
 export function App() {
@@ -37,6 +58,7 @@ export function App() {
           <NavLink to="/settings">Settings</NavLink>
         </nav>
       </header>
+      <Banners />
       <main id="main" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Overview />} />

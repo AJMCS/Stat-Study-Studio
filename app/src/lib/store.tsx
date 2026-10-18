@@ -1,13 +1,19 @@
-import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { del as idbDel, clear as idbClear } from "idb-keyval";
+import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import { clear as idbClear } from "idb-keyval";
 import type { AppData, Attempt, CriterionScores, ExamRecord, QuizResult, SessionInfo } from "../types";
 import { applyRecall, composite, DEFAULT_CONFIG } from "./scoring";
+import { api, ServiceRejected, ServiceUnavailable, type Slice } from "./api";
 
-const KEY = "stats132-studio-v1";
+/** Browser-storage key used before the local service existed. Read once, then moved into the service. */
+const LEGACY_KEY = "stats132-studio-v1";
+const LEGACY_BACKUP_KEY = "stats132-studio-v1-backup-before-service";
 
 export const GENERAL_ID = "general";
 
-const initial = (): AppData => ({
+const SLICES: Slice[] = ["attempts", "quizzes", "exams", "topicState", "session", "collections", "files", "config", "hostedDisclosureAck", "chats"];
+const SAVE_DELAY_MS = 150;
+
+const empty = (): AppData => ({
   attempts: [],
   quizzes: [],
   exams: [],
@@ -20,17 +26,46 @@ const initial = (): AppData => ({
   chats: {},
 });
 
-function load(): AppData {
+/** Fill anything the service left empty so pages can rely on a complete AppData. */
+function complete(partial: Partial<AppData>): AppData {
+  const base = empty();
+  return {
+    ...base,
+    ...partial,
+    config: partial.config ?? base.config,
+    collections: partial.collections?.length ? partial.collections : base.collections,
+    chats: partial.chats ?? base.chats,
+    hostedDisclosureAck: partial.hostedDisclosureAck ?? base.hostedDisclosureAck,
+    session: partial.session ?? null,
+  };
+}
+
+function readLegacy(): Partial<AppData> | null {
   try {
-    const raw = localStorage.getItem(KEY);
-    if (raw) return { ...initial(), ...JSON.parse(raw) };
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw);
+    const out: Record<string, unknown> = {};
+    for (const k of SLICES) if (k in parsed) out[k] = parsed[k];
+    return out as Partial<AppData>;
   } catch {
-    /* fall through to a fresh state */
+    return null;
   }
-  return initial();
+}
+
+function retireLegacy() {
+  try {
+    const raw = localStorage.getItem(LEGACY_KEY);
+    if (raw) localStorage.setItem(LEGACY_BACKUP_KEY, raw);
+    localStorage.removeItem(LEGACY_KEY);
+  } catch {
+    /* storage unavailable; nothing to retire */
+  }
 }
 
 export const uid = () => Math.random().toString(36).slice(2, 10) + Date.now().toString(36);
+
+type Status = { kind: "loading" } | { kind: "ready" } | { kind: "offline"; message: string };
 
 interface Store {
   data: AppData;
@@ -41,22 +76,99 @@ interface Store {
   deleteAttempt: (id: string) => void;
   saveQuiz: (q: QuizResult) => void;
   saveExam: (e: ExamRecord) => void;
-  exportData: () => string;
+  exportData: () => Promise<string>;
   deleteAll: () => Promise<void>;
+  /** Set when the last attempt to save failed. Cleared by a successful save or `retrySave`. */
+  saveError: string | null;
+  retrySave: () => void;
+  /** One-time messages, for example about moving old browser data into the service. */
+  notice: string | null;
+  dismissNotice: () => void;
 }
 
 const Ctx = createContext<Store | null>(null);
 
 export function StoreProvider({ children }: { children: ReactNode }) {
-  const [data, setData] = useState<AppData>(load);
+  const [data, setData] = useState<AppData>(empty);
+  const [status, setStatus] = useState<Status>({ kind: "loading" });
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(null);
+  /** What the service is known to hold, per slice. A slice is saved when its object identity changes. */
+  const saved = useRef<AppData | null>(null);
+  const timer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const queue = useRef<Promise<void>>(Promise.resolve());
+  const latest = useRef(data);
+  latest.current = data;
+
+  const load = useCallback(async () => {
+    setStatus({ kind: "loading" });
+    try {
+      let { initialized, state } = await api.getState();
+      if (!initialized) {
+        const legacy = readLegacy();
+        if (legacy && (legacy.attempts?.length || legacy.exams?.length || legacy.quizzes?.length || legacy.files?.length)) {
+          try {
+            await api.importState(legacy);
+            retireLegacy();
+            ({ state } = await api.getState());
+            setNotice("Your earlier study progress was moved into the study service on this device.");
+          } catch (e) {
+            const why = e instanceof ServiceRejected ? e.message : "an unexpected problem";
+            setNotice(`We couldn't move your earlier study progress (${why}). It is still in this browser and nothing was deleted.`);
+          }
+        }
+      }
+      const full = complete(state);
+      saved.current = full;
+      setData(full);
+      setStatus({ kind: "ready" });
+    } catch (e) {
+      setStatus({ kind: "offline", message: e instanceof ServiceUnavailable ? e.message : "Could not load your study data." });
+    }
+  }, []);
 
   useEffect(() => {
-    try {
-      localStorage.setItem(KEY, JSON.stringify(data));
-    } catch {
-      /* storage full or unavailable; keep working in memory */
-    }
-  }, [data]);
+    void load();
+  }, [load]);
+
+  /** Send every slice that changed since the last successful save, one at a time and in order. */
+  const flush = useCallback(() => {
+    queue.current = queue.current.then(async () => {
+      const base = saved.current;
+      if (!base) return;
+      const next = latest.current;
+      const changed = SLICES.filter((k) => next[k] !== base[k]);
+      for (const k of changed) {
+        try {
+          await api.putSlice(k, next[k]);
+          saved.current = { ...(saved.current as AppData), [k]: next[k] };
+        } catch (e) {
+          setSaveError(e instanceof ServiceRejected ? e.message : "Your latest changes could not be saved. Is the study app still running?");
+          return;
+        }
+      }
+      setSaveError(null);
+    });
+  }, []);
+
+  useEffect(() => {
+    if (status.kind !== "ready" || !saved.current) return;
+    if (SLICES.every((k) => data[k] === saved.current![k])) return;
+    if (timer.current) clearTimeout(timer.current);
+    timer.current = setTimeout(flush, SAVE_DELAY_MS);
+    return () => {
+      if (timer.current) clearTimeout(timer.current);
+    };
+  }, [data, status.kind, flush]);
+
+  // Don't lose the last edit if the tab is closed right after it.
+  useEffect(() => {
+    const onHide = () => {
+      if (document.visibilityState === "hidden") flush();
+    };
+    document.addEventListener("visibilitychange", onHide);
+    return () => document.removeEventListener("visibilitychange", onHide);
+  }, [flush]);
 
   const update = useCallback((fn: (d: AppData) => AppData) => setData((d) => fn(d)), []);
 
@@ -86,16 +198,39 @@ export function StoreProvider({ children }: { children: ReactNode }) {
       deleteAttempt: (id) => update((d) => ({ ...d, attempts: d.attempts.filter((a) => a.id !== id) })),
       saveQuiz: (q) => update((d) => ({ ...d, quizzes: [q, ...d.quizzes] })),
       saveExam: (e) => update((d) => ({ ...d, exams: [e, ...d.exams] })),
-      exportData: () => JSON.stringify(data, null, 2),
+      exportData: () => api.exportText(),
       deleteAll: async () => {
-        await idbClear();
-        localStorage.removeItem(KEY);
-        setData(initial());
+        await api.deleteAll();
+        try {
+          await idbClear();
+          localStorage.removeItem(LEGACY_KEY);
+          localStorage.removeItem(LEGACY_BACKUP_KEY);
+        } catch {
+          /* browser storage unavailable */
+        }
+        const { state } = await api.getState();
+        const full = complete(state);
+        saved.current = full;
+        setData(full);
       },
+      saveError,
+      retrySave: flush,
+      notice,
+      dismissNotice: () => setNotice(null),
     }),
-    [data, update],
+    [data, update, saveError, notice, flush],
   );
 
+  if (status.kind === "loading") return <p className="gate" role="status">Loading your study data…</p>;
+  if (status.kind === "offline") {
+    return (
+      <div className="gate" role="alert">
+        <h1>Can't reach the study service</h1>
+        <p>{status.message} The app saves your progress to a service that runs on this computer. If you closed its window, open the Stats 132 Study Studio app again, then try below.</p>
+        <button onClick={() => void load()}>Try again</button>
+      </div>
+    );
+  }
   return <Ctx.Provider value={store}>{children}</Ctx.Provider>;
 }
 
@@ -104,5 +239,3 @@ export function useStore() {
   if (!s) throw new Error("useStore outside StoreProvider");
   return s;
 }
-
-export { idbDel };

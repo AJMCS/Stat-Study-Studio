@@ -8,8 +8,18 @@ export function Settings() {
   const cfg = data.config;
   const [confirm, setConfirm] = useState(false);
 
-  const download = () => {
-    const url = URL.createObjectURL(new Blob([exportData()], { type: "application/json" }));
+  const [exportError, setExportError] = useState("");
+
+  const download = async () => {
+    let text: string;
+    try {
+      text = await exportData();
+    } catch {
+      setExportError("Couldn't export right now. Check that the study app is still running, then try again.");
+      return;
+    }
+    setExportError("");
+    const url = URL.createObjectURL(new Blob([text], { type: "application/json" }));
     const a = document.createElement("a");
     a.href = url;
     a.download = "stats132-study-data.json";
@@ -56,8 +66,9 @@ export function Settings() {
       <section className="panel">
         <h2>Your data</h2>
         <p>Progress, settings, and history are kept on this device. Syncing is optional and off.</p>
+        {exportError && <p className="notice warn-box" role="alert">{exportError}</p>}
         <div className="row">
-          <button onClick={download}>Export my data</button>
+          <button onClick={() => void download()}>Export my data</button>
           {!confirm ? (
             <button className="ghost danger" onClick={() => setConfirm(true)}>Delete all my data</button>
           ) : (

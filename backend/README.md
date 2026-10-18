@@ -1,7 +1,8 @@
 # Backend
 
-Local Python service for the STAT 132 study app. This folder currently holds the shared-library ingestion and
-retrieval code; the FastAPI service and storage layer come next.
+Local Python service for the STAT 132 study app: it stores each learner's data on their own computer, serves the
+web app and the course PDFs, and (next) does search and the AI calls. This folder also holds the shared-library
+ingestion and retrieval code.
 
 ## Setup (maintainers)
 
@@ -9,8 +10,45 @@ retrieval code; the FastAPI service and storage layer come next.
 python -m venv venv
 venv/Scripts/python.exe -m pip install -r backend/requirements.txt     # Windows
 cd backend
-../venv/Scripts/python.exe -m pytest                                   # 17 tests
+../venv/Scripts/python.exe -m pytest                                   # 34 tests
 ```
+
+## Running the service
+
+```
+cd backend
+../venv/Scripts/python.exe -m studio.server            # opens http://127.0.0.1:8765
+../venv/Scripts/python.exe -m studio.server --dev      # also accept the Vite dev server on :5173
+```
+
+It serves the built web app (`app/dist`), the course PDFs at `/course-library/`, and the API. It listens on
+127.0.0.1 only. Learner data lives in one SQLite file, `studio.sqlite3`, in the OS app-data folder (on Windows
+`%LOCALAPPDATA%\StatsStudio`); set `STUDIO_DATA_DIR` to use another folder.
+
+| endpoint | purpose |
+| --- | --- |
+| `GET /api/health` | version and shared-library index info |
+| `GET /api/state` | everything the app needs on load, plus `initialized` |
+| `PUT /api/state/{slice}` | replace one slice (`attempts`, `quizzes`, `exams`, `topicState`, `session`, `collections`, `files`, `config`, `hostedDisclosureAck`, `chats`) in one transaction |
+| `POST /api/import` | one-time move of old browser-storage data (refuses to overwrite unless `?overwrite=true`) |
+| `GET /api/export` | all data as a JSON download |
+| `DELETE /api/data` | erase everything (the General collection is recreated) |
+
+Data is validated on write, so a bad request is rejected with a readable message and never half-saved.
+
+### Why a web page cannot reach it
+
+Any site open in the learner's browser can try to call `localhost`. The service refuses requests whose `Host` is
+not localhost (blocks DNS rebinding), refuses every state-changing request whose `Origin` is not the app itself,
+and sends no CORS headers, so a foreign page cannot read responses either. The end-to-end test confirms a foreign
+page can neither read nor delete study data.
+
+## End-to-end tests
+
+`cd app && npm run build && npm run e2e` starts the real service on a throwaway data folder and drives the web app
+in Chrome, Edge or Chromium (set `BROWSER_PATH` if it is not found). It covers every learner flow, moving old
+browser data into the service, surviving a browser-storage wipe, the service being down, a failed save, and the
+foreign-page check.
 
 ## Updating the shared course library
 
@@ -71,6 +109,10 @@ studio/textnorm.py    LaTeX to plain words for BM25 and embeddings
 studio/extract.py     PDF text layer, OCR fallback, per-page confidence and warnings
 studio/ingest.py      maintainer CLI: transcribe-missing, build-index
 studio/retrieval.py   SharedIndex.search()
+studio/app.py         FastAPI app, localhost protection, static files
+studio/db.py          SQLite storage (one transaction per slice)
+studio/models.py      validation models, camelCase on the wire
+studio/server.py      `python -m studio.server`
 eval/                 retrieval and OCR bake-offs
-tests/                17 tests
+tests/                34 tests (library, retrieval, API, security)
 ```

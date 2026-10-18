@@ -132,3 +132,7 @@ td input { width: 5rem; }
 @media (prefers-reduced-motion: no-preference) { .card { transition: border-color 0.15s; } }
 .pdf { width: 100%; height: 75vh; border: 1px solid var(--line); border-radius: 8px; background: #fff; }
 .pdf.small { height: 50vh; }
+
+.gate { max-width: 560px; margin: 4rem auto; padding: 0 1rem; }
+.banner { display: flex; flex-wrap: wrap; gap: 0.6rem 1rem; align-items: center; justify-content: space-between; padding: 0.6rem 1rem; background: var(--warn-bg); border-bottom: 1px solid var(--line); }
+.banner.bad { border-left: 4px solid var(--bad); }

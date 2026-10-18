@@ -24,4 +24,9 @@ function courseLibrary(): Plugin {
   };
 }
 
-export default defineConfig({ plugins: [react(), courseLibrary()], test: { environment: "node" } });
+// In development the web app runs on :5173 and talks to the local service (python -m studio.server --dev).
+export default defineConfig({
+  plugins: [react(), courseLibrary()],
+  server: { proxy: { "/api": "http://127.0.0.1:8765" } },
+  test: { environment: "node" },
+});
