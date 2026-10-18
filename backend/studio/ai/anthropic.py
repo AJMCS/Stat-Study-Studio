@@ -1,0 +1,95 @@
+from __future__ import annotations
+
+import httpx
+
+from .errors import AiError
+from .provider import Message
+
+BASE = "https://api.anthropic.com"
+VERSION = "2023-06-01"
+# Tried in this order against the models the learner's account can use; the newest match wins.
+PREFERRED = (r"^claude-haiku-[\d-]+$", r"^claude-sonnet-[\d-]+$", r"^claude-haiku-", r"^claude-sonnet-")
+
+
+class Claude:
+    name = "Anthropic Claude"
+    local = False
+
+    def __init__(self, api_key: str, model: str = "", base: str | None = None, timeout: float = 90.0):
+        import os
+
+        self.model = model
+        self.base = (base or os.environ.get("STUDIO_ANTHROPIC_BASE") or BASE).rstrip("/")
+        self._http = httpx.Client(timeout=timeout, headers={"x-api-key": api_key, "anthropic-version": VERSION})
+
+    def _send(self, method: str, path: str, **kw) -> dict:
+        try:
+            r = self._http.request(method, f"{self.base}{path}", **kw)
+        except httpx.HTTPError as e:
+            raise AiError("offline", str(e)) from e
+        if r.status_code >= 400:
+            raise _from_status(r)
+        try:
+            return r.json()
+        except ValueError as e:
+            raise AiError("bad_response", "not JSON") from e
+
+    def models(self) -> list[str]:
+        return [m["id"] for m in self._send("GET", "/v1/models", params={"limit": 100}).get("data", [])]
+
+    def check_key(self) -> None:
+        ids = self.models()
+        if self.model and self.model not in ids:
+            raise AiError("model_missing", self.model)
+
+    def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
+        body = {
+            "model": self.model,
+            "max_tokens": 4096,
+            "system": system + ("\n\nReply with the JSON document only, no other text." if json_output else ""),
+            "messages": _alternating(messages),
+            "temperature": temperature,
+        }
+        data = self._send("POST", "/v1/messages", json=body)
+        if data.get("stop_reason") == "refusal":
+            raise AiError("blocked", "refusal")
+        text = "".join(b.get("text", "") for b in data.get("content", []) if b.get("type") == "text")
+        if not text.strip():
+            raise AiError("bad_response", data.get("stop_reason") or "empty")
+        return text
+
+
+def _alternating(messages: list[Message]) -> list[dict]:
+    """Claude wants the conversation to start with the user and to alternate."""
+    out: list[dict] = []
+    for m in messages:
+        role = "assistant" if m.role == "assistant" else "user"
+        if not out and role == "assistant":
+            out.append({"role": "user", "content": "(The student has just opened the conversation.)"})
+        if out and out[-1]["role"] == role:
+            out[-1]["content"] += "\n\n" + m.text
+        else:
+            out.append({"role": role, "content": m.text})
+    return out
+
+
+def _from_status(r: httpx.Response) -> AiError:
+    detail = ""
+    try:
+        detail = r.json().get("error", {}).get("message", "")
+    except (ValueError, AttributeError):
+        pass
+    code = r.status_code
+    if code == 400 and "credit balance" in detail.lower():
+        return AiError("billing", detail)
+    if code in (401, 403):
+        return AiError("invalid_key", detail)
+    if code == 402:
+        return AiError("billing", detail)
+    if code == 404:
+        return AiError("model_missing", detail)
+    if code == 429:
+        return AiError("rate_limited", detail)
+    if code >= 500:
+        return AiError("server", detail)
+    return AiError("bad_response", f"{code} {detail}")

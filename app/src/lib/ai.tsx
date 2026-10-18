@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState, type ReactNode } from "react";
-import { api, type AiInfo } from "./api";
+import { api, type AiInfo, type ProviderId } from "./api";
 
 /**
  * Whether an AI service is connected. Everything that needs a model (the tutor, rubric scoring, generated exam
@@ -12,7 +12,7 @@ export interface AiStatus {
   comingSoon: false;
   info: AiInfo | null;
   refresh: () => Promise<void>;
-  connect: (apiKey: string, accept: boolean, model?: string, provider?: "gemini" | "ollama") => Promise<void>;
+  connect: (apiKey: string, accept: boolean, model?: string, provider?: ProviderId) => Promise<void>;
   disconnect: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
   test: () => Promise<void>;

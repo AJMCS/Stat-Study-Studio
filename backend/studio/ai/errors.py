@@ -11,7 +11,8 @@ MESSAGES = {
     "blocked": (422, "The AI service declined to answer that request. Try rewording it."),
     "bad_response": (502, "The AI service sent back something unreadable. Retrying usually fixes this."),
     "local_not_running": (503, "Ollama is not running on this computer. Open the Ollama app (or run 'ollama serve'), then retry."),
-    "model_missing": (404, "Ollama does not have that model. Install it first (for example: ollama pull <model name>), or pick one you have."),
+    "model_missing": (404, "That model is not available. For Ollama, install it first (ollama pull <model name>). For an online service, pick a model name your account can use."),
+    "billing": (402, "The AI service says this account has no credit or billing set up. Add credit on the provider's website, then retry. (A chat subscription does not include API credit.)"),
     "server": (502, "The AI service had a problem on its side. Retry in a moment."),
 }
 

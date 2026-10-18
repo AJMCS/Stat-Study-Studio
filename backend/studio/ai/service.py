@@ -2,14 +2,19 @@ from __future__ import annotations
 
 import json
 import threading
+import re
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
+from . import anthropic as anthropic_api
+from . import openai_provider as openai_api
+from .anthropic import Claude
 from .errors import AiError
 from .gemini import DEFAULT_MODEL, Gemini
 from .keystore import KeyStore
 from .ollama import Ollama, local_base
+from .openai_provider import OpenAI
 from .provider import Provider
 
 # Bump when a notice changes in a way that matters; everyone is then asked again.
@@ -23,6 +28,22 @@ NOTICE = {
         "paid accounts are not used that way. Do not type personal information. Your key stays on this computer. "
         "You can disconnect at any time and the app keeps working without AI."
     ),
+    "anthropic": (
+        "When you use the AI features, the app sends Anthropic (Claude) what you typed (your answers and questions) and the "
+        "few course or personal-file excerpts that match them, using your own Anthropic API account. It never sends whole "
+        "files or your progress history. Each AI action uses a little of your API credit; a Claude chat subscription does "
+        "not include API credit. How Anthropic may use API data depends on its current terms for your account, so read "
+        "them. Do not type personal information. Your key stays on this computer. You can disconnect at any time and the "
+        "app keeps working without AI."
+    ),
+    "openai": (
+        "When you use the AI features, the app sends OpenAI what you typed (your answers and questions) and the few course "
+        "or personal-file excerpts that match them, using your own OpenAI API account. It never sends whole files or your "
+        "progress history. Each AI action uses a little of your API credit; a ChatGPT subscription does not include API "
+        "credit. How OpenAI may use API data depends on its current terms for your account, so read them. Do not type "
+        "personal information. Your key stays on this computer. You can disconnect at any time and the app keeps working "
+        "without AI."
+    ),
     "ollama": (
         "The AI features will use a model running on this computer through Ollama. What you type, your course excerpts "
         "and your personal-file excerpts go only to Ollama on this computer; nothing is sent over the internet. "
@@ -30,16 +51,36 @@ NOTICE = {
         "scores as a rough guide. You can disconnect at any time and the app keeps working without AI."
     ),
 }
-PROVIDER_NAMES = {"gemini": "Google Gemini", "ollama": "Ollama (on this computer)"}
+PROVIDER_NAMES = {"gemini": "Google Gemini", "anthropic": "Anthropic Claude", "openai": "OpenAI", "ollama": "Ollama (on this computer)"}
 LOCAL = {"ollama"}
-DEFAULT_LOCAL_MODEL = ""
+KEYED = ("gemini", "anthropic", "openai")  # services that need a pasted API key
+DEFAULT_MODELS = {"gemini": DEFAULT_MODEL}  # the others are chosen from what the learner's account can use
+
+
+def _version(name: str) -> tuple[int, ...]:
+    return tuple(int(n) for n in re.findall(r"\d+", name) if len(n) < 6)  # skip date stamps like 20251001
+
+
+def pick_model(ids: list[str], patterns: tuple[str, ...]) -> str | None:
+    """The newest model matching the first pattern that matches anything. Names change often, so we choose from the
+    account's own list instead of hard-coding one."""
+    for pattern in patterns:
+        found = [i for i in ids if re.search(pattern, i)]
+        if found:
+            return sorted(found, key=lambda i: (_version(i), -len(i)), reverse=True)[0]
+    return None
 
 
 class AiService:
     def __init__(self, data_dir: Path):
         self._file = Path(data_dir) / "ai.json"
         self._lock = threading.Lock()
-        self.keys = KeyStore(data_dir)
+        self.stores = {p: KeyStore(data_dir, account=p) for p in KEYED}
+
+    @property
+    def keys(self) -> KeyStore:
+        """Where this machine keeps keys (every service uses the same kind of store)."""
+        return self.stores["gemini"]
 
     # ------------------------------------------------------------------ settings file
     def _read(self) -> dict[str, Any]:
@@ -65,7 +106,7 @@ class AiService:
         saved = s.get("provider", "gemini")
         shown = provider if provider in PROVIDER_NAMES else saved
         consented = s.get("consentVersion") == CONSENT_VERSION
-        has_key = self.keys.get() is not None
+        has_key = shown in self.stores and self.stores[shown].get() is not None
         active = shown == saved
         ready = (shown in LOCAL) or has_key
         return {
@@ -78,8 +119,9 @@ class AiService:
             "keyLocation": self.keys.where,
             "consented": consented and active,
             "consentedAt": s.get("consentedAt") if active else None,
-            "model": (s.get("model") if active else None) or (DEFAULT_MODEL if shown == "gemini" else DEFAULT_LOCAL_MODEL),
-            "defaultModel": DEFAULT_MODEL if shown == "gemini" else DEFAULT_LOCAL_MODEL,
+            "model": (s.get("model") if active else None) or DEFAULT_MODELS.get(shown, ""),
+            "defaultModel": DEFAULT_MODELS.get(shown, ""),
+            "needsKey": shown in KEYED,
             "notice": NOTICE[shown],
             "noticeVersion": CONSENT_VERSION,
         }
@@ -94,20 +136,31 @@ class AiService:
         if provider == "ollama":
             if not model:
                 raise ValueError("Choose which Ollama model to use.")
-            try:
-                local_base()
-            except ValueError as e:
-                raise ValueError(str(e)) from e
+            local_base()
             Ollama(model).check_key()
-            key_store_change = self.keys.delete
+            api_key = ""
         else:
             api_key = api_key.strip()
             if not api_key:
                 raise AiError("invalid_key", "empty")
-            Gemini(api_key, model or DEFAULT_MODEL).check_key()
-            key_store_change = lambda: self.keys.set(api_key)  # noqa: E731
+            client = self._build(provider, api_key, model)
+            if provider == "gemini":
+                client.check_key()
+            else:
+                ids = client.models()  # also proves the key works
+                if model and model not in ids:
+                    raise AiError("model_missing", model)
+                if not model:
+                    prefs = anthropic_api.PREFERRED if provider == "anthropic" else openai_api.PREFERRED
+                    model = pick_model(ids, prefs)
+                    if not model:
+                        raise ValueError("The key works, but no suitable model was found on your account. Type the name of the model you want to use and connect again.")
         with self._lock:
-            key_store_change()
+            for name, store in self.stores.items():  # one connection at a time: only the chosen service keeps a key
+                if name == provider:
+                    store.set(api_key)
+                else:
+                    store.delete()
             self._write(
                 {
                     "provider": provider,
@@ -136,7 +189,8 @@ class AiService:
 
     def disconnect(self) -> dict[str, Any]:
         with self._lock:
-            self.keys.delete()
+            for store in self.stores.values():
+                store.delete()
             try:
                 self._file.unlink()
             except OSError:
@@ -158,7 +212,16 @@ class AiService:
             if not s.get("model"):
                 raise AiError("not_connected")
             return Ollama(s["model"])
-        key = self.keys.get()
+        provider = s.get("provider", "gemini")
+        key = self.stores[provider].get() if provider in self.stores else None
         if key is None:
             raise AiError("not_connected")
-        return Gemini(key, s.get("model") or DEFAULT_MODEL)
+        return self._build(provider, key, s.get("model"))
+
+    @staticmethod
+    def _build(provider: str, key: str, model: str | None) -> Provider:
+        if provider == "anthropic":
+            return Claude(key, model or "")
+        if provider == "openai":
+            return OpenAI(key, model or "")
+        return Gemini(key, model or DEFAULT_MODEL)

@@ -41,7 +41,7 @@ Still missing from the library: Quiz 1, annotated lecture notes (video-only), Di
 ## Before every release
 
 ```
-cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (147 at last count)
+cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (155 at last count)
 cd ../app && npx vitest run                               # expect all pass (41)
 cd app && npm run build && npm run e2e                    # real service + real browser, prints "E2E passed"
 ```
@@ -58,7 +58,11 @@ a real key** (make a free one at aistudio.google.com/apikey):
 3. Tutor: have a short conversation; it should reach a plan, cite a lecture page, and save a session.
 4. Exam > "Written for me by your AI service" > it should show AI-written questions with sources.
 5. Disconnect. (Windows: the key is in Credential Manager under "StatsStudio" until you do.)
-6. With Ollama installed and a model pulled (for example `ollama pull llama3.2`): Settings > Ollama > pick the model >
+6. Repeat 1 to 5 with a real Anthropic key and a real OpenAI key if you have them (each needs a little API credit).
+   Check that the model it picked on its own (shown in Settings) is a sensible, current one. These two pick the newest
+   model matching `PREFERRED` in `backend/studio/ai/anthropic.py` / `openai_provider.py`; if Anthropic or OpenAI
+   rename their models and the picked one is wrong, adjust those patterns.
+7. With Ollama installed and a model pulled (for example `ollama pull llama3.2`): Settings > Ollama > pick the model >
    connect, then repeat steps 2 to 4. Small models sometimes return malformed JSON or odd scores; if that is common
    with the model you tried, say so in the README for classmates (a larger model scores better, a smaller one is faster).
 
@@ -71,6 +75,9 @@ Things you own here:
   to improve its products. If Google's terms change, edit it and bump `CONSENT_VERSION`; everyone is asked again.
 - **Costs:** none to you. Each student's usage is on their own Google key and free allowance; a student who hits the
   limit sees "used up its free allowance" and can self-score instead.
+- **Anthropic / OpenAI** keys are paid per use on the student's own account. There is no "log in with Claude/ChatGPT":
+  Anthropic forbids it and OpenAI's sign-in is a partner programme. If you ever want it, read OpenAI's current
+  developer docs first.
 - **Ollama** needs nothing from you. The app only talks to Ollama on the same computer.
 - **Prompts** live in `backend/studio/ai/tasks.py` (rubric, tutor, exam). Change them there and run the tests.
 - Google's free tier may not be available in every country (check ai.google.dev terms if a classmate abroad can't

@@ -191,10 +191,14 @@ export const hitToSource = (h: SearchHit): SourceRef => ({
   warning: h.warning,
 });
 
+export type ProviderId = "gemini" | "anthropic" | "openai" | "ollama";
+
 export interface AiInfo {
-  provider: "gemini" | "ollama";
+  provider: ProviderId;
   providerName: string;
-  providers: { id: "gemini" | "ollama"; name: string; local: boolean }[];
+  providers: { id: ProviderId; name: string; local: boolean }[];
+  /** Needs a pasted API key (everything except a model on this computer). */
+  needsKey: boolean;
   /** The model runs on this computer, so nothing is sent over the internet. */
   local: boolean;
   connected: boolean;
@@ -256,7 +260,7 @@ export const api = {
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
   aiStatus: async (provider?: string): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`)).json(),
   aiLocalModels: async (): Promise<{ running: boolean; models: string[] }> => (await call("/api/ai/local-models")).json(),
-  aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: "gemini" | "ollama" = "gemini"): Promise<AiInfo> =>
+  aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: ProviderId = "gemini"): Promise<AiInfo> =>
     (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider }) })).json(),
   aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
   aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),

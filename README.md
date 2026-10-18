@@ -51,6 +51,6 @@ cd app && npm run build && npm run e2e                  # drives the real app in
 
 Milestone 1 (everything above) is built, including course-material updates and the Windows package (`packaging/`).
 Milestone 2 is built: connect your own Google Gemini key in Settings for the adaptive tutor, four-criterion scoring of
-written answers, and exam questions written around a focus, or use a model running on your own computer through
-Ollama (all optional; the app is complete without them).
+written answers, and exam questions written around a focus, or your own Anthropic or OpenAI API key, or a model running on your own computer through Ollama (all optional; the app is
+complete without them).
 Milestone 3 adds Mac and Linux builds, Anthropic/OpenAI, and optional AI transcription of uploads.

@@ -101,9 +101,17 @@ Nothing here runs unless the learner connects their own Google Gemini key in Set
   computer, a local model may use every collection; a hosted one only the collections marked as allowed. Switching
   service replaces the connection (a failed switch changes nothing; switching away from Gemini removes its key).
   Small local models are weaker at scoring and at returning valid JSON; the same validate-and-retry-once rules apply.
-- **Provider layer:** `studio/ai/provider.py` is the interface; `gemini.py` and `ollama.py` implement it.
+- **Anthropic and OpenAI (paste your own API key):** `anthropic.py` and `openai_provider.py`. There is deliberately no
+  "log in with your Claude / ChatGPT account": Anthropic's terms do not allow subscription logins in other apps, and
+  OpenAI's "Sign in with ChatGPT" is a partner programme we have not applied for. Both services bill the learner's API
+  credit (a chat subscription does not include any), and "no credit" is reported as its own `billing` error. Model
+  names change constantly, so for these two the app lists the models the account can use and picks the newest match
+  (`pick_model`, patterns in each adapter's `PREFERRED`); if nothing suitable is found the learner types a name. Only
+  one service is connected at a time and only its key is kept. Some OpenAI models reject a custom temperature; the
+  adapter retries without it.
+- **Provider layer:** `studio/ai/provider.py` is the interface; `gemini.py`, `anthropic.py`, `openai_provider.py` and `ollama.py` implement it.
 - **Tests:** `tests/fakegemini.py` is a stand-in for the Gemini API, so tests never need a real key or network.
-  `tests/fakeollama.py` does the same for Ollama. Browser tests use `app/e2e/fakegemini.mjs` and `fakeollama.mjs`.
+  `tests/fakeollama.py` and `tests/fakeapis.py` do the same for Ollama, Anthropic and OpenAI. Browser tests use `app/e2e/fakegemini.mjs`, `fakeollama.mjs` and `fakechat.mjs`.
 
 ## End-to-end tests
 

@@ -387,3 +387,105 @@ def test_ollama_trouble_is_explained_plainly(client, ollama):
     ollama.close()
     r = client.post("/api/ai/score", json=SCORE_BODY)
     assert r.status_code == 503 and r.json()["kind"] == "local_not_running"
+
+
+# ---------------------------------------------------------------- Anthropic and OpenAI (paste your key)
+from fakeapis import KEY, FakeChatApi  # noqa: E402
+
+CLAUDE_MODELS = ["claude-opus-5-5", "claude-haiku-4-5-20251001", "claude-haiku-4-5", "claude-sonnet-5-5"]
+GPT_MODELS = ["gpt-4o-mini", "gpt-5.4-mini", "gpt-5.5", "o3"]
+
+
+@pytest.fixture()
+def claude(monkeypatch):
+    f = FakeChatApi("anthropic", CLAUDE_MODELS)
+    monkeypatch.setenv("STUDIO_ANTHROPIC_BASE", f.url)
+    yield f
+    f.close()
+
+
+@pytest.fixture()
+def gpt(monkeypatch):
+    f = FakeChatApi("openai", GPT_MODELS)
+    monkeypatch.setenv("STUDIO_OPENAI_BASE", f.url)
+    yield f
+    f.close()
+
+
+def connect_with(client, provider, key=KEY, model=None, accept=True):
+    return client.post("/api/ai/connect", json={"provider": provider, "apiKey": key, "model": model, "accept": accept})
+
+
+def test_claude_connects_with_a_pasted_key_and_picks_a_model_the_account_has(client, claude):
+    assert connect_with(client, "anthropic", key="wrong").json()["kind"] == "invalid_key"
+    assert connect_with(client, "anthropic", accept=False).status_code == 409
+    s = connect_with(client, "anthropic").json()
+    assert s["connected"] and s["provider"] == "anthropic" and s["model"] == "claude-haiku-4-5"  # not the dated copy, not Opus
+    assert KEY not in json.dumps(client.get("/api/ai").json()) and "API credit" in s["notice"]
+
+
+def test_claude_scores_and_the_tutor_talks_in_the_shape_the_api_needs(client, claude):
+    connect_with(client, "anthropic")
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["criteria"]["core"] == 90
+    sent = claude.requests[0]
+    assert sent["model"] == "claude-haiku-4-5" and sent["max_tokens"] > 0 and "JSON" in sent["system"]
+    assert sent["messages"][0]["role"] == "user" and "combines prior" in sent["messages"][0]["content"]
+    claude.replies = [reply("diagnose", "Good start.")]
+    assert tutor(client, OPEN).json()["stage"] == "diagnose"
+    assert [m["role"] for m in claude.requests[-1]["messages"]] == ["user", "assistant", "user"]  # starts with the user, alternates
+
+
+def test_openai_connects_scores_and_asks_for_json(client, gpt):
+    assert connect_with(client, "openai", key="wrong").json()["kind"] == "invalid_key"
+    s = connect_with(client, "openai").json()
+    assert s["connected"] and s["model"] == "gpt-5.4-mini" and "ChatGPT subscription" in s["notice"]
+    gpt.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["criteria"]["depth"] == 72
+    sent = gpt.requests[0]
+    assert sent["response_format"] == {"type": "json_object"} and sent["messages"][0]["role"] == "system"
+
+
+def test_openai_models_that_refuse_a_custom_temperature_still_work(client, gpt):
+    connect_with(client, "openai")
+    gpt.reject_temperature = True
+    gpt.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    assert "temperature" not in gpt.requests[0]
+
+
+def test_no_credit_is_explained_as_billing_not_as_a_bad_key(client, claude, gpt):
+    connect_with(client, "anthropic")
+    claude.replies = [(400, {"error": {"message": "Your credit balance is too low to access the Anthropic API."}})]
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 402 and r.json()["kind"] == "billing" and "chat subscription" in r.json()["detail"]
+    connect_with(client, "openai")
+    gpt.replies = [(429, {"error": {"message": "You exceeded your current quota", "code": "insufficient_quota"}})]
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["kind"] == "billing"
+    gpt.replies = [429]
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["kind"] == "rate_limited"
+
+
+def test_a_model_the_account_lacks_is_rejected_and_an_account_with_no_usable_model_asks_for_one(client, claude, gpt):
+    assert connect_with(client, "anthropic", model="claude-imaginary").json()["kind"] == "model_missing"
+    gpt.models[:] = ["whisper-1", "dall-e-3"]
+    r = connect_with(client, "openai")
+    assert r.status_code == 422 and "Type the name" in r.json()["detail"]
+    assert connect_with(client, "openai", model="whisper-1").json()["connected"]  # an explicit choice is respected
+    assert client.get("/api/ai").json()["keyStored"]
+
+
+def test_only_the_service_you_connect_keeps_a_key(client, claude, fake):
+    connect(client)  # Gemini
+    assert connect_with(client, "anthropic").json()["connected"]
+    assert sorted(p.name for p in client.data_dir.glob("*.key")) == ["anthropic.key"]
+    assert client.get("/api/ai?provider=gemini").json()["keyStored"] is False
+    client.delete("/api/ai")
+    assert not list(client.data_dir.glob("*.key"))
+
+
+def test_exam_generation_works_through_claude(client, claude):
+    connect_with(client, "anthropic")
+    claude.replies = [json.dumps({"questions": [question(1), question(2)]})]
+    r = client.post("/api/ai/exam", json=exam_body())
+    assert r.status_code == 200 and len(r.json()["questions"]) == 2

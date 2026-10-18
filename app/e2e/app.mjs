@@ -706,6 +706,33 @@ await step("ai: a model on this computer (Ollama) can be chosen, says nothing le
   if ((await apiGet("ai")).connected) throw new Error("still connected");
 });
 
+for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claude-haiku-4-5", "anthropic"], ["openai", "OpenAI", "gpt-5.4-mini", "openai"]]) {
+  await step(`ai: ${label} connects with a pasted key, picks a model the account has, warns about API credit, and scores a recall`, async () => {
+    await fresh("/settings");
+    await page.check(`label:has-text('${label}') input`);
+    await page.waitForSelector("text=does not include API credit");
+    await page.fill("input[aria-label='API key']", "bad-key");
+    await page.check("label:has-text('I have read this') input");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector("[role=alert]:has-text('did not accept your key')");
+    await page.fill("input[aria-label='API key']", "sk-good-key");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector(`text=Connected to ${label}`);
+    if ((await page.inputValue("input[aria-label='Model']")) !== model) throw new Error("the model was not chosen from the account's list");
+    await fresh(`/topic/${T}`);
+    await page.click("button:has-text('Try a recall')");
+    await page.fill("textarea", WRITTEN);
+    await page.click("button:has-text('Score with AI')");
+    await page.waitForSelector("text=The hosted model saw the central idea.", { timeout: 15000 });
+    const sent = (await (await fetch(`${process.env.FAKE_CHAT}/__log`)).json()).filter((r) => r.kind === kind).at(-1);
+    if (!sent || sent.model !== model) throw new Error("the request did not use the chosen model");
+    await shot(`ai-${id}`);
+    await fresh("/settings");
+    await page.click("button:has-text('Disconnect')");
+    await page.waitForSelector("text=What gets sent");
+  });
+}
+
 expectNetworkFailure = false;
 await step("ai: leave the service empty for the next test file", async () => {
   await go("/settings");

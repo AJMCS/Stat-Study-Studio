@@ -2,13 +2,26 @@ import { useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
-import { api, ServiceRejected, type AiInfo } from "../lib/api";
+import { api, ServiceRejected, type AiInfo, type ProviderId } from "../lib/api";
+
+/** Where to get a key for each online service, and how each is described next to its radio button. */
+const KEY_PAGES: Record<string, { url: string; label: string }> = {
+  gemini: { url: "https://aistudio.google.com/apikey", label: "aistudio.google.com/apikey" },
+  anthropic: { url: "https://console.anthropic.com/settings/keys", label: "console.anthropic.com/settings/keys" },
+  openai: { url: "https://platform.openai.com/api-keys", label: "platform.openai.com/api-keys" },
+};
+const BLURB: Record<ProviderId, string> = {
+  gemini: "online, uses your own key. Google has a free tier, so this is the easiest start.",
+  anthropic: "online, uses your own API key and credit (pay per use).",
+  openai: "online, uses your own API key and credit (pay per use).",
+  ollama: "runs a model you install on this computer. Nothing leaves your computer, and it works offline.",
+};
 import { useAi } from "../lib/ai";
 
 function AiPanel() {
   const ai = useAi();
   const info = ai.info;
-  const [choice, setChoice] = useState<"gemini" | "ollama" | null>(null);
+  const [choice, setChoice] = useState<ProviderId | null>(null);
   const [preview, setPreview] = useState<AiInfo | null>(null);
   const [key, setKey] = useState("");
   const [accept, setAccept] = useState(false);
@@ -19,7 +32,7 @@ function AiPanel() {
   const [local, setLocal] = useState<{ running: boolean; models: string[] } | null>(null);
   const [localModel, setLocalModel] = useState("");
 
-  const selected = choice ?? info?.provider ?? "gemini";
+  const selected: ProviderId = choice ?? info?.provider ?? "gemini";
 
   // The notice shown must be the one for the service being set up, so fetch it when the choice changes.
   useEffect(() => {
@@ -85,8 +98,11 @@ function AiPanel() {
       </p>
       <fieldset>
         <legend className="sr-only">Where the AI model runs</legend>
-        <label className="choice"><input type="radio" name="provider" checked={selected === "gemini"} onChange={() => setChoice("gemini")} /> <span><b>Google Gemini</b> (online): uses your own free key; no account here and nothing to pay us.</span></label>
-        <label className="choice"><input type="radio" name="provider" checked={selected === "ollama"} onChange={() => setChoice("ollama")} /> <span><b>Ollama</b> (on this computer): runs a model you install yourself. Nothing leaves your computer, and it works offline.</span></label>
+        {info.providers.map((p) => (
+          <label key={p.id} className="choice">
+            <input type="radio" name="provider" checked={selected === p.id} onChange={() => setChoice(p.id)} /> <span><b>{p.name}</b>: {BLURB[p.id]}</span>
+          </label>
+        ))}
       </fieldset>
       {error && <p className="notice warn-box" role="alert">{error}</p>}
       {info.connected && !connectedHere && <p className="muted">You are connected to {info.providerName}. Connecting this one replaces it.</p>}
@@ -100,30 +116,37 @@ function AiPanel() {
           </p>
           <label className="field">
             <span>Model</span>
-            <input aria-label="Model" placeholder={info.defaultModel} value={info.local ? (model ?? info.model) : shownModel} onChange={(e) => setModel(e.target.value)} />
+            <input aria-label="Model" placeholder={info.defaultModel} value={info.local || !info.defaultModel ? (model ?? info.model) : shownModel} onChange={(e) => setModel(e.target.value)} />
           </label>
-          {!info.local && <p className="muted">Leave blank to use {info.defaultModel}, which Google keeps pointing at its current fast model.</p>}
+          {info.provider === "gemini" && <p className="muted">Leave blank to use {info.defaultModel}, which Google keeps pointing at its current fast model.</p>}
+          {info.provider !== "gemini" && !info.local && <p className="muted">This model was chosen from the ones your account can use. Type another model name to change it.</p>}
           {info.local && <p className="muted">Bigger models score more consistently; smaller ones answer faster. Install another with <code>ollama pull &lt;name&gt;</code>, then type its name here.</p>}
           <div className="row">
-            <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(info.local ? (model ?? info.model) : shownModel))}>Save model</button>
+            <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(info.local || !info.defaultModel ? (model ?? info.model) : shownModel))}>Save model</button>
             <button className="ghost" disabled={busy} onClick={() => void run(async () => { await ai.test(); setTested(true); })}>Test connection</button>
             <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect{info.local ? "" : " and forget my key"}</button>
           </div>
         </>
-      ) : selected === "gemini" ? (
+      ) : selected !== "ollama" ? (
         <>
           <ol>
-            <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a> and sign in with a Google account.</li>
+            <li>Go to <a href={KEY_PAGES[selected].url} target="_blank" rel="noreferrer">{KEY_PAGES[selected].label}</a> and sign in.</li>
             <li>Choose <em>Create API key</em> and copy it.</li>
-            <li>Paste it below. It is checked with Google first, then kept on this computer only.</li>
+            <li>Paste it below. It is checked with {preview?.providerName ?? "the service"} first, then kept on this computer only.</li>
           </ol>
-          {info.keyStored && !info.consented && info.provider === "gemini" && <p className="notice">The data notice changed since you last accepted it. Please read it again.</p>}
+          {selected !== "gemini" && (
+            <p className="muted">
+              This uses your API credit, billed per use, so add a little credit on their site first. A Claude or ChatGPT chat subscription is separate and does not include API credit.
+              Not sure how to make a key? Ask any AI chatbot to walk you through it.
+            </p>
+          )}
+          {info.keyStored && !info.consented && info.provider === selected && <p className="notice">The data notice changed since you last accepted it. Please read it again.</p>}
           <label className="field">
             <span>API key</span>
             <input aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
           </label>
           {noticeBox}
-          <button disabled={busy || !key.trim() || !accept} onClick={() => void run(async () => { await ai.connect(key, accept, undefined, "gemini"); setKey(""); })}>
+          <button disabled={busy || !key.trim() || !accept} onClick={() => void run(async () => { await ai.connect(key, accept, undefined, selected); setKey(""); })}>
             {busy ? "Checking…" : "Connect"}
           </button>
         </>
