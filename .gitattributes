@@ -4,3 +4,5 @@ course-library/index/*.jsonl text eol=lf
 course-library/index/*.npy binary
 course-library/**/*.pdf binary
 backend/** text eol=lf
+
+course-library/library.json text eol=lf

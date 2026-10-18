@@ -32,6 +32,13 @@ cd app && npm install && npm run build
 cd ../backend && ../venv/Scripts/python.exe -m studio.server              # opens http://127.0.0.1:8765
 ```
 
+## Make the Windows download
+
+```
+venv/Scripts/python.exe -m pip install pyinstaller
+venv/Scripts/python.exe packaging/build_windows.py     # -> packaging/dist/StatsStudio-windows.zip
+```
+
 ## Test it
 
 ```
@@ -42,6 +49,6 @@ cd app && npm run build && npm run e2e                  # drives the real app in
 
 ## Status
 
-Milestone 1 (everything above) is built. Milestone 2 adds a hosted AI service (Gemini first): the tutor, rubric scoring,
+Milestone 1 (everything above) is built, including course-material updates and the Windows package (`packaging/`). Milestone 2 adds a hosted AI service (Gemini first): the tutor, rubric scoring,
 generated exam questions and optional AI transcription of uploads. Milestone 3 adds Mac and Linux builds and more
-providers. A double-click Windows package comes next.
+providers.

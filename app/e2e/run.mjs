@@ -41,8 +41,10 @@ const updateServer = createServer((req, res) => {
 await new Promise((ready) => updateServer.listen(0, "127.0.0.1", ready));
 const updateBase = `http://127.0.0.1:${updateServer.address().port}/`;
 
-const server = spawn(python, ["-m", "studio.server", "--no-browser", "--port", port], {
-  cwd: join(root, "backend"),
+// STUDIO_EXE=path/to/StatsStudio.exe runs the tests against the packaged app instead of the source tree.
+const exe = process.env.STUDIO_EXE;
+const server = spawn(exe ?? python, exe ? ["--no-browser", "--port", port] : ["-m", "studio.server", "--no-browser", "--port", port], {
+  cwd: exe ? undefined : join(root, "backend"),
   env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_UPDATE_BASE: updateBase, STUDIO_AUTOCHECK: "1" },
   stdio: "inherit",
 });

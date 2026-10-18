@@ -87,7 +87,28 @@ foreign-page check.
    `python -m studio.ingest transcribe-missing`
 3. Rebuild the index: `python -m studio.ingest build-index`
 4. `pytest` fails if a PDF has no transcript, a transcript points at a missing PDF, or the index is stale.
-5. Commit the transcripts and `course-library/index/`, and open a pull request.
+5. Rebuild the update manifest: `python -m studio.ingest build-manifest` (lists every file with its sha256; the test
+   `test_the_committed_manifest_matches_the_library_files` fails when it is stale).
+6. Commit the transcripts, `course-library/index/` and `course-library/library.json`, and push to `main`.
+
+### How students get it
+
+On start (and from Course materials > Check for updates) the app reads `library.json` from
+`https://raw.githubusercontent.com/<repo>/<ref>/course-library/` (repo and ref are in `studio/channel.json`).
+A changed `version` means an update: only changed files are downloaded, each is checked against its sha256, the new
+library is test-loaded, and only then is it switched in (`<data>/library/v<N>/`, pointer file `CURRENT`, two versions
+kept). Any failure leaves the current library untouched. Offline, the check just reports that it could not reach the
+internet. Overrides for testing: `STUDIO_UPDATE_BASE`, `STUDIO_AUTOCHECK=0`.
+
+## Windows package
+
+`python packaging/build_windows.py` (needs the venv with `pyinstaller`, and Node) builds
+`packaging/dist/StatsStudio/` and `StatsStudio-windows.zip` (about 640 MB unpacked, 425 MB zipped): the program, the
+web app, the course library and the search model, so it needs no Python and no internet. Entry point:
+`studio/launcher.py` (opens the browser, reuses an already-running copy, moves to the next port if 8765 is busy).
+`StatsStudio.exe --selftest` checks that the search model, PDF reader and text recognition load. The build replaces
+PyInstaller's bundled Visual C++ runtime with the current one, because onnxruntime crashes on the older copy.
+Run the browser tests against the package with `STUDIO_EXE=<path to StatsStudio.exe> npm run e2e`.
 
 Transcript `kind` (frontmatter) decides how a file is used: `lecture`, `problem-set`, `worked-solutions`,
 `reading` and `prerequisite` are searchable. `answer-key` files (the quiz reviews) are never returned by search, so

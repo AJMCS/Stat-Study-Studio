@@ -5,7 +5,7 @@ import react from "@vitejs/plugin-react";
 
 const LIBRARY = resolve(__dirname, "../course-library");
 
-/** Serves the shared course library (repo root) at /course-library/ in dev and copies it into dist on build. */
+/** Serves the shared course library (repo root) at /course-library/ while developing. In the real app the Python service serves it. */
 function courseLibrary(): Plugin {
   return {
     name: "course-library",
@@ -17,9 +17,6 @@ function courseLibrary(): Plugin {
         res.setHeader("Content-Type", file.endsWith(".pdf") ? "application/pdf" : "application/octet-stream");
         createReadStream(file).pipe(res);
       });
-    },
-    closeBundle() {
-      if (existsSync(LIBRARY)) cpSync(LIBRARY, resolve(__dirname, "dist/course-library"), { recursive: true });
     },
   };
 }
