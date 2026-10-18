@@ -8,6 +8,9 @@ import { Citations } from "../components/Citation";
 import { SelfCheck } from "../components/SelfCheck";
 import { RichText } from "../components/Math";
 import { selfScore, uniformCriteria } from "../lib/scoring";
+import { useAi } from "../lib/ai";
+import { aiFailure, aiScore, type AiScored } from "../lib/aiScore";
+import type { CriterionFeedback } from "../types";
 
 export function TopicPage() {
   const { id } = useParams();
@@ -18,6 +21,10 @@ export function TopicPage() {
   const [checking, setChecking] = useState(false);
   const [got, setGot] = useState<boolean[]>([]);
   const [saved, setSaved] = useState<number | null>(null);
+  const ai = useAi();
+  const [scoring, setScoring] = useState(false);
+  const [aiError, setAiError] = useState("");
+  const [aiResult, setAiResult] = useState<AiScored | null>(null);
 
   if (!topic) return <p>Topic not found. <Link to="/">Back to topics</Link></p>;
   const state = data.topicState[topic.id];
@@ -26,6 +33,23 @@ export function TopicPage() {
   const startChecking = () => {
     setGot(topic.recall.keyPoints.map(() => false));
     setChecking(true);
+  };
+
+  const scoreWithAi = async () => {
+    setScoring(true);
+    setAiError("");
+    try {
+      const r = await aiScore(
+        { topic: topic.title, question: topic.recall.prompt, answer: padToText(pad), reference: topic.recall.reference, keyPoints: topic.recall.keyPoints, stage: "conceptual" },
+        data.config,
+      );
+      recordAttempt({ topicId: topic.id, kind: "recall", counted: true, aiScored: true, criteria: r.criteria, note: "Revisit recall (AI-scored)" });
+      setAiResult(r);
+    } catch (e) {
+      setAiError(aiFailure(e));
+    } finally {
+      setScoring(false);
+    }
   };
 
   const saveRecall = () => {
@@ -82,6 +106,16 @@ export function TopicPage() {
             <SelfCheck answer={padToText(pad)} reference={topic.recall.reference} keyPoints={topic.recall.keyPoints} got={got} onChange={setGot} />
             <button onClick={saveRecall}>Save my self-score</button>
           </>
+        ) : aiResult ? (
+          <>
+            <ScoreBreakdown criteria={aiResult.criteria} cfg={data.config} feedback={aiResult.feedback as CriterionFeedback[]} />
+            <p className="muted">
+              {aiResult.composite >= data.config.compositeCutoff
+                ? "Qualifying recall added to your streak."
+                : "Below the cutoff this time. Your streak and progress are kept, the miss is recorded, and this topic is flagged to revisit."}
+            </p>
+            <button className="ghost" onClick={() => { setAiResult(null); setPad(emptyPad()); }}>Try another recall</button>
+          </>
         ) : saved !== null ? (
           <>
             <ScoreBreakdown criteria={uniformCriteria(saved)} cfg={data.config} selfScored />
@@ -96,7 +130,18 @@ export function TopicPage() {
           <>
             <p><strong><RichText text={topic.recall.prompt} /></strong></p>
             <Pad value={pad} onChange={setPad} label="Your answer" />
-            <button onClick={startChecking} disabled={!pad.text.trim() && !pad.drawing}>Compare with the reference</button>
+            {aiError && <p className="notice warn-box" role="alert">{aiError}</p>}
+            <div className="row">
+              {ai.connected && (
+                <button onClick={() => void scoreWithAi()} disabled={scoring || !pad.text.trim()}>
+                  {scoring ? "Scoring…" : aiError ? "Retry AI scoring" : "Score with AI"}
+                </button>
+              )}
+              <button className={ai.connected ? "ghost" : undefined} onClick={startChecking} disabled={scoring || (!pad.text.trim() && !pad.drawing)}>
+                {ai.connected ? "Score it myself instead" : "Compare with the reference"}
+              </button>
+            </div>
+            {ai.connected && pad.drawing && <p className="muted small">Only what you typed is sent for AI scoring, not drawings. Self-score if your work is mostly a drawing.</p>}
           </>
         )}
       </section>

@@ -14,6 +14,8 @@ export class ServiceRejected extends Error {
   constructor(
     message: string,
     readonly status: number,
+    /** For AI calls: why it failed (invalid_key, rate_limited, offline, ...), so the page can offer the right next step. */
+    readonly kind?: string,
   ) {
     super(message);
   }
@@ -28,13 +30,15 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
   }
   if (!res.ok) {
     let detail = `The study service returned an error (${res.status}).`;
+    let kind: string | undefined;
     try {
       const body = await res.json();
       if (typeof body?.detail === "string") detail = body.detail;
+      if (typeof body?.kind === "string") kind = body.kind;
     } catch {
       /* keep the generic message */
     }
-    throw new ServiceRejected(detail, res.status);
+    throw new ServiceRejected(detail, res.status, kind);
   }
   return res;
 }
@@ -187,7 +191,46 @@ export const hitToSource = (h: SearchHit): SourceRef => ({
   warning: h.warning,
 });
 
+export interface AiInfo {
+  provider: string;
+  providerName: string;
+  connected: boolean;
+  keyStored: boolean;
+  /** "os" = the operating system's credential store, "file" = a private file in the app's data folder. */
+  keyLocation: "os" | "file";
+  consented: boolean;
+  consentedAt: string | null;
+  model: string;
+  defaultModel: string;
+  /** The exact data notice the learner agrees to; shown verbatim. */
+  notice: string;
+  noticeVersion: number;
+}
+
+export interface AiScoreRequest {
+  topic: string;
+  question: string;
+  answer: string;
+  reference?: string;
+  keyPoints?: string[];
+  stage?: "conceptual" | "formal";
+}
+
+export interface AiScoreResponse {
+  criteria: Record<"core" | "depth" | "relevance" | "application", number>;
+  feedback: { criterion: "core" | "depth" | "relevance" | "application"; score: number; feedback: string; suggestion: string }[];
+  model: string;
+}
+
 export const api = {
+  aiScore: async (req: AiScoreRequest): Promise<AiScoreResponse> =>
+    (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
+  aiStatus: async (): Promise<AiInfo> => (await call("/api/ai")).json(),
+  aiConnect: async (apiKey: string, accept: boolean, model?: string): Promise<AiInfo> =>
+    (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null }) })).json(),
+  aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
+  aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),
+  aiDisconnect: async (): Promise<AiInfo> => (await call("/api/ai", { method: "DELETE" })).json(),
   health: async (): Promise<Health> => (await call("/api/health")).json(),
   search: async (q: string, k = 5, collections: string[] = []): Promise<SearchResponse> => {
     const extra = collections.map((c) => `&collection=${encodeURIComponent(c)}`).join("");

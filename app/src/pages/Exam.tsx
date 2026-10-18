@@ -8,7 +8,10 @@ import { RichText } from "../components/Math";
 import { Citations, isAnswerKey } from "../components/Citation";
 import { SelfCheck } from "../components/SelfCheck";
 import { composite, selfScore, uniformCriteria } from "../lib/scoring";
-import type { ExamRecord, SourceRef } from "../types";
+import { CRITERIA, CRITERION_LABELS, type CriterionScores, type ExamRecord, type SourceRef } from "../types";
+import { ScoreBreakdown } from "../components/Score";
+import { useAi } from "../lib/ai";
+import { aiFailure, aiScore, type AiScored } from "../lib/aiScore";
 
 const SECONDS_PER_QUESTION = 600;
 
@@ -30,6 +33,11 @@ export function Exam() {
   const [hints, setHints] = useState<Record<string, boolean>>({});
   const [left, setLeft] = useState(0);
   const submitted = useRef(false);
+  const ai = useAi();
+  /** Answers the AI service has scored, by question id. A learner can drop one to self-score it instead. */
+  const [aiRes, setAiRes] = useState<Record<string, AiScored>>({});
+  const [aiBusy, setAiBusy] = useState(false);
+  const [aiError, setAiError] = useState("");
 
   const toCheck = () => {
     if (submitted.current) return;
@@ -80,25 +88,52 @@ export function Exam() {
     );
   }
 
+  /** Score every written answer that has no AI score yet. Stops at the first failure and keeps what succeeded. */
+  const scoreAllWithAi = async () => {
+    setAiBusy(true);
+    setAiError("");
+    const next = { ...aiRes };
+    try {
+      for (const q of exam.questions) {
+        if (!written(answers[q.id]) || next[q.id]) continue;
+        next[q.id] = await aiScore(
+          { topic: topic.title, question: q.prompt, answer: padToText(answers[q.id]), reference: q.solution, keyPoints: q.keyPoints, stage: "formal" },
+          data.config,
+        );
+        setAiRes({ ...next });
+      }
+    } catch (e) {
+      setAiError(aiFailure(e));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const finish = () => {
     const items: ExamRecord["items"] = exam.questions.map((q) => {
       const a = answers[q.id];
       const ticks = got[q.id] ?? q.keyPoints.map(() => false);
       const has = written(a);
-      const score = has ? selfScore(ticks) : 0;
+      const scored = has ? aiRes[q.id] : undefined;
+      const score = scored ? scored.composite : has ? selfScore(ticks) : 0;
       return {
         questionId: q.id,
         prompt: q.prompt,
         answer: a ? padToText(a) : "",
-        feedback: has ? `Self-scored: ${ticks.filter(Boolean).length} of ${q.keyPoints.length} key points.` : "Unanswered, counted as a miss.",
+        feedback: scored ? "Scored by an AI service against the reference solution." : has ? `Self-scored: ${ticks.filter(Boolean).length} of ${q.keyPoints.length} key points.` : "Unanswered, counted as a miss.",
         sourceIds: q.sourceIds,
         composite: score,
         solution: q.solution,
-        keyPoints: q.keyPoints.map((text, k) => ({ text, got: has && !!ticks[k] })),
+        ...(scored ? { criteria: scored.criteria, aiFeedback: scored.feedback } : { keyPoints: q.keyPoints.map((text, k) => ({ text, got: has && !!ticks[k] })) }),
       };
     });
     const overall = Math.round(items.reduce((s, it) => s + it.composite, 0) / Math.max(1, items.length));
-    const criteria = uniformCriteria(overall);
+    const aiScored = items.some((it) => it.aiFeedback);
+    const selfScored = exam.questions.some((q) => written(answers[q.id]) && !aiRes[q.id]);
+    // Per criterion: AI-scored answers use their own scores; self-scored and unanswered ones count as their overall score.
+    const criteria: CriterionScores = aiScored
+      ? (Object.fromEntries(CRITERIA.map((k) => [k, Math.round(items.reduce((s, it) => s + (it.criteria ? it.criteria[k] : it.composite), 0) / Math.max(1, items.length))])) as CriterionScores)
+      : uniformCriteria(overall);
     const record: ExamRecord = {
       id: uid(),
       topicId: topic.id,
@@ -110,18 +145,20 @@ export function Exam() {
       criteria,
       items,
       sources: [...new Set(exam.questions.flatMap((q) => q.sourceIds))].map(sourceById).filter((s): s is SourceRef => !!s),
-      selfScored: true,
+      selfScored,
+      ...(aiScored ? { aiScored } : {}),
     };
     saveExam(record);
-    recordAttempt({ topicId: topic.id, kind: "exam", counted: true, selfScored: true, criteria, note: `Exam attempt ${record.attempt} (self-scored)` });
+    recordAttempt({ topicId: topic.id, kind: "exam", counted: true, selfScored, aiScored, criteria, note: `Exam attempt ${record.attempt} (${selfScored ? "self-scored" : aiScored ? "AI-scored" : "no answers"})` });
     nav(`/exams/${record.id}`);
   };
 
   if (stage === "check") {
     const answered = exam.questions.filter((q) => written(answers[q.id]));
     const overall = Math.round(
-      exam.questions.reduce((s, q) => s + (written(answers[q.id]) ? selfScore(got[q.id] ?? q.keyPoints.map(() => false)) : 0), 0) / Math.max(1, exam.questions.length),
+      exam.questions.reduce((s, q) => s + (!written(answers[q.id]) ? 0 : aiRes[q.id] ? aiRes[q.id].composite : selfScore(got[q.id] ?? q.keyPoints.map(() => false))), 0) / Math.max(1, exam.questions.length),
     );
+    const unscored = answered.filter((q) => !aiRes[q.id]).length;
     return (
       <>
         <h1>Score your exam</h1>
@@ -129,11 +166,27 @@ export function Exam() {
           Compare each answer with the reference solution, then tick the key points your work covered. This is scored by you, so be honest: it is what shows you where to study next.
           {timed && " Time is up, so your answers are locked."}
         </p>
+        {ai.connected && (
+          <div className="panel">
+            <p>Your AI service can score the written answers on the four criteria instead. Only your typed answers and the question text are sent; drawings are not.</p>
+            {aiError && <p className="notice warn-box" role="alert">{aiError} Your answers are kept; retry, or score yourself below.</p>}
+            <button onClick={() => void scoreAllWithAi()} disabled={aiBusy || unscored === 0}>
+              {aiBusy ? "Scoring…" : unscored === 0 ? "All answers scored" : aiError ? "Retry AI scoring" : "Score my answers with AI"}
+            </button>
+          </div>
+        )}
         {exam.questions.map((q, n) => (
           <section key={q.id} className="panel">
             <h2>Question {n + 1}</h2>
             <p className="prompt"><RichText text={q.prompt} /></p>
-            {written(answers[q.id]) ? (
+            {written(answers[q.id]) && aiRes[q.id] ? (
+              <>
+                <h3>Your answer</h3>
+                <pre className="answer">{padToText(answers[q.id]) || "(drawing only)"}</pre>
+                <ScoreBreakdown criteria={aiRes[q.id].criteria} cfg={data.config} feedback={aiRes[q.id].feedback} />
+                <button className="ghost" onClick={() => setAiRes((m) => { const { [q.id]: _gone, ...rest } = m; return rest; })}>Score this one myself instead</button>
+              </>
+            ) : written(answers[q.id]) ? (
               <SelfCheck
                 answer={padToText(answers[q.id])}
                 reference={q.solution}

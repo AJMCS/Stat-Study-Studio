@@ -6,7 +6,7 @@ import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
 import { RichText } from "../components/Math";
 import { PageView } from "../components/PageView";
-import type { ExamRecord } from "../types";
+import { CRITERION_LABELS, type ExamRecord } from "../types";
 
 function downloadPdf(e: ExamRecord, title: string) {
   const doc = new jsPDF();
@@ -32,6 +32,7 @@ function downloadPdf(e: ExamRecord, title: string) {
     line(`Q${n + 1}. ${it.prompt}`, 12, true);
     line(`Your answer: ${it.answer || "(unanswered)"}`);
     line(`Feedback: ${it.feedback}`);
+    it.aiFeedback?.forEach((f) => line(`${CRITERION_LABELS[f.criterion]} ${f.score}: ${f.comment} Try: ${f.suggestion}`));
     it.keyPoints?.forEach((k) => line(`[${k.got ? "x" : " "}] ${k.text}`));
     y += 3;
   });
@@ -79,7 +80,7 @@ export function ExamReview() {
       <p><Link to="/exams">← Exam history</Link></p>
       <h1>{t?.title} exam · attempt {e.attempt}</h1>
       <p className="muted">{new Date(e.at).toLocaleString()} · {e.timed ? "Timed" : "Untimed"}{e.focus && ` · Focus: ${e.focus}`}</p>
-      <ScoreBreakdown criteria={e.criteria} cfg={data.config} selfScored={e.selfScored} />
+      <ScoreBreakdown criteria={e.criteria} cfg={data.config} selfScored={e.selfScored && !e.aiScored} />
       <ol className="review-list">
         {e.items.map((it) => (
           <li key={it.questionId}>
@@ -87,6 +88,13 @@ export function ExamReview() {
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
             <p><b>Score {it.composite}.</b> {it.feedback}</p>
+            {it.aiFeedback && (
+              <ul className="small">
+                {it.aiFeedback.map((f) => (
+                  <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]} {f.score}:</b> {f.comment} <i>Try:</i> {f.suggestion}</li>
+                ))}
+              </ul>
+            )}
             {it.keyPoints && (
               <ul className="ticks" aria-label="Key points">
                 {it.keyPoints.map((k, n) => (

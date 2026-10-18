@@ -457,6 +457,155 @@ await step("mobile layout no horizontal overflow", async () => {
   await shot("mobile");
 });
 
+// ---------------------------------------------------------------------------------------------- AI service (fake Gemini)
+await page.setViewportSize({ width: 1100, height: 900 });
+// A same-address hash change does not remount the page, so go through the overview first for a fresh screen.
+const fresh = async (p) => {
+  await go("/");
+  await go(p);
+};
+expectNetworkFailure = true; // the tests below deliberately send a wrong key and trigger rate limits
+const FAKE = process.env.FAKE_GEMINI;
+const GOOD_KEY = "good-key-123";
+const geminiLog = async () => (await fetch(`${FAKE}/__log`)).json();
+const settleSaves = () => page.waitForTimeout(800);
+const lastAttempt = async (kind) => (await apiGet("state")).state.attempts.filter((a) => a.kind === kind).at(-1);
+const WRITTEN = "The MLE maximizes the likelihood because it makes the observed data most probable. It matters since it gives a point estimate, for example n=10.";
+
+await step("ai: connecting needs the data notice accepted; a wrong key is refused in plain words; a good key connects", async () => {
+  await go("/settings");
+  await page.waitForSelector("text=What gets sent");
+  await page.waitForSelector("text=may use what is sent to improve its products");
+  await page.fill("input[aria-label='API key']", "wrong-key");
+  if (!(await page.locator("button:has-text('Connect')").isDisabled())) throw new Error("Connect must wait for the notice to be accepted");
+  await page.check("label:has-text('I have read this') input");
+  await page.click("button:has-text('Connect')");
+  await page.waitForSelector("[role=alert]:has-text('did not accept your key')");
+  if ((await apiGet("ai")).keyStored) throw new Error("a refused key must not be stored");
+  await page.fill("input[aria-label='API key']", GOOD_KEY);
+  await page.click("button:has-text('Connect')");
+  await page.waitForSelector("text=Connected to Google Gemini");
+  await shot("ai-connected");
+  const body = await page.evaluate(() => document.body.innerText);
+  if (body.includes(GOOD_KEY)) throw new Error("the key is shown on the page after connecting");
+  const exported = await (await page.request.get(`${BASE.split("#")[0]}api/export`)).text();
+  if (exported.includes(GOOD_KEY)) throw new Error("the key leaked into the data export");
+});
+
+await step("ai: a recall is scored on four criteria, with comments, and saved as AI-scored", async () => {
+  await fresh(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", WRITTEN);
+  await page.click("button:has-text('Score with AI')");
+  await page.waitForSelector(".criteria li", { timeout: 15000 });
+  await page.waitForSelector("text=You named the central idea clearly.");
+  await page.waitForSelector("text=Qualifying recall added to your streak");
+  if ((await page.locator(".chip:has-text('Self-scored')").count()) > 0) throw new Error("an AI-scored recall must not be labeled self-scored");
+  await shot("ai-recall");
+  await settleSaves();
+  const a = await lastAttempt("recall");
+  if (!a.aiScored || a.selfScored) throw new Error("attempt flags wrong: " + JSON.stringify(a));
+  if (new Set(Object.values(a.criteria)).size < 2) throw new Error("an AI score must keep four different criterion scores");
+  const sent = JSON.stringify((await geminiLog()).at(-1));
+  if (sent.includes(GOOD_KEY)) throw new Error("key sent in the body");
+});
+
+await step("ai: when scoring fails the answer is kept, the reason is plain, and self-scoring still works", async () => {
+  await fresh(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", "FAILME " + WRITTEN);
+  await page.click("button:has-text('Score with AI')");
+  await page.waitForSelector("[role=alert]:has-text('free allowance')");
+  if (!(await page.inputValue("textarea")).startsWith("FAILME")) throw new Error("the answer was lost");
+  await page.waitForSelector("button:has-text('Retry AI scoring')");
+  await page.click("button:has-text('Score it myself instead')");
+  await page.waitForSelector("h3:has-text('Reference solution')");
+});
+
+await step("ai: practice quiz scores a written answer with the AI and locks the first response", async () => {
+  await fresh(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Low-stakes practice')");
+  for (let k = 0; k < 5; k++) await page.click("button:has-text('Next')");
+  await page.waitForSelector("text=Question 6 of 10");
+  await page.fill("textarea", WRITTEN);
+  await page.click("button:has-text('Check answer')");
+  await page.waitForSelector(".chip:has-text('AI-scored')", { timeout: 15000 });
+  await page.waitForSelector(".criteria li");
+  await shot("ai-quiz-practice");
+});
+
+await step("ai: a graded quiz is scored on submit without asking the learner to self-rate", async () => {
+  await fresh(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Graded quiz')");
+  for (let k = 0; k < 5; k++) await page.click("button:has-text('Next')");
+  await page.fill("textarea", WRITTEN);
+  await page.click("button:has-text('Review') >> nth=-1");
+  await page.click("button:has-text('Submit quiz')");
+  await page.waitForSelector("text=Quiz summary", { timeout: 20000 });
+  await page.waitForSelector(".chip:has-text('AI-scored')");
+  await settleSaves();
+  const a = await lastAttempt("quiz");
+  if (!a.aiScored || a.selfScored) throw new Error("quiz attempt flags wrong: " + JSON.stringify(a));
+  await shot("ai-quiz-summary");
+});
+
+await step("ai: a graded quiz whose scoring fails falls back to self-rating without losing answers", async () => {
+  await fresh(`/topic/${T}/quiz`);
+  await page.click("button:has-text('Graded quiz')");
+  for (let k = 0; k < 5; k++) await page.click("button:has-text('Next')");
+  await page.fill("textarea", "FAILME " + WRITTEN);
+  await page.click("button:has-text('Review') >> nth=-1");
+  await page.click("button:has-text('Submit quiz')");
+  await page.waitForSelector("text=Score your written answers");
+  await page.waitForSelector("[role=alert]:has-text('free allowance')");
+  await page.waitForSelector("button:has-text('Retry AI scoring')");
+  await page.click("label:has-text('Partly') input");
+  await page.click("button:has-text('Finish and save')");
+  await page.waitForSelector("text=Quiz summary");
+});
+
+await step("ai: an exam is scored by the AI on request and the review shows its comments", async () => {
+  await fresh(`/topic/${T}/exam`);
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector("text=Question 1 of");
+  for (let i = 0; i < 8; i++) {
+    await page.fill("textarea", "Write the log-likelihood, differentiate, set to zero, so theta-hat = sum x / (2n) because it is the maximizer. For example 9/6.");
+    if (await page.locator("button:has-text('Submit and score')").count()) break;
+    await page.click("button:has-text('Next')");
+  }
+  await page.click("button:has-text('Submit and score')");
+  await page.waitForSelector("text=Score your exam");
+  await page.click("button:has-text('Score my answers with AI')");
+  await page.waitForSelector("button:has-text('All answers scored')", { timeout: 30000 });
+  await shot("ai-exam-check");
+  await page.click("button:has-text('Finish and save')");
+  await page.waitForSelector("text=attempt", { timeout: 20000 });
+  await page.waitForSelector("text=You named the central idea clearly.");
+  if ((await page.locator(".chip:has-text('Self-scored')").count()) > 0) throw new Error("a fully AI-scored exam must not be labeled self-scored");
+  await shot("ai-exam-review");
+});
+
+await step("ai: disconnecting removes the key and the AI-only controls", async () => {
+  await go("/settings");
+  await page.click("button:has-text('Disconnect and forget my key')");
+  await page.waitForSelector("text=What gets sent");
+  const s = await apiGet("ai");
+  if (s.keyStored || s.connected) throw new Error("still connected after disconnecting");
+  await fresh(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", WRITTEN);
+  if ((await page.locator("button:has-text('Score with AI')").count()) > 0) throw new Error("AI scoring offered while disconnected");
+});
+
+expectNetworkFailure = false;
+await step("ai: leave the service empty for the next test file", async () => {
+  await go("/settings");
+  await page.click("button:has-text('Delete all my data')");
+  await page.click("button:has-text('Yes, delete everything')");
+  await page.waitForTimeout(500);
+  if ((await apiGet("state")).state.attempts?.length) throw new Error("data was not cleared");
+});
+
 console.log("\nPROBLEMS:", problems.length ? "\n" + problems.join("\n") : "none");
 await browser.close();
 process.exit(problems.length ? 1 : 0);

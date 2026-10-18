@@ -6,6 +6,7 @@ import { createServer } from "node:http";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { startFakeGemini } from "./fakegemini.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const python = process.env.PYTHON ?? join(root, "venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
@@ -41,11 +42,13 @@ const updateServer = createServer((req, res) => {
 await new Promise((ready) => updateServer.listen(0, "127.0.0.1", ready));
 const updateBase = `http://127.0.0.1:${updateServer.address().port}/`;
 
+const gemini = await startFakeGemini();
+
 // STUDIO_EXE=path/to/StatsStudio.exe runs the tests against the packaged app instead of the source tree.
 const exe = process.env.STUDIO_EXE;
 const server = spawn(exe ?? python, exe ? ["--no-browser", "--port", port] : ["-m", "studio.server", "--no-browser", "--port", port], {
   cwd: exe ? undefined : join(root, "backend"),
-  env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_UPDATE_BASE: updateBase, STUDIO_AUTOCHECK: "1" },
+  env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_UPDATE_BASE: updateBase, STUDIO_AUTOCHECK: "1", STUDIO_GEMINI_BASE: gemini.url, STUDIO_KEYSTORE: "file" },
   stdio: "inherit",
 });
 
@@ -64,7 +67,7 @@ async function waitForService() {
 const run = (script) =>
   new Promise((done) => {
     const p = spawn(process.execPath, [join(import.meta.dirname, script), outDir], {
-      env: { ...process.env, ORIGIN: origin, BASE: `${origin}/#` },
+      env: { ...process.env, ORIGIN: origin, BASE: `${origin}/#`, FAKE_GEMINI: gemini.url },
       stdio: "inherit",
     });
     p.on("exit", (code) => done(code ?? 1));
@@ -80,6 +83,7 @@ try {
 } finally {
   server.kill();
   updateServer.close();
+  gemini.close();
   rmSync(remoteDir, { recursive: true, force: true });
   await new Promise((done) => (server.exitCode === null ? server.once("exit", done) : done()));
   try {

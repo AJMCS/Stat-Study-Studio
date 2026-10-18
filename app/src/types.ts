@@ -22,6 +22,8 @@ export interface CriterionFeedback {
   score: number;
   why: string;
   suggestion: string;
+  /** What the AI service said about this particular answer (absent for generic feedback). */
+  comment?: string;
 }
 
 export interface ScoringConfig {
@@ -145,6 +147,10 @@ export interface QuizResult {
     unanswered?: boolean;
     /** Scored by the learner against the reference answer. */
     selfScored?: boolean;
+    /** Scored by an AI service on the four criteria; the details are kept for the summary. */
+    aiScored?: boolean;
+    criteria?: CriterionScores;
+    aiFeedback?: CriterionFeedback[];
   }[];
   flaggedConcepts: string[];
   selfScored?: boolean;
@@ -169,9 +175,14 @@ export interface ExamRecord {
     /** Reference solution and the key points the learner ticked, for the self-scored review. */
     solution?: string;
     keyPoints?: { text: string; got: boolean }[];
+    /** When an AI service scored this answer: its criterion scores and comments. */
+    criteria?: CriterionScores;
+    aiFeedback?: CriterionFeedback[];
   }[];
   sources: SourceRef[];
   selfScored?: boolean;
+  /** At least one answer was scored by an AI service, so the criteria are a real breakdown. */
+  aiScored?: boolean;
 }
 
 export interface ChatMessage {

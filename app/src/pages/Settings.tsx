@@ -2,6 +2,92 @@ import { useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
+import { ServiceRejected } from "../lib/api";
+import { useAi } from "../lib/ai";
+
+function AiPanel() {
+  const ai = useAi();
+  const info = ai.info;
+  const [key, setKey] = useState("");
+  const [accept, setAccept] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const [error, setError] = useState("");
+  const [model, setModel] = useState<string | null>(null);
+  const [tested, setTested] = useState(false);
+
+  const run = async (fn: () => Promise<void>) => {
+    setBusy(true);
+    setError("");
+    setTested(false);
+    try {
+      await fn();
+    } catch (e) {
+      setError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service. Check that it is still running, then try again.");
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (!info) return <section className="panel"><h2>AI service</h2><p className="muted">Loading…</p></section>;
+
+  const shownModel = model ?? (info.model === info.defaultModel ? "" : info.model);
+
+  return (
+    <section className="panel" aria-labelledby="ai-h">
+      <h2 id="ai-h">AI service (optional)</h2>
+      <p>
+        Everything in the app works without an AI service. Connecting one adds the adaptive tutor, automatic scoring on the four criteria,
+        and exam questions written around what you want to practice. It uses <strong>your own</strong> {info.providerName} key, so there is no account here and nothing to pay us.
+      </p>
+      {error && <p className="notice warn-box" role="alert">{error}</p>}
+
+      {info.connected ? (
+        <>
+          <p role="status">
+            Connected to {info.providerName}. Your key is stored {info.keyLocation === "os" ? "in this computer's secure credential store" : "in a private file on this computer"}.
+            {tested && " The connection works."}
+          </p>
+          <label className="field">
+            <span>Model</span>
+            <input aria-label="Model" placeholder={info.defaultModel} value={shownModel} onChange={(e) => setModel(e.target.value)} />
+          </label>
+          <p className="muted">Leave blank to use {info.defaultModel}, which Google keeps pointing at its current fast model.</p>
+          <div className="row">
+            <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(shownModel))}>Save model</button>
+            <button className="ghost" disabled={busy} onClick={() => void run(async () => { await ai.test(); setTested(true); })}>Test connection</button>
+            <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect and forget my key</button>
+          </div>
+        </>
+      ) : (
+        <>
+          <ol>
+            <li>Go to <a href="https://aistudio.google.com/apikey" target="_blank" rel="noreferrer">aistudio.google.com/apikey</a> and sign in with a Google account.</li>
+            <li>Choose <em>Create API key</em> and copy it.</li>
+            <li>Paste it below. It is checked with Google first, then kept on this computer only.</li>
+          </ol>
+          {info.keyStored && !info.consented && <p className="notice">The data notice changed since you last accepted it. Please read it again.</p>}
+          <label className="field">
+            <span>API key</span>
+            <input aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
+          </label>
+          <div className="notice" data-testid="ai-notice">
+            <strong>What gets sent</strong>
+            <p>{info.notice}</p>
+            <label>
+              <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /> I have read this and want to use an AI service
+            </label>
+          </div>
+          <button disabled={busy || !key.trim() || !accept} onClick={() => void run(async () => { await ai.connect(key, accept); setKey(""); })}>
+            {busy ? "Checking…" : "Connect"}
+          </button>
+        </>
+      )}
+      <p className="muted">
+        Hosted requests that use your uploaded files are also controlled per collection in Course materials. Disconnecting removes the key; the app keeps working on its own.
+      </p>
+    </section>
+  );
+}
 
 export function Settings() {
   const { data, update, exportData, deleteAll } = useStore();
@@ -55,13 +141,7 @@ export function Settings() {
         <button className="ghost" onClick={() => update((d) => ({ ...d, config: DEFAULT_CONFIG }))}>Reset to defaults</button>
       </section>
 
-      <section className="panel">
-        <h2>AI and privacy</h2>
-        <p>
-          Everything you do here is stored on this device. On-device models are preferred; any hosted-model use is disclosed and needs your consent before learner data is sent. Hosted requests using personal materials are controlled per collection in Course materials.
-        </p>
-        <p className="muted">No AI service is connected, so nothing you write is sent anywhere. Open-ended answers are scored by you against reference answers, and marked self-scored.</p>
-      </section>
+      <AiPanel />
 
       <section className="panel">
         <h2>Your data</h2>

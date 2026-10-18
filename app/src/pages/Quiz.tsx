@@ -11,6 +11,10 @@ import { RATING_CREDIT, SelfRate, type Rating } from "../components/SelfCheck";
 import { uniformCriteria } from "../lib/scoring";
 import type { CriterionScores, QuizQuestion, QuizResult } from "../types";
 
+import { useAi } from "../lib/ai";
+import { aiFailure, aiScore, type AiScored } from "../lib/aiScore";
+import { CRITERIA, CRITERION_LABELS } from "../types";
+
 type Mode = "graded" | "practice";
 interface Answer {
   choice?: number;
@@ -22,7 +26,16 @@ interface Outcome {
   feedback: string;
   /** Open-ended answers are scored by the learner against the reference answer. */
   selfScored?: boolean;
+  /** Or by an AI service on the four criteria. */
+  ai?: AiScored;
 }
+
+const outcomeFromAi = (q: QuizQuestion, r: AiScored, cutoff: number): Outcome => ({
+  correct: r.composite >= cutoff,
+  credit: r.composite / 100,
+  feedback: q.explanation,
+  ai: r,
+});
 /** A learner choosing how an open-ended answer compared with the reference, for the first response or a retry. */
 interface Rating_ {
   target: "first" | "retry";
@@ -62,7 +75,13 @@ export function Quiz() {
   const [stage, setStage] = useState<"questions" | "selfcheck">("questions");
   const [pending, setPending] = useState<Record<string, Rating | null>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
-  const [summary, setSummary] = useState<{ criteria: CriterionScores; selfScored: boolean } | null>(null);
+  const [summary, setSummary] = useState<{ criteria: CriterionScores; selfScored: boolean; aiScored: boolean } | null>(null);
+  const ai = useAi();
+  const [aiBusy, setAiBusy] = useState(false);
+  /** Why AI scoring failed, per question (practice) or "all" (graded submit). The learner's answers are untouched. */
+  const [aiError, setAiError] = useState<Record<string, string>>({});
+  /** Graded quizzes: answers the AI has already scored this submit, so a retry only redoes the ones that failed. */
+  const [aiDone, setAiDone] = useState<Record<string, Outcome>>({});
 
   if (!topic) return <p>Topic not found.</p>;
   const cfg = data.config;
@@ -116,6 +135,28 @@ export function Quiz() {
     }
   };
 
+  /** Practice: score a written answer with the AI service. On failure the answer stays and the learner can retry or self-score. */
+  const checkWithAi = async (target: "first" | "retry") => {
+    setAiBusy(true);
+    setAiError((m) => ({ ...m, [q.id]: "" }));
+    try {
+      const r = await aiScore({ topic: topic.title, question: q.prompt, answer: padToText(ans.pad), reference: q.explanation, stage: "conceptual" }, cfg);
+      const o = outcomeFromAi(q, r, cfg.compositeCutoff);
+      if (target === "first") {
+        setFirst((m) => ({ ...m, [q.id]: o }));
+        setFirstAns((m) => ({ ...m, [q.id]: ans }));
+      } else {
+        setRetryOutcome((m) => ({ ...m, [q.id]: o }));
+        setRetryScores((rs) => [...rs, { qid: q.id, credit: o.credit, selfScored: false }]);
+        setRetrying((m) => ({ ...m, [q.id]: false }));
+      }
+    } catch (e) {
+      setAiError((m) => ({ ...m, [q.id]: aiFailure(e) }));
+    } finally {
+      setAiBusy(false);
+    }
+  };
+
   const saveRating = () => {
     if (!rate?.value) return;
     const o = outcomeFromRating(q, rate.value);
@@ -136,21 +177,42 @@ export function Quiz() {
   /** Written answers that still need the learner's rating before the quiz can be saved. */
   const needRating = () => questions.filter((qq) => qq.kind === "open" && answered(qq.id) && !first[qq.id]);
 
-  const submit = () => {
-    if (needRating().length > 0) {
-      setStage("selfcheck");
-      setReview(false);
-      window.scrollTo?.({ top: 0 });
-    } else finish({});
+  const submit = async () => {
+    const todo = needRating();
+    if (todo.length === 0) return finish({});
+    if (ai.connected) {
+      // Score every written answer with the AI service; whatever fails is offered for retry or self-scoring.
+      setAiBusy(true);
+      setAiError({});
+      const done: Record<string, Outcome> = { ...aiDone };
+      let failure = "";
+      for (const qq of todo) {
+        if (done[qq.id]) continue;
+        try {
+          done[qq.id] = outcomeFromAi(qq, await aiScore({ topic: topic.title, question: qq.prompt, answer: padToText(answers[qq.id].pad), reference: qq.explanation, stage: "conceptual" }, cfg), cfg.compositeCutoff);
+        } catch (e) {
+          failure = aiFailure(e);
+          break;
+        }
+      }
+      setAiDone(done);
+      setAiBusy(false);
+      if (!failure) return finish({}, done);
+      setAiError({ all: failure });
+    }
+    setStage("selfcheck");
+    setReview(false);
+    window.scrollTo?.({ top: 0 });
   };
 
-  const finish = (ratings: Record<string, Rating | null>) => {
+  const finish = (ratings: Record<string, Rating | null>, scored: Record<string, Outcome> = aiDone) => {
     const items: QuizResult["items"] = questions.map((qq) => {
       const a = firstAns[qq.id] ?? answers[qq.id];
       const isAnswered = answered(qq.id);
       let o: Outcome;
       if (!isAnswered) o = { correct: false, credit: 0, feedback: "No answer given; counted as a miss." };
       else if (first[qq.id]) o = first[qq.id];
+      else if (scored[qq.id]) o = scored[qq.id];
       else if (qq.kind === "mc") o = gradeMc(qq, a);
       else o = outcomeFromRating(qq, ratings[qq.id] ?? "missed");
       return {
@@ -164,19 +226,26 @@ export function Quiz() {
         sourceId: qq.sourceId,
         unanswered: !isAnswered,
         selfScored: o.selfScored,
+        ...(o.ai && isAnswered ? { aiScored: true, criteria: o.ai.criteria, aiFeedback: o.ai.feedback } : {}),
       };
     });
     const score = Math.round(items.reduce((s, it) => s + (it.partial ?? 0), 0) * 10) / 10;
     const percent = (score / questions.length) * 100;
     const selfScored = items.some((it) => it.selfScored);
-    const criteria = uniformCriteria(percent);
+    const aiScored = items.some((it) => it.aiScored);
+    // Written answers scored by the AI contribute their own criterion scores; everything else counts as its credit.
+    const criteria: CriterionScores = aiScored
+      ? (Object.fromEntries(
+          CRITERIA.map((k) => [k, Math.round(items.reduce((s, it) => s + (it.aiScored && it.criteria ? it.criteria[k] : (it.partial ?? 0) * 100), 0) / items.length)]),
+        ) as CriterionScores)
+      : uniformCriteria(percent);
     const flagged = [...new Set(items.filter((it) => it.unanswered || it.correct === false).map((it) => it.concept))];
     const res: QuizResult = { id: uid(), topicId: topic.id, at: new Date().toISOString(), score, total: questions.length, items, flaggedConcepts: flagged, selfScored };
     saveQuiz(res);
     // Only the first response counts. Retries are saved separately and never touch the initial-attempt metrics.
-    recordAttempt({ topicId: topic.id, kind: "quiz", counted: true, selfScored, criteria, note: `${mode} quiz${selfScored ? " (self-scored)" : ""}` });
+    recordAttempt({ topicId: topic.id, kind: "quiz", counted: true, selfScored, aiScored, criteria, note: `${mode} quiz${selfScored ? " (self-scored)" : aiScored ? " (AI-scored)" : ""}` });
     retryScores.forEach((r) => recordAttempt({ topicId: topic.id, kind: "quiz", counted: false, selfScored: r.selfScored, criteria: uniformCriteria(r.credit * 100), note: "Practice retry" }));
-    setSummary({ criteria, selfScored });
+    setSummary({ criteria, selfScored, aiScored });
     setResult(res);
   };
 
@@ -187,7 +256,8 @@ export function Quiz() {
         <p className="lede">
           Score <strong>{result.score}</strong> / {result.total}
         </p>
-        {summary && <ScoreBreakdown criteria={summary.criteria} cfg={cfg} selfScored={summary.selfScored} marked={!summary.selfScored} />}
+        {summary && <ScoreBreakdown criteria={summary.criteria} cfg={cfg} selfScored={summary.selfScored} marked={!summary.selfScored && !summary.aiScored} />}
+        {summary?.aiScored && <p className="muted small">The four criteria combine your AI-scored written answers with your multiple-choice marks.</p>}
         {result.flaggedConcepts.length > 0 && (
           <p className="notice">Concepts flagged for review: {result.flaggedConcepts.join("; ")}</p>
         )}
@@ -200,8 +270,16 @@ export function Quiz() {
                 <p className={it.correct ? "ok-text" : "bad-text"}>
                   {it.unanswered ? "Unanswered" : it.correct ? "Correct" : `Partial credit ${Math.round((it.partial ?? 0) * 100)}%`}
                   {it.selfScored && <span className="chip">Self-scored</span>}
+                  {it.aiScored && <span className="chip">AI-scored</span>}
                 </p>
                 <p><RichText text={it.feedback} /></p>
+                {it.aiFeedback && (
+                  <ul className="small">
+                    {it.aiFeedback.map((f) => (
+                      <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]} {f.score}:</b> {f.comment} <i>Try:</i> {f.suggestion}</li>
+                    ))}
+                  </ul>
+                )}
                 {src && <Citations sources={[src]} />}
               </li>
             );
@@ -221,6 +299,8 @@ export function Quiz() {
     return (
       <>
         <h1>Score your written answers</h1>
+        {aiError.all && <p className="notice warn-box" role="alert">{aiError.all} Your answers are kept.</p>}
+        {ai.connected && Object.keys(aiDone).length > 0 && <p className="muted">{Object.keys(aiDone).length} written answer(s) were already scored by the AI service.</p>}
         <p className="lede">Compare each answer with the reference answer and say how it went. Be honest: this is what tells you what to review. These are marked <i>self-scored</i> in your progress.</p>
         {list.map((qq) => (
           <section key={qq.id} className="panel">
@@ -236,6 +316,7 @@ export function Quiz() {
         ))}
         <div className="row">
           <button className="ghost" onClick={() => setStage("questions")}>Back to questions</button>
+          {ai.connected && <button className="ghost" disabled={aiBusy} onClick={() => void submit()}>{aiBusy ? "Scoring…" : "Retry AI scoring"}</button>}
           <button disabled={!done} onClick={() => finish(pending)}>Finish and save</button>
         </div>
       </>
@@ -260,7 +341,7 @@ export function Quiz() {
         </ol>
         <div className="row">
           <button className="ghost" onClick={() => setReview(false)}>Back to questions</button>
-          <button onClick={submit}>Submit quiz</button>
+          <button onClick={() => void submit()} disabled={aiBusy}>{aiBusy ? "Scoring your written answers…" : "Submit quiz"}</button>
         </div>
       </>
     );
@@ -289,11 +370,22 @@ export function Quiz() {
           <Pad value={ans.pad} onChange={(pad) => setAns({ ...ans, pad })} label="Show your work" disabled={locked || !!rate} />
         )}
 
+        {aiError[q.id] && <p className="notice warn-box" role="alert">{aiError[q.id]} Your answer is kept.</p>}
         {mode === "practice" && !f && !rate && (
-          <button onClick={() => check("first")} disabled={!answered(q.id)}>Check answer</button>
+          <div className="row">
+            <button onClick={() => (ai.connected && q.kind === "open" ? void checkWithAi("first") : check("first"))} disabled={!answered(q.id) || aiBusy}>
+              {aiBusy ? "Scoring…" : aiError[q.id] ? "Retry check" : "Check answer"}
+            </button>
+            {ai.connected && q.kind === "open" && <button className="ghost" disabled={!answered(q.id) || aiBusy} onClick={() => check("first")}>Score it myself instead</button>}
+          </div>
         )}
         {mode === "practice" && retrying[q.id] && !rate && (
-          <button onClick={() => check("retry")} disabled={!answered(q.id)}>Check retry</button>
+          <div className="row">
+            <button onClick={() => (ai.connected && q.kind === "open" ? void checkWithAi("retry") : check("retry"))} disabled={!answered(q.id) || aiBusy}>
+              {aiBusy ? "Scoring…" : "Check retry"}
+            </button>
+            {ai.connected && q.kind === "open" && <button className="ghost" disabled={!answered(q.id) || aiBusy} onClick={() => check("retry")}>Score it myself instead</button>}
+          </div>
         )}
         {rate && (
           <>
@@ -313,7 +405,9 @@ export function Quiz() {
             <p className={f.correct ? "ok-text" : "bad-text"}>
               {f.correct ? "Correct" : f.credit > 0 ? "Partly" : "Needs work"} (first response, now locked)
               {f.selfScored && <span className="chip">Self-scored</span>}
+              {f.ai && <span className="chip">AI-scored</span>}
             </p>
+            {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} />}
             <p><RichText text={f.feedback} /></p>
             {!retrying[q.id] && <button className="ghost" onClick={() => setRetrying((m) => ({ ...m, [q.id]: true }))}>Try again (saved separately)</button>}
             {rf && !retrying[q.id] && <p className="muted">Retry: {rf.correct ? "correct" : rf.credit > 0 ? "partly" : "not yet"}. This does not change your first-attempt score.</p>}

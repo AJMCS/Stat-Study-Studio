@@ -22,9 +22,10 @@ from fastapi import Body, FastAPI, File, Form, HTTPException, Query, Request, Up
 from fastapi.responses import FileResponse, JSONResponse, Response
 from fastapi.staticfiles import StaticFiles
 from platformdirs import user_data_dir
-from pydantic import ValidationError
+from pydantic import BaseModel, Field, ValidationError
 
 from . import __version__
+from .ai import AiError, AiService, tasks
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
 from .embedder import DEFAULT_MODEL, Embedder
@@ -38,6 +39,25 @@ from .update import Updater
 
 DEFAULT_PORT = 8765
 DEV_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
+
+
+class ConnectBody(BaseModel):
+    apiKey: str
+    accept: bool
+    model: str | None = None
+    provider: str = "gemini"
+
+class ModelBody(BaseModel):
+    model: str | None = None
+
+
+class ScoreBody(BaseModel):
+    topic: str = Field(max_length=200)
+    question: str = Field(max_length=8000)
+    answer: str = Field(max_length=20000)
+    reference: str = Field(default="", max_length=8000)
+    keyPoints: list[str] = Field(default_factory=list, max_length=20)
+    stage: str = Field(default="conceptual", pattern="^(conceptual|formal)$")
 
 
 def default_data_dir() -> Path:
@@ -75,6 +95,7 @@ def create_app(
         app.state.library = LibraryRuntime(library_dir, data_dir, app.state.embedder)
         app.state.updater = Updater(app.state.library)
         app.state.personal = PersonalStore(app.state.db, data_dir, app.state.embedder)
+        app.state.ai = AiService(data_dir)
         if auto_check and app.state.updater.base is not None:
             # Look for newer course materials in the background; never delays or breaks starting up.
             threading.Thread(target=app.state.updater.check, daemon=True, name="library-check").start()
@@ -94,8 +115,54 @@ def create_app(
                 return JSONResponse({"detail": "Requests must come from the study app"}, status_code=403)
         return await call_next(request)
 
+    @app.exception_handler(AiError)
+    async def ai_error(_: Request, e: AiError):
+        # Plain-language message for the learner; the technical detail is only for the log.
+        return JSONResponse({"detail": e.message, "kind": e.kind}, status_code=e.status)
+
     def db() -> Database:
         return app.state.db
+
+    def ai() -> AiService:
+        return app.state.ai
+
+    # ------------------------------------------------------------------ AI service (the learner's own key)
+    @app.get("/api/ai")
+    def ai_status() -> dict[str, Any]:
+        return ai().status()
+
+    @app.post("/api/ai/connect")
+    def ai_connect(body: ConnectBody) -> dict[str, Any]:
+        """Checks the key with the provider, then stores it in the OS credential store. Requires accepting the notice."""
+        try:
+            return ai().connect(body.apiKey, body.accept, body.model, body.provider)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+
+    @app.post("/api/ai/test")
+    def ai_test() -> dict[str, Any]:
+        return ai().test()
+
+    @app.put("/api/ai/model")
+    def ai_model(body: ModelBody) -> dict[str, Any]:
+        return ai().set_model(body.model)
+
+    @app.post("/api/ai/score")
+    def ai_score(body: ScoreBody) -> dict[str, Any]:
+        """Score one written answer on the four criteria. Sends only the question, the answer and the reference text."""
+        provider = ai().provider()
+        scores = tasks.score_answer(
+            provider, topic=body.topic, question=body.question, answer=body.answer, reference=body.reference, key_points=body.keyPoints, stage=body.stage
+        )
+        return {
+            "criteria": {k: v["score"] for k, v in scores.items()},
+            "feedback": [{"criterion": k, **v} for k, v in scores.items()],
+            "model": getattr(provider, "model", ""),
+        }
+
+    @app.delete("/api/ai")
+    def ai_disconnect() -> dict[str, Any]:
+        return ai().disconnect()
 
     # ------------------------------------------------------------------ API
     @app.get("/api/health")
@@ -294,6 +361,7 @@ def create_app(
     def delete_all() -> dict[str, bool]:
         app.state.personal.wipe()
         db().wipe()
+        ai().disconnect()
         return {"ok": True}
 
     # ------------------------------------------------------------------ files

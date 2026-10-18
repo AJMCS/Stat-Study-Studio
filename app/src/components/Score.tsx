@@ -93,6 +93,7 @@ export function ScoreBreakdown({
               </div>
               {fb && (
                 <p className="fb">
+                  {fb.comment && <>{fb.comment} <br /></>}
                   <em>{fb.why}</em> <br />
                   <b>Try:</b> {fb.suggestion}
                 </p>
