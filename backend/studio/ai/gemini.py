@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 
 import httpx
@@ -68,10 +69,14 @@ def _contents(messages: list[Message]) -> list[dict]:
         role = "model" if m.role == "assistant" else "user"
         if not out and role == "model":
             out.append({"role": "user", "parts": [{"text": "(The student has just opened the conversation.)"}]})
+        parts = [{"inlineData": {"mimeType": mime, "data": base64.b64encode(data).decode()}} for data, mime in m.images] + [{"text": m.text}]
         if out and out[-1]["role"] == role:
-            out[-1]["parts"][0]["text"] += "\n\n" + m.text
+            if m.images:
+                out[-1]["parts"].extend(parts)
+            else:
+                out[-1]["parts"][-1]["text"] += "\n\n" + m.text
         else:
-            out.append({"role": role, "parts": [{"text": m.text}]})
+            out.append({"role": role, "parts": parts})
     return out
 
 

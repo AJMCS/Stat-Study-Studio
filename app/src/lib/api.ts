@@ -106,6 +106,23 @@ export interface UploadReport {
   ocrPages: number;
   flaggedPages: { page: number; warning: string }[];
   lowConfidence: boolean;
+  /** Set by "Improve with AI" runs. */
+  improved?: number[];
+  failed?: number[];
+  unclear?: Record<string, string[]>;
+  stopped?: string | null;
+  skipped?: number;
+}
+
+export interface ImproveInfo {
+  pages: number[];
+  count: number;
+  willSend: number;
+  limit: number;
+  connected: boolean;
+  providerName: string;
+  local: boolean;
+  model: string;
 }
 
 export interface UploadJob {
@@ -252,6 +269,12 @@ export interface AiExamQuestion {
 }
 
 export const api = {
+  improveInfo: async (fileId: string, scope: "flagged" | "all"): Promise<ImproveInfo> => (await call(`/api/files/${fileId}/improve-info?scope=${scope}`)).json(),
+  improveFile: async (fileId: string, accept: boolean, scope: "flagged" | "all"): Promise<UploadJob> =>
+    (await call(`/api/files/${fileId}/improve`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ accept, scope }) })).json(),
+  restoreReading: async (fileId: string): Promise<void> => {
+    await call(`/api/files/${fileId}/restore-reading`, { method: "POST" });
+  },
   aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[]): Promise<{ questions: AiExamQuestion[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples }) })).json(),
   aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[]): Promise<TutorReply> =>

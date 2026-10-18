@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 
 import httpx
@@ -44,7 +45,7 @@ class OpenAI:
     def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
         body: dict = {
             "model": self.model,
-            "messages": [{"role": "system", "content": system}, *({"role": m.role, "content": m.text} for m in messages)],
+            "messages": [{"role": "system", "content": system}, *(_message(m) for m in messages)],
         }
         if json_output:
             body["response_format"] = {"type": "json_object"}
@@ -64,6 +65,13 @@ class OpenAI:
         if not text.strip():
             raise AiError("blocked" if choice.get("finish_reason") == "content_filter" else "bad_response", choice.get("finish_reason") or "empty")
         return text
+
+
+def _message(m: Message) -> dict:
+    if not m.images:
+        return {"role": m.role, "content": m.text}
+    content = [{"type": "image_url", "image_url": {"url": f"data:{mime};base64,{base64.b64encode(data).decode()}"}} for data, mime in m.images]
+    return {"role": m.role, "content": [*content, {"type": "text", "text": m.text}]}
 
 
 def _from_status(r: httpx.Response) -> AiError:

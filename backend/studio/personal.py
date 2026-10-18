@@ -13,6 +13,7 @@ Lifecycle of a file
 from __future__ import annotations
 
 import hashlib
+import io
 import logging
 import re
 import shutil
@@ -40,6 +41,10 @@ log = logging.getLogger(__name__)
 
 MAX_BYTES = 200 * 1024 * 1024
 MIN_TEXT = 20
+IMAGE_EXTS = {".png", ".jpg", ".jpeg", ".tif", ".tiff", ".bmp", ".webp"}
+MAX_IMPROVE_PAGES = 30  # pages sent to an AI model in one go, to keep the cost to the learner small
+# If one of these happens the whole run stops: trying the next page would fail the same way.
+STOP_KINDS = {"invalid_key", "billing", "rate_limited", "offline", "local_not_running", "no_consent", "not_connected", "model_missing"}
 CHUNK_CHARS = 800
 JOB_TTL_SECONDS = 3600
 EMBED_BACKFILL_PER_SEARCH = 256
@@ -350,6 +355,160 @@ class PersonalStore:
 
     def job(self, job_id: str) -> UploadJob | None:
         return self.jobs.get(job_id)
+
+    # ------------------------------------------------------------------ improve with an AI model
+    def pages_to_improve(self, file_id: str, scope: str) -> list[int]:
+        """Page numbers worth re-reading: those that were flagged, OCR-read or low confidence ("flagged"), or all of them."""
+        rows = self.db.read("SELECT page, method, confidence, flags FROM personal_pages WHERE file_id=? ORDER BY page", (file_id,))
+        if scope == "all":
+            return [r["page"] for r in rows]
+        return [r["page"] for r in rows if r["flags"] or r["method"] == "ocr" or r["confidence"] < 0.8]
+
+    def submit_improve(self, file_id: str, provider, scope: str = "flagged") -> UploadJob:
+        """Re-read pages from their images with an AI model. The caller must already have the learner's explicit consent
+        for this run. The earlier reading of each page is kept so it can be restored."""
+        f = self._file(file_id)
+        if not f or f["removed"] or self.db.read("SELECT 1 FROM files WHERE supersedes=?", (file_id,)):
+            raise UploadRejected("That file is not in your collections.", 404)
+        if f["ext"] != ".pdf" and f["ext"] not in IMAGE_EXTS:
+            raise UploadRejected("Only PDFs and images have page pictures for an AI model to read.")
+        if self.original_path(file_id) is None:
+            raise UploadRejected("The original file is not on this computer any more, so its pages can't be read again. Reconnect it first.")
+        pages = self.pages_to_improve(file_id, scope)
+        if not pages:
+            raise UploadRejected("No pages are flagged as hard to read. Choose to improve all pages if you still want to.")
+        self._prune_jobs()
+        job = UploadJob(id=_uid(), filename=f["filename"], total=min(len(pages), MAX_IMPROVE_PAGES))
+        self.jobs[job.id] = job
+        self._pool.submit(self._improve, job, file_id, pages[:MAX_IMPROVE_PAGES], len(pages), provider)
+        return job
+
+    def _improve(self, job: UploadJob, file_id: str, pages: list[int], requested: int, provider) -> None:
+        from .ai import AiError, tasks
+
+        job.status = "processing"
+        improved: list[int] = []
+        failed: list[int] = []
+        unclear: dict[int, list[str]] = {}
+        stopped: str | None = None
+        try:
+            for n, page in enumerate(pages):
+                job.progress = n
+                rendered = self.render_for_ai(file_id, page)
+                if rendered is None:
+                    failed.append(page)
+                    continue
+                try:
+                    out = tasks.transcribe_page(provider, *rendered)
+                except AiError as e:
+                    if e.kind in STOP_KINDS:
+                        stopped = e.message
+                        break
+                    failed.append(page)
+                    continue
+                with self.db.transaction() as c:
+                    c.execute(
+                        """UPDATE personal_pages SET
+                             prev_text = CASE WHEN prev_text IS NULL THEN text ELSE prev_text END,
+                             prev_method = CASE WHEN prev_text IS NULL THEN method ELSE prev_method END,
+                             prev_confidence = CASE WHEN prev_text IS NULL THEN confidence ELSE prev_confidence END,
+                             prev_flags = CASE WHEN prev_text IS NULL THEN flags ELSE prev_flags END,
+                             text=?, method='ai', confidence=0.85, flags='ai-read'
+                           WHERE file_id=? AND page=?""",
+                        (out["text"], file_id, page),
+                    )
+                improved.append(page)
+                if out["unclear"]:
+                    unclear[page] = out["unclear"]
+            job.progress = len(pages)
+            if improved:
+                job.file = self._rebuild(file_id)
+            job.report = {
+                "improved": improved,
+                "failed": failed,
+                "unclear": {str(k): v for k, v in unclear.items()},
+                "stopped": stopped,
+                "skipped": max(0, requested - len(pages)),
+            }
+            if improved:
+                job.status = "ready"
+            else:
+                job.status = "failed"
+                job.error = stopped or "The AI model could not read these pages. Try again, or keep the automatic reading."
+        except Exception:
+            log.exception("Improving %s failed", file_id)
+            if improved:
+                job.file = self._rebuild(file_id)
+            job.status, job.error = "failed", "Something went wrong while improving this file. Pages already improved were kept."
+
+    def restore_original_reading(self, file_id: str) -> dict:
+        """Put back the automatic reading of every page an AI model re-read."""
+        f = self._file(file_id)
+        if not f or f["removed"]:
+            raise UploadRejected("That file is not in your collections.", 404)
+        with self.db.transaction() as c:
+            c.execute(
+                """UPDATE personal_pages SET text=prev_text, method=prev_method, confidence=prev_confidence, flags=COALESCE(prev_flags, ''),
+                     prev_text=NULL, prev_method=NULL, prev_confidence=NULL, prev_flags=NULL
+                   WHERE file_id=? AND prev_text IS NOT NULL""",
+                (file_id,),
+            )
+        return self._rebuild(file_id)
+
+    def _rebuild(self, file_id: str) -> dict:
+        """Re-chunk and re-embed a file after its page texts changed, and refresh its summary flags."""
+        rows = self.db.read("SELECT page, text, method, confidence, flags FROM personal_pages WHERE file_id=? ORDER BY page", (file_id,))
+        pages = [PageText(r["page"], r["text"], r["method"], r["confidence"], _flags(r["flags"])) for r in rows]
+        chunks = self._make_chunks(pages)
+        emb = self.embedder.embed_passages([f"{h}. {t}" if h else t for _, _, h, t in chunks]) if chunks else None
+        ocr_pages = [p for p in pages if p.method == "ocr" or "ocr" in p.flags]
+        with self.db.transaction() as c:
+            c.execute("DELETE FROM personal_chunks WHERE file_id=?", (file_id,))
+            c.executemany(
+                "INSERT INTO personal_chunks (id, file_id, page, ordinal, heading, text, embedding) VALUES (?,?,?,?,?,?,?)",
+                [
+                    (f"{file_id}#p{pg}-{o}", file_id, pg, o, h, t, emb[i].astype(np.float16).tobytes() if emb is not None else None)
+                    for i, (pg, o, h, t) in enumerate(chunks)
+                ],
+            )
+            c.execute(
+                "UPDATE files SET flagged_pages=?, low_confidence=?, ai_read=? WHERE id=?",
+                (
+                    sum(1 for p in pages if p.warning),
+                    int(any({"low-ocr-confidence", "little-text"} & set(p.flags) for p in pages)),
+                    int(any(p.method == "ai" for p in pages)),
+                    file_id,
+                ),
+            )
+            _ = ocr_pages
+        self._tok.clear()
+        return next(f for f in self.db.get_state()["files"] if f["id"] == file_id)
+
+    def render_for_ai(self, file_id: str, page: int) -> tuple[bytes, str] | None:
+        """The page as an image for a model to read: sharp enough for small print, small enough to be cheap to send."""
+        path = self.original_path(file_id)
+        f = self._file(file_id)
+        if path is None or f is None:
+            return None
+        if f["ext"] == ".pdf":
+            import pymupdf
+
+            doc = pymupdf.open(path)
+            if not 1 <= page <= len(doc):
+                return None
+            pg = doc[page - 1]
+            zoom = min(2.5, 1800 / max(pg.rect.width, pg.rect.height, 1))
+            return pg.get_pixmap(matrix=pymupdf.Matrix(zoom, zoom)).tobytes("png"), "image/png"
+        if f["ext"] in IMAGE_EXTS and page == 1:
+            from PIL import Image
+
+            with Image.open(path) as im:  # models accept PNG/JPEG only, and a phone photo is far bigger than needed
+                im = im.convert("RGB")
+                im.thumbnail((2000, 2000))
+                buf = io.BytesIO()
+                im.save(buf, "JPEG", quality=90)
+            return buf.getvalue(), "image/jpeg"
+        return None
 
     # ------------------------------------------------------------------ remove / reconnect
     def remove(self, file_id: str) -> bool:

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import base64
+
 import httpx
 
 from .errors import AiError
@@ -66,10 +68,14 @@ def _alternating(messages: list[Message]) -> list[dict]:
         role = "assistant" if m.role == "assistant" else "user"
         if not out and role == "assistant":
             out.append({"role": "user", "content": "(The student has just opened the conversation.)"})
-        if out and out[-1]["role"] == role:
-            out[-1]["content"] += "\n\n" + m.text
+        content = m.text
+        if m.images:  # images first, then the instruction, as a list of blocks
+            content = [{"type": "image", "source": {"type": "base64", "media_type": mime, "data": base64.b64encode(data).decode()}} for data, mime in m.images]
+            content.append({"type": "text", "text": m.text})
+        if out and out[-1]["role"] == role and isinstance(content, str) and isinstance(out[-1]["content"], str):
+            out[-1]["content"] += "\n\n" + content
         else:
-            out.append({"role": role, "content": m.text})
+            out.append({"role": role, "content": content})
     return out
 
 

@@ -59,6 +59,8 @@ class PageText:
 
     @property
     def warning(self) -> str | None:
+        if "ai-read" in self.flags:
+            return "This page was read by an AI model from its image. It may contain mistakes, so check it against the original page."
         if "text-layer-corrupted" in self.flags:
             return (
                 "Math on this page was read automatically. Fractions, sums and subscripts may be missing or out of "

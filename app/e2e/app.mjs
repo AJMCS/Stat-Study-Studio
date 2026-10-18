@@ -666,6 +666,48 @@ await step("ai: if writing the exam fails the focus is kept and the question ban
   if ((await page.locator(".chip:has-text('AI-written')").count()) > 0) throw new Error("a bank exam must not be marked AI-written");
 });
 
+await step("ai: Improve with AI asks every time, sends the page picture, re-reads handwriting with math, and can be undone", async () => {
+  const origin = BASE.split("#")[0].replace(/\/$/, "");
+  await fresh("/materials");
+  const png = await photoOf("Maximum likelihood estimation chooses the parameter<br>that makes the observed data most likely");
+  await mainInput().setInputFiles({ name: "my-handwriting.png", mimeType: "image/png", buffer: png });
+  await page.waitForSelector("text=Added my-handwriting.png", { timeout: 30000 });
+  const row = page.locator("li.row:has-text('my-handwriting.png')");
+  await row.locator("button:has-text('Improve with AI')").click();
+  await page.waitForSelector("dialog[open] >> text=a picture of each page");
+  await page.waitForSelector("dialog[open] >> text=page images themselves");
+  const send = page.locator("dialog[open] button:has-text('Send')");
+  if (!(await send.isDisabled())) throw new Error("Send must wait for the learner to agree");
+  const before = (await geminiLog()).length;
+  await shot("ai-improve-dialog");
+  await page.check("dialog[open] label:has-text('I understand') input");
+  await send.click();
+  await page.waitForSelector("dialog[open] >> text=Improved 1 page", { timeout: 30000 });
+  const sent = (await geminiLog()).slice(before);
+  if (sent.length !== 1 || !sent[0].contents[0].parts[0].inlineData?.data) throw new Error("the page picture was not sent exactly once");
+  await shot("ai-improve-done");
+  await page.click("dialog[open] button:has-text('Done')");
+  await page.waitForSelector("li.row:has-text('my-handwriting.png') .chip:has-text('AI-read')");
+  await page.fill("input[placeholder*='sampling']", "nebulous quokka identity posterior likelihood prior");
+  await page.click("button:has-text('Search')");
+  await page.waitForSelector(".cite:has-text('my-handwriting.png')");
+  await page.click(".cite:has-text('my-handwriting.png')");
+  await page.waitForSelector("dialog[open] .katex");
+  if (!/AI model/.test(await page.locator("dialog[open]").innerText())) throw new Error("no AI-read warning in the preview");
+  await shot("ai-improve-preview");
+  await page.click("dialog button:has-text('Close')");
+  // asking again starts from "not agreed": consent is per use
+  await row.locator("button:has-text('Improve with AI')").click();
+  await page.waitForSelector("dialog[open] >> text=Which pages?");
+  if (await page.locator("dialog[open] label:has-text('I understand') input").isChecked()) throw new Error("consent must not be remembered");
+  await page.click("dialog[open] button:has-text('Cancel')");
+  await row.locator("button:has-text('Use automatic reading')").click();
+  await page.waitForSelector("text=is back to its automatic reading");
+  if ((await row.locator(".chip:has-text('AI-read')").count()) > 0) throw new Error("still marked AI-read");
+  const hits = await apiGet("search?q=" + encodeURIComponent("nebulous quokka identity"));
+  if (hits.personal.some((h) => h.filename === "my-handwriting.png" && /quokka/.test(h.text))) throw new Error("the AI reading is still searchable after restoring");
+});
+
 await step("ai: disconnecting removes the key and the AI-only controls", async () => {
   await go("/settings");
   await page.click("button:has-text('Disconnect and forget my key')");

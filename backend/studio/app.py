@@ -33,7 +33,7 @@ from .highlight import best_highlight
 from .library import LibraryRuntime
 from .models import ALL_SLICES
 from .pages import PageStore
-from .personal import MAX_BYTES, MEDIA_TYPES, PersonalStore, UploadRejected
+from .personal import MAX_BYTES, MAX_IMPROVE_PAGES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
 from .update import Updater
 
@@ -72,6 +72,11 @@ class ExamBody(BaseModel):
     focus: str = Field(default="", max_length=500)
     count: int = Field(default=4, ge=1, le=6)
     examples: list[ExampleQuestion] = Field(default_factory=list, max_length=8)
+
+
+class ImproveBody(BaseModel):
+    accept: bool
+    scope: str = Field(default="flagged", pattern="^(flagged|all)$")
 
 
 class ScoreBody(BaseModel):
@@ -377,6 +382,45 @@ def create_app(
             content_disposition_type="inline",
             headers={"X-Content-Type-Options": "nosniff"},
         )
+
+    @app.get("/api/files/{file_id}/improve-info")
+    def improve_info(file_id: str, scope: str = Query("flagged", pattern="^(flagged|all)$")) -> dict[str, Any]:
+        """What "Improve with AI" would do for this file, so the learner can decide with the real numbers in front of them."""
+        store: PersonalStore = app.state.personal
+        if not store._file(file_id) or store._file(file_id)["removed"]:
+            raise HTTPException(404, "That file is not in your collections.")
+        pages = store.pages_to_improve(file_id, scope)
+        info = ai().status()
+        return {
+            "pages": pages[:MAX_IMPROVE_PAGES],
+            "count": len(pages),
+            "willSend": min(len(pages), MAX_IMPROVE_PAGES),
+            "limit": MAX_IMPROVE_PAGES,
+            "connected": info["connected"],
+            "providerName": info["providerName"],
+            "local": info["local"],
+            "model": info["model"],
+        }
+
+    @app.post("/api/files/{file_id}/improve", status_code=202)
+    def improve_file(file_id: str, body: ImproveBody) -> dict[str, Any]:
+        """Re-read a file's pages from their images with the connected AI model. Each call needs `accept: true`: the learner
+        agrees every time, because this sends page images (not just text). Poll /api/uploads/{id} for progress."""
+        if not body.accept:
+            raise HTTPException(422, "Confirm that you want these page images sent to the AI service.")
+        provider = ai().provider()
+        try:
+            return app.state.personal.submit_improve(file_id, provider, body.scope).as_dict()
+        except UploadRejected as e:
+            raise HTTPException(e.status, str(e)) from e
+
+    @app.post("/api/files/{file_id}/restore-reading")
+    def restore_reading(file_id: str) -> dict[str, Any]:
+        """Go back to the automatic reading of every page an AI model re-read."""
+        try:
+            return {"file": app.state.personal.restore_original_reading(file_id)}
+        except UploadRejected as e:
+            raise HTTPException(e.status, str(e)) from e
 
     @app.get("/api/files/{file_id}/pages/{page}")
     def file_page(file_id: str, page: int) -> dict[str, Any]:

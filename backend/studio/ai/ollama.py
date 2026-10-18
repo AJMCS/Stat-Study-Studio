@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import base64
 import os
 from urllib.parse import urlparse
 
@@ -18,6 +19,13 @@ def local_base(value: str | None = None) -> str:
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError("Ollama must be running on this computer (127.0.0.1 or localhost).")
     return base
+
+
+def _message(m: Message) -> dict:
+    out: dict = {"role": m.role, "content": m.text}
+    if m.images:
+        out["images"] = [base64.b64encode(data).decode() for data, _ in m.images]
+    return out
 
 
 class Ollama:
@@ -63,7 +71,7 @@ class Ollama:
         body: dict = {
             "model": self.model,
             "stream": False,
-            "messages": [{"role": "system", "content": system}, *({"role": m.role, "content": m.text} for m in messages)],
+            "messages": [{"role": "system", "content": system}, *(_message(m) for m in messages)],
             # The default context window is small and would silently cut off the course excerpts.
             "options": {"temperature": temperature, "num_ctx": 8192},
         }

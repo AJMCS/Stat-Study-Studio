@@ -38,7 +38,13 @@ const examScript = (_body, lastUser) => {
   });
 };
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript }) {
+const transcribeScript = () =>
+  JSON.stringify({
+    text: "Nebulous quokka identity: the posterior is proportional to the likelihood times the prior, $p(\\theta \\mid x) \\propto p(x \\mid \\theta)\\,p(\\theta)$.",
+    unclear: ["a smudged subscript"],
+  });
+
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

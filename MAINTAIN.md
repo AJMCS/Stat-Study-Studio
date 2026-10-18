@@ -41,7 +41,7 @@ Still missing from the library: Quiz 1, annotated lecture notes (video-only), Di
 ## Before every release
 
 ```
-cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (155 at last count)
+cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (168 at last count)
 cd ../app && npx vitest run                               # expect all pass (41)
 cd app && npm run build && npm run e2e                    # real service + real browser, prints "E2E passed"
 ```
@@ -58,6 +58,9 @@ a real key** (make a free one at aistudio.google.com/apikey):
 3. Tutor: have a short conversation; it should reach a plan, cite a lecture page, and save a session.
 4. Exam > "Written for me by your AI service" > it should show AI-written questions with sources.
 5. Disconnect. (Windows: the key is in Credential Manager under "StatsStudio" until you do.)
+5b. Course materials > upload a photo of handwritten notes (or a scanned page with math) > **Improve with AI**. Check that
+   the dialog asks you to agree, the page is transcribed with sensible LaTeX, and **Use automatic reading** undoes it.
+   Page images are the biggest thing sent anywhere, so try this with one short file first.
 6. Repeat 1 to 5 with a real Anthropic key and a real OpenAI key if you have them (each needs a little API credit).
    Check that the model it picked on its own (shown in Settings) is a sensible, current one. These two pick the newest
    model matching `PREFERRED` in `backend/studio/ai/anthropic.py` / `openai_provider.py`; if Anthropic or OpenAI

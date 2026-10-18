@@ -234,6 +234,8 @@ export interface PersonalFile {
   /** Pages that may be missing symbols or were read with low confidence. */
   flaggedPages?: number;
   lowConfidence?: boolean;
+  /** At least one page was re-read by an AI model from its image. */
+  aiRead?: boolean;
 }
 
 export interface AppData {

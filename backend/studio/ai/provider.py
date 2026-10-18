@@ -8,6 +8,8 @@ from typing import Protocol
 class Message:
     role: str  # "user" or "assistant"
     text: str
+    # Page images to look at: (bytes, media type such as "image/png"). Only sent by explicit, per-use consent.
+    images: tuple[tuple[bytes, str], ...] = ()
 
 
 class Provider(Protocol):

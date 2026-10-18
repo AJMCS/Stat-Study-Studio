@@ -130,7 +130,11 @@ export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => voi
           )}
           {personalPage && (
             <div className="page-scroll" tabIndex={0} aria-label="Extracted text of the cited page">
-              <PlainText text={personalPage.text} highlight={s.highlight} onHighlight={onHighlight} />
+              {personalPage.method === "ai" ? (
+                <PageView text={personalPage.text} highlight={s.highlight} onHighlight={onHighlight} />
+              ) : (
+                <PlainText text={personalPage.text} highlight={s.highlight} onHighlight={onHighlight} />
+              )}
             </div>
           )}
           {(sharedPage || personalPage) && s.highlight && marked === false && (

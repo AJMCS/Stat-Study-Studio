@@ -28,7 +28,7 @@ from .models import (
     Record,
 )
 
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 
 SCHEMA_V1 = """
 CREATE TABLE attempts (
@@ -74,6 +74,15 @@ CREATE INDEX personal_chunks_file ON personal_chunks (file_id);
 # v3: remember which attempts were scored by an AI rubric (the only ones with a per-criterion breakdown).
 SCHEMA_V3 = "ALTER TABLE attempts ADD COLUMN ai_scored INTEGER NOT NULL DEFAULT 0;"
 
+# v4: a page can be re-read by an AI model from its image; the earlier reading is kept so it can be restored.
+SCHEMA_V4 = """
+ALTER TABLE personal_pages ADD COLUMN prev_text TEXT;
+ALTER TABLE personal_pages ADD COLUMN prev_method TEXT;
+ALTER TABLE personal_pages ADD COLUMN prev_confidence REAL;
+ALTER TABLE personal_pages ADD COLUMN prev_flags TEXT;
+ALTER TABLE files ADD COLUMN ai_read INTEGER NOT NULL DEFAULT 0;
+"""
+
 _statements = lambda sql: [x for x in (s.strip() for s in sql.split(";")) if x]  # noqa: E731
 
 _adapters = {name: TypeAdapter(list[model]) for name, model in LIST_SLICES.items()}
@@ -104,6 +113,9 @@ class Database:
                         self._conn.execute(stmt)
                 if version < 3:
                     for stmt in _statements(SCHEMA_V3):
+                        self._conn.execute(stmt)
+                if version < 4:
+                    for stmt in _statements(SCHEMA_V4):
                         self._conn.execute(stmt)
                 self._conn.execute(f"PRAGMA user_version={SCHEMA_VERSION}")
         elif version > SCHEMA_VERSION:
@@ -177,6 +189,7 @@ class Database:
                     **({"ocrConfidence": r["ocr_confidence"]} if r["ocr_confidence"] is not None else {}),
                     **({"supersedes": r["supersedes"]} if r["supersedes"] else {}),
                     **({"linkBroken": True} if r["link_broken"] else {}),
+                    **({"aiRead": True} if r["ai_read"] else {}),
                 }
                 for r in q("SELECT * FROM files ORDER BY position")
             ]

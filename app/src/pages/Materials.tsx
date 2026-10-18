@@ -3,6 +3,7 @@ import { GENERAL_ID, uid, useStore } from "../lib/store";
 import { Citations, SourcePreview } from "../components/Citation";
 import { PageView } from "../components/PageView";
 import { PlainText } from "../components/PlainText";
+import { ImproveWithAi } from "../components/ImproveWithAi";
 import { useAi } from "../lib/ai";
 import { megabytes, useLibrary } from "../lib/library";
 import { api, hitToSource, personalHitToSource, ServiceRejected, ServiceUnavailable, type UploadReport } from "../lib/api";
@@ -44,6 +45,7 @@ export function Materials() {
   const [results, setResults] = useState<{ sources: SourceRef[]; mode: string; error: string | null; both: boolean } | null>(null);
   const [searching, setSearching] = useState(false);
   const [review, setReview] = useState<SourceRef | null>(null);
+  const [improving, setImproving] = useState<PersonalFile | null>(null);
   const ai = useAi();
   const lib = useLibrary();
   const [checkedNow, setCheckedNow] = useState(false);
@@ -257,9 +259,10 @@ export function Materials() {
         {!ai.connected && (
           <p className="notice" role="note">
             <b>Handwriting:</b> without an AI service connected, only typed or printed text is read reliably. Handwritten notes will usually come out
-            incomplete or wrong, and any math in them will be missed. For a good transcription of handwriting, connect an AI service ({ai.comingSoon ? "coming soon" : "in Settings"}).
+            incomplete or wrong, and any math in them will be missed. For a good transcription of handwriting, connect an AI service in Settings, then use <i>Improve with AI</i> on the file.
           </p>
         )}
+        {ai.connected && <p className="muted">Handwritten or math-heavy file? Use <i>Improve with AI</i> next to it below to have your AI service re-read its pages from their pictures (you will be asked each time).</p>}
         <div className="row">
           <label className="field">
             <span>Collection</span>
@@ -358,12 +361,24 @@ export function Materials() {
                       <span>
                         {f.filename} <span className="muted">v{f.version} · {new Date(f.uploadedAt).toLocaleDateString()} · {f.pages} page{f.pages === 1 ? "" : "s"}</span>
                         {f.ocr && <span className="chip">OCR</span>}
+                        {f.aiRead && <span className="chip" title="Some pages were re-read from their pictures by an AI model">AI-read</span>}
                         {(f.flaggedPages ?? 0) > 0 && <span className="chip flag" title="Some pages may be missing symbols or were read with low confidence">Check pages</span>}
                         {f.linkBroken && <span className="chip flag">Original missing, excluded from search</span>}
                       </span>
                       <span className="row">
                         {f.linkBroken && (
                           <button className="ghost" onClick={() => { setReconnecting(f); reconnectInput.current?.click(); }}>Reconnect</button>
+                        )}
+                        {ai.connected && /\.(pdf|png|jpe?g|tiff?|bmp|webp)$/i.test(f.filename) && !f.linkBroken && (
+                          <button className="ghost" onClick={() => setImproving(f)}>Improve with AI</button>
+                        )}
+                        {f.aiRead && (
+                          <button
+                            className="ghost"
+                            onClick={() => void api.restoreReading(f.id).then(() => refreshFiles()).then(() => setFileNotice(`"${f.filename}" is back to its automatic reading.`)).catch((e) => setFileNotice(reason(e)))}
+                          >
+                            Use automatic reading
+                          </button>
                         )}
                         <button className="ghost" onClick={() => { setReplacing(f); replaceInput.current?.click(); }}>Replace</button>
                         {confirmRemove === f.id ? (
@@ -387,6 +402,16 @@ export function Materials() {
         )}
       </section>
 
+      {improving && (
+        <ImproveWithAi
+          file={improving}
+          onClose={() => setImproving(null)}
+          onDone={() => void refreshFiles().catch(() => {})}
+          onReview={(page) =>
+            setReview({ id: `${improving.id}-review`, kind: "Personal", title: improving.filename, filename: improving.filename, collection: data.collections.find((c) => c.id === improving.collectionId)?.name, page, fileId: improving.id })
+          }
+        />
+      )}
       {review && <SourcePreview s={review} onClose={() => setReview(null)} />}
     </>
   );
