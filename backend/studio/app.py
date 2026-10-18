@@ -42,7 +42,7 @@ DEV_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
 
 
 class ConnectBody(BaseModel):
-    apiKey: str
+    apiKey: str = ""
     accept: bool
     model: str | None = None
     provider: str = "gemini"
@@ -151,8 +151,14 @@ def create_app(
 
     # ------------------------------------------------------------------ AI service (the learner's own key)
     @app.get("/api/ai")
-    def ai_status() -> dict[str, Any]:
-        return ai().status()
+    def ai_status(provider: str | None = Query(default=None, max_length=20)) -> dict[str, Any]:
+        """Connection state. `provider` previews another service's notice and settings without changing anything."""
+        return ai().status(provider)
+
+    @app.get("/api/ai/local-models")
+    def ai_local_models() -> dict[str, Any]:
+        """The models installed in Ollama on this computer (and whether Ollama is running)."""
+        return ai().local_models()
 
     @app.post("/api/ai/connect")
     def ai_connect(body: ConnectBody) -> dict[str, Any]:
@@ -234,7 +240,10 @@ def create_app(
         """Passages to ground an AI reply: shared course pages, plus excerpts from personal collections the learner
         has allowed to be sent to an AI service. Nothing else is ever sent."""
         hits = shared_results(q, shared)
-        allowed = {r["id"] for r in db().read("SELECT id FROM collections WHERE consent=1")}
+        # A model on this computer never sends anything away, so every collection may be used; a hosted one needs the
+        # learner's per-collection permission.
+        sql = "SELECT id FROM collections" if ai().is_local else "SELECT id FROM collections WHERE consent=1"
+        allowed = {r["id"] for r in db().read(sql)}
         if allowed:
             hits += [h for h in app.state.personal.search(q, k=personal, collection_ids=allowed) if h["collectionId"] in allowed]
         return hits

@@ -293,3 +293,97 @@ def test_bad_citations_are_dropped_and_limits_enforced(client, fake):
 
 def test_exam_generation_needs_a_connection(client):
     assert client.post("/api/ai/exam", json=exam_body()).status_code == 409
+
+
+# ---------------------------------------------------------------- a local model through Ollama
+from fakeollama import FakeOllama  # noqa: E402
+
+
+@pytest.fixture()
+def ollama(monkeypatch):
+    f = FakeOllama()
+    monkeypatch.setenv("STUDIO_OLLAMA_BASE", f.url)
+    yield f
+    f.close()
+
+
+def connect_local(client, model="llama3.2", accept=True):
+    return client.post("/api/ai/connect", json={"provider": "ollama", "model": model, "accept": accept})
+
+
+def test_installed_models_are_listed_and_a_stopped_ollama_is_reported_plainly(client, ollama, monkeypatch):
+    assert client.get("/api/ai/local-models").json() == {"running": True, "models": ["llama3.2:latest"]}
+    ollama.close()
+    assert client.get("/api/ai/local-models").json() == {"running": False, "models": []}
+    r = connect_local(client)
+    assert r.status_code == 503 and r.json()["kind"] == "local_not_running"
+
+
+def test_connecting_a_local_model_needs_consent_an_installed_model_and_stores_no_key(client, ollama):
+    assert connect_local(client, accept=False).status_code == 409
+    assert client.post("/api/ai/connect", json={"provider": "ollama", "accept": True}).status_code == 422  # no model chosen
+    r = connect_local(client, model="not-installed")
+    assert r.status_code == 404 and r.json()["kind"] == "model_missing"
+    s = connect_local(client).json()
+    assert s["connected"] and s["local"] and s["provider"] == "ollama" and s["keyStored"] is False
+    assert "nothing is sent over the internet" in s["notice"]
+
+
+def test_only_this_computer_is_allowed_as_the_ollama_address(client, monkeypatch):
+    monkeypatch.setenv("STUDIO_OLLAMA_BASE", "http://example.com:11434")
+    r = connect_local(client)
+    assert r.status_code == 422 and "this computer" in r.json()["detail"]
+
+
+def test_scoring_and_the_tutor_work_through_ollama(client, ollama):
+    connect_local(client)
+    ollama.replies = [json.dumps(GOOD)]
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 200 and r.json()["criteria"]["core"] == 90
+    sent = ollama.requests[0]
+    assert sent["format"] == "json" and sent["stream"] is False and sent["options"]["num_ctx"] >= 8192
+    assert sent["messages"][0]["role"] == "system" and sent["model"] == "llama3.2"
+    ollama.replies = [reply("diagnose", "Good start.")]
+    assert tutor(client, OPEN).json()["stage"] == "diagnose"
+    assert [m["role"] for m in ollama.requests[-1]["messages"]] == ["system", "assistant", "user"]
+
+
+def test_a_local_model_may_see_every_collection_but_a_hosted_one_only_allowed_ones(client, ollama, fake):
+    import time
+
+    client.post("/api/uploads", files={"file": ("n.txt", b"Private pangolin note about the likelihood estimator.", "text/plain")}, data={"collectionId": "general"})
+    for _ in range(50):
+        if any(f["filename"] == "n.txt" for f in client.get("/api/files").json()):
+            break
+        time.sleep(0.1)
+    time.sleep(1.0)
+    connect_local(client)
+    ollama.replies = [reply("diagnose")]
+    tutor(client, [{"role": "learner", "text": "pangolin note likelihood estimator"}])
+    assert "pangolin" in json.dumps(ollama.requests[-1]["messages"][0]["content"])  # in the excerpts given to the model
+    connect(client)  # switch to hosted Gemini
+    fake.replies = [reply("diagnose")]
+    tutor(client, [{"role": "learner", "text": "pangolin note likelihood estimator"}])
+    assert "Private pangolin" not in json.dumps(fake.requests[-1])
+
+
+def test_switching_services_replaces_the_connection_and_a_failed_switch_changes_nothing(client, ollama, fake):
+    connect(client)
+    assert client.get("/api/ai").json()["provider"] == "gemini"
+    assert connect_local(client, model="not-installed").status_code == 404
+    assert client.get("/api/ai").json()["provider"] == "gemini" and client.get("/api/ai").json()["connected"]
+    connect_local(client)
+    s = client.get("/api/ai").json()
+    assert s["provider"] == "ollama" and s["keyStored"] is False  # the Gemini key was removed on switching
+    assert client.get("/api/ai?provider=gemini").json()["notice"].startswith("When you use")  # previewing the other one
+    assert client.get("/api/ai").json()["provider"] == "ollama"  # without changing anything
+
+
+def test_ollama_trouble_is_explained_plainly(client, ollama):
+    connect_local(client)
+    ollama.replies = [500]
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 502 and "scripted" not in r.text
+    ollama.close()
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 503 and r.json()["kind"] == "local_not_running"

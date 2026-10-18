@@ -678,6 +678,34 @@ await step("ai: disconnecting removes the key and the AI-only controls", async (
   if ((await page.locator("button:has-text('Score with AI')").count()) > 0) throw new Error("AI scoring offered while disconnected");
 });
 
+await step("ai: a model on this computer (Ollama) can be chosen, says nothing leaves the computer, and scores a recall", async () => {
+  await fresh("/settings");
+  await page.check("label:has-text('Ollama') input");
+  await page.waitForSelector("text=nothing is sent over the internet");
+  await page.waitForSelector("select[aria-label='Ollama model'] option:has-text('qwen2.5:7b')", { state: "attached" });
+  await shot("ai-ollama-setup");
+  if (!(await page.locator("button:has-text('Connect')").isDisabled())) throw new Error("Connect must wait for the notice to be accepted");
+  await page.selectOption("select[aria-label='Ollama model']", "qwen2.5:7b");
+  await page.check("label:has-text('I have read this') input");
+  const geminiBefore = (await geminiLog()).length;
+  await page.click("button:has-text('Connect')");
+  await page.waitForSelector("text=Connected to Ollama");
+  await page.waitForSelector("text=It runs on this computer");
+  await fresh(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", WRITTEN);
+  await page.click("button:has-text('Score with AI')");
+  await page.waitForSelector("text=The local model saw the central idea.", { timeout: 15000 });
+  const sent = await (await fetch(`${process.env.FAKE_OLLAMA}/__log`)).json();
+  if (!sent.length || sent.at(-1).model !== "qwen2.5:7b" || sent.at(-1).format !== "json") throw new Error("the request did not go to the chosen local model");
+  if ((await geminiLog()).length !== geminiBefore) throw new Error("something was sent to the hosted service");
+  await shot("ai-ollama-recall");
+  await fresh("/settings");
+  await page.click("button:has-text('Disconnect')");
+  await page.waitForSelector("text=What gets sent");
+  if ((await apiGet("ai")).connected) throw new Error("still connected");
+});
+
 expectNetworkFailure = false;
 await step("ai: leave the service empty for the next test file", async () => {
   await go("/settings");

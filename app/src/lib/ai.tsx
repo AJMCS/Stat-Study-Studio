@@ -12,7 +12,7 @@ export interface AiStatus {
   comingSoon: false;
   info: AiInfo | null;
   refresh: () => Promise<void>;
-  connect: (apiKey: string, accept: boolean, model?: string) => Promise<void>;
+  connect: (apiKey: string, accept: boolean, model?: string, provider?: "gemini" | "ollama") => Promise<void>;
   disconnect: () => Promise<void>;
   setModel: (model: string) => Promise<void>;
   test: () => Promise<void>;
@@ -40,7 +40,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       comingSoon: false,
       info,
       refresh,
-      connect: async (apiKey, accept, model) => setInfo(await api.aiConnect(apiKey, accept, model)),
+      connect: async (apiKey, accept, model, provider) => setInfo(await api.aiConnect(apiKey, accept, model, provider)),
       disconnect: async () => setInfo(await api.aiDisconnect()),
       setModel: async (model) => setInfo(await api.aiSetModel(model)),
       test: async () => setInfo(await api.aiTest()),

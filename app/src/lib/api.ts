@@ -192,8 +192,11 @@ export const hitToSource = (h: SearchHit): SourceRef => ({
 });
 
 export interface AiInfo {
-  provider: string;
+  provider: "gemini" | "ollama";
   providerName: string;
+  providers: { id: "gemini" | "ollama"; name: string; local: boolean }[];
+  /** The model runs on this computer, so nothing is sent over the internet. */
+  local: boolean;
   connected: boolean;
   keyStored: boolean;
   /** "os" = the operating system's credential store, "file" = a private file in the app's data folder. */
@@ -251,9 +254,10 @@ export const api = {
     (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history }) })).json(),
   aiScore: async (req: AiScoreRequest): Promise<AiScoreResponse> =>
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
-  aiStatus: async (): Promise<AiInfo> => (await call("/api/ai")).json(),
-  aiConnect: async (apiKey: string, accept: boolean, model?: string): Promise<AiInfo> =>
-    (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null }) })).json(),
+  aiStatus: async (provider?: string): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`)).json(),
+  aiLocalModels: async (): Promise<{ running: boolean; models: string[] }> => (await call("/api/ai/local-models")).json(),
+  aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: "gemini" | "ollama" = "gemini"): Promise<AiInfo> =>
+    (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider }) })).json(),
   aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
   aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),
   aiDisconnect: async (): Promise<AiInfo> => (await call("/api/ai", { method: "DELETE" })).json(),

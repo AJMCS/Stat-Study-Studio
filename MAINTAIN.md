@@ -41,7 +41,7 @@ Still missing from the library: Quiz 1, annotated lecture notes (video-only), Di
 ## Before every release
 
 ```
-cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (140 at last count)
+cd backend && ../venv/Scripts/python.exe -m pytest        # expect all pass (147 at last count)
 cd ../app && npx vitest run                               # expect all pass (41)
 cd app && npm run build && npm run e2e                    # real service + real browser, prints "E2E passed"
 ```
@@ -58,6 +58,9 @@ a real key** (make a free one at aistudio.google.com/apikey):
 3. Tutor: have a short conversation; it should reach a plan, cite a lecture page, and save a session.
 4. Exam > "Written for me by your AI service" > it should show AI-written questions with sources.
 5. Disconnect. (Windows: the key is in Credential Manager under "StatsStudio" until you do.)
+6. With Ollama installed and a model pulled (for example `ollama pull llama3.2`): Settings > Ollama > pick the model >
+   connect, then repeat steps 2 to 4. Small models sometimes return malformed JSON or odd scores; if that is common
+   with the model you tried, say so in the README for classmates (a larger model scores better, a smaller one is faster).
 
 If a step fails with "bad response", look at what Google returned (`studio/ai/gemini.py`); Google changes model
 behavior and names. The default model is the alias `gemini-flash-latest`; if it ever stops working, students can
@@ -68,6 +71,7 @@ Things you own here:
   to improve its products. If Google's terms change, edit it and bump `CONSENT_VERSION`; everyone is asked again.
 - **Costs:** none to you. Each student's usage is on their own Google key and free allowance; a student who hits the
   limit sees "used up its free allowance" and can self-score instead.
+- **Ollama** needs nothing from you. The app only talks to Ollama on the same computer.
 - **Prompts** live in `backend/studio/ai/tasks.py` (rubric, tutor, exam). Change them there and run the tests.
 - Google's free tier may not be available in every country (check ai.google.dev terms if a classmate abroad can't
   connect).

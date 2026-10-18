@@ -10,6 +10,8 @@ MESSAGES = {
     "offline": (503, "Could not reach the AI service. Check your internet connection, then retry."),
     "blocked": (422, "The AI service declined to answer that request. Try rewording it."),
     "bad_response": (502, "The AI service sent back something unreadable. Retrying usually fixes this."),
+    "local_not_running": (503, "Ollama is not running on this computer. Open the Ollama app (or run 'ollama serve'), then retry."),
+    "model_missing": (404, "Ollama does not have that model. Install it first (for example: ollama pull <model name>), or pick one you have."),
     "server": (502, "The AI service had a problem on its side. Retry in a moment."),
 }
 

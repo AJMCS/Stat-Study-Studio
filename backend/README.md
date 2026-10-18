@@ -93,9 +93,17 @@ Nothing here runs unless the learner connects their own Google Gemini key in Set
   need a solution, hint and key points. Bad output is retried once, then reported.
 - **Model name:** `gemini-flash-latest` by default (Google keeps the alias on its current fast model); learners can
   override it in Settings. Google's free tier may use submitted content to improve its products; the notice says so.
-- **Provider layer:** `studio/ai/provider.py` is the interface; `gemini.py` is the only implementation.
+- **Local model (Ollama):** the learner can instead pick a model installed in Ollama on the same computer (Tier 2).
+  No key, no account, nothing over the internet. `studio/ai/ollama.py` talks to `http://127.0.0.1:11434` (override
+  with `STUDIO_OLLAMA_BASE` for tests; any address that is not this computer is refused, so "nothing leaves your
+  computer" stays true). `GET /api/ai/local-models` lists installed models and says if Ollama is not running. Requests
+  use JSON mode and an 8192-token context so course excerpts are not silently cut off. Because nothing leaves the
+  computer, a local model may use every collection; a hosted one only the collections marked as allowed. Switching
+  service replaces the connection (a failed switch changes nothing; switching away from Gemini removes its key).
+  Small local models are weaker at scoring and at returning valid JSON; the same validate-and-retry-once rules apply.
+- **Provider layer:** `studio/ai/provider.py` is the interface; `gemini.py` and `ollama.py` implement it.
 - **Tests:** `tests/fakegemini.py` is a stand-in for the Gemini API, so tests never need a real key or network.
-  Browser tests use `app/e2e/fakegemini.mjs`.
+  `tests/fakeollama.py` does the same for Ollama. Browser tests use `app/e2e/fakegemini.mjs` and `fakeollama.mjs`.
 
 ## End-to-end tests
 
