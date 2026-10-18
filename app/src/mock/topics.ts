@@ -20,6 +20,8 @@ const LEC = {
 } as const;
 const QUIZ2 = "quizzes/quiz-02-bayesian-estimation.pdf";
 const QUIZ3 = "quizzes/quiz-03-mle-and-sampling-distributions.pdf";
+const HW1 = "homework/homework-01.pdf";
+const HW2 = "homework/homework-02.pdf";
 
 const src = (id: string, title: string, filename: string, page: number, excerpt: string, highlight?: string): SourceRef => ({
   id,
@@ -80,6 +82,12 @@ const l2 = [
   src("l2-prior", "Lecture 2 · Prior distributions", LEC[2], 7,
     "If you treat the parameter as random, then the distribution that you assign to it before observing the data is called its prior distribution.",
     "the distribution that you assign to it before observing the data is called its prior distribution"),
+  src("hw1-priors", "Homework 1 · Priors from moments, and prior reasonableness", HW1, 1,
+    "Suppose that the prior distribution of some parameter θ is a gamma distribution for which the mean is 5 and the variance is 2. Determine the prior pdf of θ. … Your friend suggests a normal prior distribution with mean 1 and variance 10 for λ. Is this a reasonable prior distribution for this problem? Why or why not?",
+    "Determine the prior pdf of θ"),
+  src("hw1-likelihood", "Homework 1 · Writing and sketching likelihoods", HW1, 1,
+    "Suppose you flip a possibly weighted coin 100 times and observe 60 heads. Write the likelihood function for p, the true proportion of heads resulting from this coin. Then, sketch this likelihood function over the [0, 1] interval.",
+    "Write the likelihood function for p"),
 ];
 
 /* ------------------------------------------------------------------ Lecture 3 */
@@ -103,6 +111,12 @@ const l3 = [
   src("l3-prior-effect", "Lecture 3 · Effect of the prior", LEC[3], 7,
     "When the sample size is large, the posterior mean is pulled closer to the sample mean. When the prior variance is small, the prior has more influence on the posterior and the posterior mean will be pulled closer to the prior mean.",
     "When the sample size is large, the posterior mean is pulled closer to the sample mean"),
+  src("hw2-weighted", "Homework 2 · Posterior mean as a weighted average", HW2, 1,
+    "Show that the mean of the posterior distribution of θ will be a weighted average having the form γn X̄n + (1 − γn)μ0, and show that γn → 1 as n → ∞.",
+    "Show that the mean of the posterior distribution"),
+  src("hw2-posterior", "Homework 2 · Normal and Beta posteriors", HW2, 1,
+    "The posterior distribution of θ is a normal distribution with a mean of 30 minutes and a variance of 1/30. What was the prior distribution of θ? … a Beta prior distribution with parameters α = 2 and β = 200. A random sample of 100 chargers is tested, and 3 defective chargers are found. What is the posterior distribution of θ?",
+    "What was the prior distribution of θ?"),
   src("q2-conjugacy", "Quiz 2 · Beta-Binomial and Gamma-Poisson conjugacy", QUIZ2, 1,
     "The Beta prior is conjugate to the Bernoulli likelihood, so the posterior is Beta(α + Σxi, β + n − Σxi): add successes to α and failures to β."),
 ];
@@ -122,6 +136,9 @@ const l4 = [
   src("l4-absolute", "Lecture 4 · Absolute error loss", LEC[4], 5,
     "Suppose that the absolute error loss function is used. Then the Bayes estimator of θ is the posterior median. Absolute error loss does not penalize extreme deviations as much as squared error loss.",
     "the Bayes estimator of θ is the posterior median"),
+  src("hw2-bayes-exp", "Homework 2 · Bayes estimate for an exponential rate", HW2, 1,
+    "Using a squared error loss function, what is the Bayes estimate of λ?",
+    "Using a squared error loss function, what is the Bayes estimate of λ?"),
   src("q2-loss", "Quiz 2 · Loss functions and Bayes estimators", QUIZ2, 2,
     "Squared error is just one choice. Absolute error |θ − a|, 0-1 loss, and asymmetric losses are all non-negative too. The Bayes estimator under absolute error is the posterior median."),
 ];
@@ -138,6 +155,9 @@ const l5 = [
   src("l5-edge", "Lecture 5 · Edge cases", LEC[5], 4,
     "There may be a local maximum within the parameter space, but a global maximum could lie on the edge of the parameter space. In this case, the previous procedure for finding the MLE will fail. It is good practice to consider the edges of the parameter space.",
     "a global maximum could lie on the edge of the parameter space"),
+  src("hw2-mle", "Homework 2 · MLE problems", HW2, 1,
+    "The time until decay of a radioactive particle is modeled with f(x|θ) = (1/θ²) x e^(−x/θ) for x > 0. You observe decay times X1 = 2, X2 = 3, and X3 = 4. Find the MLE for θ. … f(x|θ) = (1 − θ)^x θ … What is the MLE of θ?",
+    "Find the MLE for θ"),
   src("q3-likelihood", "Quiz 3 · Role of the likelihood", QUIZ3, 3,
     "L(θ) = f(x1, …, xn | θ), viewed as a function of θ. MLE picks the θ that makes the observed data most probable."),
 ];
@@ -334,6 +354,24 @@ export const TOPICS: Topic[] = [
         sourceIds: ["l2-likelihood", "l2-freq", "l2-bayes"],
         keyPoints: ["product of normal densities", "maximized at sample mean 50", "frequentist maximizes; Bayesian multiplies by prior"],
       },
+      {
+        id: "fb-e3",
+        prompt:
+          "(Adapted from Homework 1.) (a) A gamma prior for $\\theta$ has mean 5 and variance 2. Determine the prior pdf. (b) A friend suggests a normal prior with mean 1 and variance 10 for a Poisson mean $\\lambda$. Is this reasonable? Explain.",
+        hint: "For a Gamma(α, β) the mean is α/β and the variance is α/β². What values can a Poisson mean take?",
+        concept: "Priors from moments",
+        sourceIds: ["hw1-priors", "l2-prior"],
+        keyPoints: ["α/β = 5 and α/β² = 2 → β = 5/2, α = 25/2", "write π(θ) with those parameters", "normal prior puts mass on λ < 0 but λ > 0 is required", "a gamma prior respects the parameter space"],
+      },
+      {
+        id: "fb-e4",
+        prompt:
+          "(Adapted from Homework 1.) You flip a possibly weighted coin 100 times and observe 60 heads. (a) Write the likelihood function of $p$. (b) Sketch it over $[0,1]$ and mark where it is largest. (c) For a Poisson mean $\\lambda$ and household sizes $x_1,\\dots,x_{10}$, write the likelihood of $\\lambda$.",
+        hint: "Treat the data as fixed and write the density as a function of the parameter.",
+        concept: "Writing likelihoods",
+        sourceIds: ["hw1-likelihood", "l2-likelihood"],
+        keyPoints: ["L(p) ∝ p^60 (1−p)^40", "peaks at p = 0.6, near zero at 0 and 1", "L(λ) ∝ e^{−10λ} λ^{Σxi}"],
+      },
     ],
   },
 
@@ -421,6 +459,24 @@ export const TOPICS: Topic[] = [
         sourceIds: ["l3-bayes", "l3-conjugate", "l3-beta"],
         keyPoints: ["likelihood p^{Σx}(1−p)^{n−Σx}", "prior is constant on [0,1]", "kernel of a Beta", "prior and posterior in same family"],
       },
+      {
+        id: "po-e3",
+        prompt:
+          "(Adapted from Homework 2.) A random sample of size $n$ comes from a Poisson distribution with unknown mean $\\theta$, and $\\theta$ has a Gamma($\\alpha,\\beta$) prior with mean $\\mu_0$. Show that the posterior mean is $\\gamma_n\\bar X_n+(1-\\gamma_n)\\mu_0$ and show $\\gamma_n\\to1$ as $n\\to\\infty$.",
+        hint: "Find the posterior parameters first, then split the posterior mean into a part from the data and a part from the prior.",
+        concept: "Posterior mean as a weighted average",
+        sourceIds: ["hw2-weighted", "l3-gamma"],
+        keyPoints: ["posterior Gamma(α + Σx, β + n)", "mean (α + n x̄)/(β + n)", "μ0 = α/β so γn = n/(β + n)", "γn → 1 as n → ∞"],
+      },
+      {
+        id: "po-e4",
+        prompt:
+          "(Adapted from Homework 2.) (a) Delivery times are $N(\\theta,1)$. With $n=22$ and $\\bar x=32$ the posterior of $\\theta$ is normal with mean 30 and variance $1/30$. Find the prior. (b) A Beta(2, 200) prior on a defect proportion is combined with 3 defectives in 100 chargers. Find the posterior.",
+        hint: "In (a), compare the precisions: posterior precision = prior precision + n/σ². Then solve for the prior mean.",
+        concept: "Working backward from a posterior",
+        sourceIds: ["hw2-posterior", "l3-normal", "l3-beta"],
+        keyPoints: ["30 = 1/ν0² + 22 → ν0² = 1/8", "30 = (μ0/ν0² + 22·32)/30 → μ0 = 24.5", "prior N(24.5, 1/8)", "(b) Beta(2 + 3, 200 + 97) = Beta(5, 297)"],
+      },
     ],
   },
 
@@ -503,6 +559,15 @@ export const TOPICS: Topic[] = [
         concept: "Bayes estimate",
         sourceIds: ["l3-beta", "l4-squared", "q2-conjugacy"],
         keyPoints: ["Beta(9, 45)", "9/54 = 1/6 ≈ 0.167", "sample proportion 7/50 = 0.14", "prior pulls estimate toward 1/2"],
+      },
+      {
+        id: "lf-e3",
+        prompt:
+          "(Adapted from Homework 2.) The time for a student to finish a homework is exponential with unknown rate $\\lambda$. Your gamma prior for $\\lambda$ has mean 0.2 and variance 1. The average time of 10 students is 3 hours. (a) Find the prior parameters. (b) Find the posterior of $\\lambda$. (c) Using squared error loss, what is the Bayes estimate?",
+        hint: "Match the gamma mean α/β and variance α/β², then update with the exponential likelihood, which is proportional to λ^n e^{−λΣx}.",
+        concept: "Bayes estimate (exponential data)",
+        sourceIds: ["hw2-bayes-exp", "l4-squared", "l2-prior"],
+        keyPoints: ["α/β = 0.2, α/β² = 1 → β = 0.2, α = 0.04", "likelihood ∝ λ^10 e^{−30λ}", "posterior Gamma(10.04, 30.2)", "estimate 10.04/30.2 ≈ 0.332"],
       },
     ],
   },
@@ -587,6 +652,15 @@ export const TOPICS: Topic[] = [
         concept: "MLE procedure",
         sourceIds: ["l5-procedure"],
         keyPoints: ["ℓ(λ) = n log λ − λΣx", "λ̂ = n/Σx = 5/11", "second derivative −n/λ² < 0", "λ̂ = 1/x̄"],
+      },
+      {
+        id: "ml-e3",
+        prompt:
+          "(Adapted from Homework 2.) (a) Decay times follow $f(x\\mid\\theta)=\\tfrac{1}{\\theta^2}xe^{-x/\\theta}$ for $x>0$. For observations 2, 3 and 4, find the MLE of $\\theta$. (b) A failure count has pmf $f(x\\mid\\theta)=(1-\\theta)^x\\theta$ with $0<\\theta<1$. For a sample $X_1,\\dots,X_n$, find the MLE of $\\theta$ and check it is a maximum.",
+        hint: "Write the log-likelihood, differentiate, set to zero, solve, then check the second derivative.",
+        concept: "MLE procedure",
+        sourceIds: ["hw2-mle", "l5-procedure"],
+        keyPoints: ["(a) ℓ = −2n log θ − Σx/θ + const", "θ̂ = Σx/(2n) = 9/6 = 1.5", "(b) ℓ = Σx log(1−θ) + n log θ", "θ̂ = n/(n + Σx) = 1/(1 + x̄)", "second derivative negative"],
       },
     ],
   },

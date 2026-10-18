@@ -10,6 +10,7 @@ Lowercase, hyphenated, zero-padded numbers, so files sort in course order.
 | --- | --- | --- |
 | `lecture-notes/` | `lecture-NN-<title>.pdf` | Professor's lecture notes (the grounding source for tutorials) |
 | `discussion-sections/` | `disc-NN.pdf`, `disc-NN-annotated.pdf` | Problem sets and worked/annotated versions |
+| `homework/` | `homework-NN.pdf` | Problem sets, used as exam question sources |
 | `quizzes/` | `quiz-NN-<title>.pdf` | Quiz question sets with answers |
 | `readings/` | `reading-chNN-<title>.pdf` | Course reading, numbered by chapter |
 | `prerequisites-stat131/` | `notes-NN-<title>.pdf` | STAT 131 background, for revisiting prerequisites |
