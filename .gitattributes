@@ -1,0 +1,6 @@
+course-library/transcripts/** text eol=lf
+course-library/index/*.json text eol=lf
+course-library/index/*.jsonl text eol=lf
+course-library/index/*.npy binary
+course-library/**/*.pdf binary
+backend/** text eol=lf

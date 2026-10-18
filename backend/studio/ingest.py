@@ -65,7 +65,11 @@ def transcribe_missing(force: bool = False) -> None:
 
 
 def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()[:16]
+    """Hash with line endings normalised so Windows checkouts (CRLF) match the committed (LF) index."""
+    data = path.read_bytes().replace(b"
+", b"
+")
+    return hashlib.sha256(data).hexdigest()[:16]
 
 
 def embedding_text(c: Chunk) -> str:
