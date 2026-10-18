@@ -1,0 +1,271 @@
+{
+  "schema": 1,
+  "version": 1,
+  "built_at": "2026-10-18T04:24:57Z",
+  "files": {
+    "discussion-sections/disc-01-annotated.pdf": {
+      "sha256": "8aa1820e383e83153a6fd450fe30f7f3c6799b13b834f5b4f85c99d94ca4496f",
+      "size": 442454
+    },
+    "discussion-sections/disc-01.pdf": {
+      "sha256": "1db20b890d23b0c8e2a6e856cb22a74e2d6335b53a1a6d1fa51534c992ddd936",
+      "size": 71646
+    },
+    "discussion-sections/disc-02-annotated.pdf": {
+      "sha256": "ee2121d998643c15a8e130b690d9c668cf371b0b4b2a98caa83e80db52c73941",
+      "size": 496879
+    },
+    "discussion-sections/disc-02.pdf": {
+      "sha256": "881d47356092ca971d1644698a4f3cc7a9d7a4e79e17ee6aded67f46e410ea1e",
+      "size": 83457
+    },
+    "discussion-sections/disc-03-annotated.pdf": {
+      "sha256": "f29e4b7d19322ca45135480197954a2be0a5569b0c19bf26736caecddf0b5b9d",
+      "size": 1462308
+    },
+    "discussion-sections/disc-03.pdf": {
+      "sha256": "90c62fd33a4cfd13f74d956895d470776d9439bd49a40eecd0d250f5a9373232",
+      "size": 102131
+    },
+    "discussion-sections/disc-04.pdf": {
+      "sha256": "36c6ecf9426b942115012a473217b07794c3f7791a4fad4e1b6b50f941ee9c39",
+      "size": 101747
+    },
+    "homework/homework-01.pdf": {
+      "sha256": "bf37898af3453c9d76d262c83f1882da96cbd5d5cf020f6c62967d9b2960104c",
+      "size": 51255
+    },
+    "homework/homework-02.pdf": {
+      "sha256": "38689a102f4018f412edd81a2016dbac7d21921da3c18e76cb9b75a5fcdc7ab1",
+      "size": 119335
+    },
+    "index/chunks.jsonl": {
+      "sha256": "d7636619eea17281c15debfa77e6eb77c8adb5d5b607e23530366097418b1dd8",
+      "size": 278169
+    },
+    "index/embeddings.npy": {
+      "sha256": "b718bd9d6b9f48e1cbd0ec1ff54fd404f67cff8e2b1131a3fad45608f71577fc",
+      "size": 194432
+    },
+    "index/index.json": {
+      "sha256": "a13c5c717f26631781f2e2b8a9f394c3d4ca3cf46d762c23bf2bc2435a2ad69e",
+      "size": 2703
+    },
+    "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf": {
+      "sha256": "fc1977f4f679758ed72b24f27742554fca7bace53dd1e7cdc4ae08421b76d2a0",
+      "size": 376955
+    },
+    "lecture-notes/lecture-02-frequentist-vs-bayesian-inference.pdf": {
+      "sha256": "f1df53387846ea5bf728110b071df73cac30e54536f2de6d75f9a3bbe0986c88",
+      "size": 6038158
+    },
+    "lecture-notes/lecture-03-the-posterior-distribution.pdf": {
+      "sha256": "937547ef93fc6ddc5abe910d65842855b969dddd75a3c451c778d956e41f0b0a",
+      "size": 1478481
+    },
+    "lecture-notes/lecture-04-loss-functions-and-bayes-estimators.pdf": {
+      "sha256": "2ea5814a79e6b841e8564a092e3a5b32d3915d33f6d9a128fa669afcdfbd1b38",
+      "size": 209683
+    },
+    "lecture-notes/lecture-05-maximum-likelihood-estimation.pdf": {
+      "sha256": "f563155ce9877c213e6a58a904ffb16faa24757d6f8895fcc829eef9969167fe",
+      "size": 109062
+    },
+    "lecture-notes/lecture-06-maximum-likelihood-properties.pdf": {
+      "sha256": "a55b87520fb556969c96c1e9c7fbacd017021430d25d07197440f64523bab3d3",
+      "size": 114278
+    },
+    "lecture-notes/lecture-07-sampling-distributions.pdf": {
+      "sha256": "65099b32a0cbb5ae92a4120893b9ca4f2f134bb6fd7857726f6b9315d228cbef",
+      "size": 2076262
+    },
+    "manifest.json": {
+      "sha256": "f179008de528230df1fb192e99980e65ece7d63abb90bf717ebd089278cf0ae6",
+      "size": 4243
+    },
+    "prerequisites-stat131/common-distributions-table.pdf": {
+      "sha256": "18b6868e654673451f0555b7f54902ced62722d2ae172893f24530051d246b76",
+      "size": 203922
+    },
+    "prerequisites-stat131/notes-00-calculus-review.pdf": {
+      "sha256": "d75ef19ed91b822e052cb0f1f2551c1b322979cd61dff37c11122b4f4b0035d1",
+      "size": 1333904
+    },
+    "prerequisites-stat131/notes-01-classic-probability-theory.pdf": {
+      "sha256": "37c9de6825b67b4aa654d23acfe8518f9b6385eebaeb17574b5c77b38895b27b",
+      "size": 1889586
+    },
+    "prerequisites-stat131/notes-02-counting-and-conditional-probability.pdf": {
+      "sha256": "6b746e50e2c264505867ac637f29f498d2333121a2e40e9c650782ea81457032",
+      "size": 3013433
+    },
+    "prerequisites-stat131/notes-03-independent-events.pdf": {
+      "sha256": "5065ac33502d396216ebd20351a87af18d03dcb3957168a811cbd1dda4a12587",
+      "size": 1141976
+    },
+    "prerequisites-stat131/notes-04-continuous-random-variables.pdf": {
+      "sha256": "344880e4ecd1dc18b38049f6596fe0770b051df10d8e5ea811d2c66aedc9baee",
+      "size": 1767249
+    },
+    "prerequisites-stat131/notes-05-bivariate-distributions.pdf": {
+      "sha256": "70b6463b8657745060bc6d007d93c8fda7f3a0f4bf2791d143728c2243480e1b",
+      "size": 2041886
+    },
+    "prerequisites-stat131/notes-06-conditional-distributions.pdf": {
+      "sha256": "b921e19503bcd7806ad47aed1984e89c358e88f5c70ffe2f8eabaec8db971062",
+      "size": 2014626
+    },
+    "prerequisites-stat131/notes-07-expectation.pdf": {
+      "sha256": "66bc4c3ab0db9eb8aae15573e2fff3fa16356867cd5d60f23df1b6f944d331db",
+      "size": 2081598
+    },
+    "prerequisites-stat131/notes-08-variance-and-higher-moments.pdf": {
+      "sha256": "f8006d5b8f6ec3654d584263ab0018762efea71a4463df1f0ec5d69aee539ba6",
+      "size": 3122074
+    },
+    "prerequisites-stat131/notes-09-normal-distribution.pdf": {
+      "sha256": "f6a86e10a6ac81527df50adbc9902d64ebbd5168da9cb0e3e37bff1c444fcc0d",
+      "size": 1841659
+    },
+    "quizzes/quiz-02-bayesian-estimation.pdf": {
+      "sha256": "f29b6b34b0c6c12c81a29395f0116756a5b06839fcae5bd5286daca786e5d9e4",
+      "size": 78041
+    },
+    "quizzes/quiz-03-mle-and-sampling-distributions.pdf": {
+      "sha256": "fc9579930ce4f6981cbc18437910e90a8aea6b969e946a10824d0feecef6c158",
+      "size": 78260
+    },
+    "readings/reading-ch01-probability-and-logic-of-inference.pdf": {
+      "sha256": "e90670016d9f061451ca190477b4e7eccfd9edefe9b0877cefd2b4386591acd0",
+      "size": 255989
+    },
+    "readings/reading-ch04-loss-functions-and-bayes-estimators.pdf": {
+      "sha256": "7b5b68e1663113179daff59365ae3b0fc5e530702865f9816af3c0690c07313f",
+      "size": 297923
+    },
+    "transcripts/discussion-sections/disc-01-annotated.md": {
+      "sha256": "c27dfe9e9f2bbfac290f401dc83c2cdc9d58bc6f83195d4da8b94f062cf0aac3",
+      "size": 2586
+    },
+    "transcripts/discussion-sections/disc-01.md": {
+      "sha256": "4328fad38c92f70ec7a33a3b83da937348c388fe248091e0967851029c8c039c",
+      "size": 1511
+    },
+    "transcripts/discussion-sections/disc-02-annotated.md": {
+      "sha256": "5e49b614da7143d985f7eeaab3872b5d2b4c01d5de5d841ea6114ab9fcf641f7",
+      "size": 3739
+    },
+    "transcripts/discussion-sections/disc-02.md": {
+      "sha256": "1e67fd97eff5741f5a4bec8fec63e68c46d4a6de944530613fd75e2de1bab549",
+      "size": 2332
+    },
+    "transcripts/discussion-sections/disc-03-annotated.md": {
+      "sha256": "2242697701f5b48aa37fa49698b13f4f9f7ac86b54315210626b508a96134ac2",
+      "size": 7973
+    },
+    "transcripts/discussion-sections/disc-03.md": {
+      "sha256": "42ca5a548bc78eca186b8ab8bbd2f22ebd5f9631662fa18c4c7d727eded360f6",
+      "size": 1400
+    },
+    "transcripts/discussion-sections/disc-04.md": {
+      "sha256": "f1f00724365ffe1911ca117a1225b928672318dabca13ca22ced05fbe80e0070",
+      "size": 1381
+    },
+    "transcripts/homework/homework-01.md": {
+      "sha256": "067b7c8bec5bf0e5594927a3049f9369e36c8ad3d1c2b8a9e978d8524293619c",
+      "size": 1464
+    },
+    "transcripts/homework/homework-02.md": {
+      "sha256": "b7ebf619608563965b2f054f4c3b3c188c0d64f86364856e9a4641c6d81eb787",
+      "size": 2732
+    },
+    "transcripts/lecture-notes/lecture-01-probability-review-and-intro-to-inference.md": {
+      "sha256": "eb4effc839cfadf78e37e085dd379c0c29524f0263bcdd6af5d62a774ab1d9d4",
+      "size": 8580
+    },
+    "transcripts/lecture-notes/lecture-02-frequentist-vs-bayesian-inference.md": {
+      "sha256": "9a72e8ae657f717957c8c7ddb7fab8aaf9974b8e17effc8785b72b5126748840",
+      "size": 8632
+    },
+    "transcripts/lecture-notes/lecture-03-the-posterior-distribution.md": {
+      "sha256": "be3b8ec7c7312725b0b5cdbafc286f55031d42a10d41dfbec241860db98b4a4e",
+      "size": 9018
+    },
+    "transcripts/lecture-notes/lecture-04-loss-functions-and-bayes-estimators.md": {
+      "sha256": "868ce940c03a3c88e322319476128395df67e7218842165362f681f77ada3169",
+      "size": 6528
+    },
+    "transcripts/lecture-notes/lecture-05-maximum-likelihood-estimation.md": {
+      "sha256": "69a55e8f42ce9d42fe1f215d20b917875368bd9c8e642b808fa42aa7900b51b6",
+      "size": 3860
+    },
+    "transcripts/lecture-notes/lecture-06-maximum-likelihood-properties.md": {
+      "sha256": "5868fcb577884ce3a1aeb0844803b03ed1783da151dcad424d2e666722991c0a",
+      "size": 3796
+    },
+    "transcripts/lecture-notes/lecture-07-sampling-distributions.md": {
+      "sha256": "dc92d72732853a0bda28f9cc6008a0d8e1c08aa11fbb0d1dd8efa365ee55dbc7",
+      "size": 4866
+    },
+    "transcripts/prerequisites-stat131/common-distributions-table.md": {
+      "sha256": "a641c4a0a3a3f8c92e65995c3f7dc1f05fe17bf6d60fb64a0fb1f37537a6c508",
+      "size": 994
+    },
+    "transcripts/prerequisites-stat131/notes-00-calculus-review.md": {
+      "sha256": "2590b83dbf3f65456780a6542e456d5d5372964689aac595e104b55727018833",
+      "size": 4141
+    },
+    "transcripts/prerequisites-stat131/notes-01-classic-probability-theory.md": {
+      "sha256": "a76d1bfd56e3620ad0eff7e55df7b85126e048eb0cc34cc33a4d2acb6384ba9b",
+      "size": 9118
+    },
+    "transcripts/prerequisites-stat131/notes-02-counting-and-conditional-probability.md": {
+      "sha256": "167863fbbf254f9e4c282c27e5544cd338fb20d1b861cb16bcc950beab8b4721",
+      "size": 13536
+    },
+    "transcripts/prerequisites-stat131/notes-03-independent-events.md": {
+      "sha256": "5b92eac2c4e3b32b4f6b767626a89318250a27cb6e2064944284def325b5fe12",
+      "size": 9372
+    },
+    "transcripts/prerequisites-stat131/notes-04-continuous-random-variables.md": {
+      "sha256": "e62888440ca9c19f29d85d5c54d2b39d567738ef2cd24e7600e58a0d5cc878fd",
+      "size": 7283
+    },
+    "transcripts/prerequisites-stat131/notes-05-bivariate-distributions.md": {
+      "sha256": "7380af69fd63bf91cf220eaa05c34c2929333c819b440c3f7d7c26807cc9b00d",
+      "size": 7578
+    },
+    "transcripts/prerequisites-stat131/notes-06-conditional-distributions.md": {
+      "sha256": "6e059d921a17f8ac1bf54e70e21f0a8e61c2d0a036d1ed031cfff9de0131cf9d",
+      "size": 8500
+    },
+    "transcripts/prerequisites-stat131/notes-07-expectation.md": {
+      "sha256": "75ed07b884d4a9a4d341712d2ca0872ab109753128391d6394eaa56cc9302653",
+      "size": 6343
+    },
+    "transcripts/prerequisites-stat131/notes-08-variance-and-higher-moments.md": {
+      "sha256": "91de9c8060584bedc2178d9fd430ccd596a85198f35c17b2c8ac4a8af6860a60",
+      "size": 13314
+    },
+    "transcripts/prerequisites-stat131/notes-09-normal-distribution.md": {
+      "sha256": "5db6d2129b908bbdf2240c877ded5fd932ac87c4b53ab95c55038b05eb22ac5d",
+      "size": 10357
+    },
+    "transcripts/quizzes/quiz-02-bayesian-estimation.md": {
+      "sha256": "c929ab69c8af2f70384d3fa2e39dae9e2d9e4acc67fe221871b16a0f1633cbdc",
+      "size": 8014
+    },
+    "transcripts/quizzes/quiz-03-mle-and-sampling-distributions.md": {
+      "sha256": "da13714178f2d7a221c120917f04af3dfade0120e2064a053f222ba9f2414ddf",
+      "size": 7580
+    },
+    "transcripts/readings/reading-ch01-probability-and-logic-of-inference.md": {
+      "sha256": "fbb50d326dc2c1a01f212eb1085f57dd58fce66dc30d09ad357074bef5361fa8",
+      "size": 33672
+    },
+    "transcripts/readings/reading-ch04-loss-functions-and-bayes-estimators.md": {
+      "sha256": "0a8b24f1e9b1c293cc194b7223859f43bfd90e925e977ae020d7a14a477a7d63",
+      "size": 34279
+    }
+  }
+}

@@ -4,6 +4,7 @@ import { Citations, SourcePreview } from "../components/Citation";
 import { PageView } from "../components/PageView";
 import { PlainText } from "../components/PlainText";
 import { useAi } from "../lib/ai";
+import { megabytes, useLibrary } from "../lib/library";
 import { api, hitToSource, personalHitToSource, ServiceRejected, ServiceUnavailable, type UploadReport } from "../lib/api";
 import type { PersonalFile, SourceRef } from "../types";
 
@@ -44,6 +45,8 @@ export function Materials() {
   const [searching, setSearching] = useState(false);
   const [review, setReview] = useState<SourceRef | null>(null);
   const ai = useAi();
+  const lib = useLibrary();
+  const [checkedNow, setCheckedNow] = useState(false);
 
   useEffect(() => {
     alive.current = true;
@@ -161,6 +164,45 @@ export function Materials() {
     <>
       <h1>Course materials</h1>
       <p className="lede">Search the shared course library and your own uploads. Your files and personal index stay on this device.</p>
+
+      <section className="panel" aria-label="Course library updates">
+        <h2>Course library</h2>
+        {lib.status ? (
+          <>
+            <p>
+              Installed: version {lib.status.installed.version}
+              {lib.status.installed.builtAt ? ` (${new Date(lib.status.installed.builtAt).toLocaleDateString()})` : ""}
+              {lib.status.installed.source === "update" ? ", updated online" : ", included with the app"}.
+            </p>
+            <div className="row">
+              <button
+                className="ghost"
+                disabled={lib.checking || lib.status.state !== "idle"}
+                onClick={async () => {
+                  setCheckedNow(false);
+                  await lib.check();
+                  setCheckedNow(true);
+                }}
+              >
+                {lib.checking ? "Checking…" : "Check for updates"}
+              </button>
+              {lib.status.available && lib.status.state === "idle" && (
+                <button onClick={() => void lib.update()}>
+                  Update to version {lib.status.available.version} ({lib.status.available.files} file{lib.status.available.files === 1 ? "" : "s"}, {megabytes(lib.status.available.bytes)})
+                </button>
+              )}
+            </div>
+            <div aria-live="polite">
+              {lib.status.error && <p className="notice warn-box" role="alert">{lib.status.error}</p>}
+              {checkedNow && !lib.status.error && !lib.status.available && <p className="muted">You have the latest course materials.</p>}
+              {lib.status.state === "downloading" && <p className="muted">Updating… {lib.status.progress.done} of {lib.status.progress.total} files.</p>}
+              <p className="muted small">Checking for updates needs an internet connection. Everything else works offline.</p>
+            </div>
+          </>
+        ) : (
+          <p className="muted">Loading…</p>
+        )}
+      </section>
 
       <section className="panel" aria-label="Search materials">
         <h2>Search</h2>

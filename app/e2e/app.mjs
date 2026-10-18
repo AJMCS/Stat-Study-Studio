@@ -67,6 +67,22 @@ async function photoOf(html) {
   return png;
 }
 
+await step("updates: newer course materials are offered, installed on request, and used at once", async () => {
+  await go("/");
+  await page.waitForSelector("text=New course materials are available", { timeout: 20000 });
+  await shot("update-banner");
+  await page.click("button:has-text('Update now')");
+  await page.waitForSelector("text=Course materials updated to version", { timeout: 30000 });
+  const hit = (await apiGet("search?q=" + encodeURIComponent("what is a conjugate prior"))).results[0];
+  if (!/\(revised\)/.test(hit.title)) throw new Error("the updated library is not in use: " + hit.title);
+  await page.click("[role=status] button:has-text('Dismiss')");
+  await go("/materials");
+  await page.click("button:has-text('Check for updates')");
+  await page.waitForSelector("text=You have the latest course materials");
+  await page.waitForSelector("text=updated online");
+  await shot("update-installed");
+});
+
 await step("overview lists 7 topics", async () => {
   await go("/");
   const cards = await page.locator("a.card").count();

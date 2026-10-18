@@ -133,6 +133,19 @@ export interface PersonalPageInfo {
   available: boolean;
 }
 
+export interface LibraryStatus {
+  /** False when this copy of the app has no update location set. */
+  configured: boolean;
+  installed: { version: number; builtAt: string | null; source: "bundled" | "update" };
+  state: "idle" | "checking" | "downloading";
+  /** Unix seconds of the last successful check. */
+  checkedAt: number | null;
+  error: string | null;
+  available: { version: number; builtAt: string | null; files: number; bytes: number } | null;
+  progress: { done: number; total: number };
+  justUpdated: boolean;
+}
+
 export const personalHitToSource = (h: PersonalHit): SourceRef => ({
   id: h.id,
   kind: "Personal",
@@ -180,6 +193,9 @@ export const api = {
     const extra = collections.map((c) => `&collection=${encodeURIComponent(c)}`).join("");
     return (await call(`/api/search?q=${encodeURIComponent(q)}&k=${k}${extra}`)).json();
   },
+  libraryStatus: async (): Promise<LibraryStatus> => (await call("/api/library")).json(),
+  libraryCheck: async (): Promise<LibraryStatus> => (await call("/api/library/check", { method: "POST" })).json(),
+  libraryUpdate: async (): Promise<LibraryStatus> => (await call("/api/library/update", { method: "POST" })).json(),
   listFiles: async (): Promise<PersonalFile[]> => (await call("/api/files")).json(),
   uploadFile: async (file: File, collectionId: string, replaceId?: string): Promise<UploadJob> => {
     const form = new FormData();

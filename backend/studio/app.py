@@ -11,6 +11,7 @@ import json
 import os
 import shutil
 import sqlite3
+import threading
 import uuid
 from contextlib import asynccontextmanager
 from datetime import datetime, timezone
@@ -28,10 +29,12 @@ from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
 from .embedder import DEFAULT_MODEL, Embedder
 from .highlight import best_highlight
+from .library import LibraryRuntime
 from .models import ALL_SLICES
 from .pages import PageStore
 from .personal import MAX_BYTES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
+from .update import Updater
 
 DEFAULT_PORT = 8765
 DEV_ORIGINS = {"http://localhost:5173", "http://127.0.0.1:5173"}
@@ -47,6 +50,7 @@ def create_app(
     static_dir: Path | None = None,
     port: int = DEFAULT_PORT,
     allow_dev_origin: bool = False,
+    auto_check: bool | None = None,
 ) -> FastAPI:
     data_dir = Path(data_dir) if data_dir else default_data_dir()
     library_dir = Path(library_dir) if library_dir else LIBRARY
@@ -58,17 +62,22 @@ def create_app(
 
     index_dir = library_dir / "index"
     model_cache = os.environ.get("STUDIO_MODEL_CACHE")
+    if auto_check is None:
+        auto_check = os.environ.get("STUDIO_AUTOCHECK", "1") != "0"
 
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.db = Database(data_dir / "studio.sqlite3")
-        app.state.pages = PageStore(library_dir)
         model_name = DEFAULT_MODEL
         if (index_dir / "index.json").exists():
             model_name = json.loads((index_dir / "index.json").read_text(encoding="utf-8"))["embedding_model"]
         app.state.embedder = Embedder(model_name, Path(model_cache) if model_cache else None)
-        app.state.index = SharedIndex(index_dir, embedder=app.state.embedder) if (index_dir / "index.json").exists() else None
+        app.state.library = LibraryRuntime(library_dir, data_dir, app.state.embedder)
+        app.state.updater = Updater(app.state.library)
         app.state.personal = PersonalStore(app.state.db, data_dir, app.state.embedder)
+        if auto_check and app.state.updater.base is not None:
+            # Look for newer course materials in the background; never delays or breaks starting up.
+            threading.Thread(target=app.state.updater.check, daemon=True, name="library-check").start()
         yield
         app.state.personal.shutdown()
         app.state.db.close()
@@ -91,13 +100,28 @@ def create_app(
     # ------------------------------------------------------------------ API
     @app.get("/api/health")
     def health() -> dict[str, Any]:
-        index_file = INDEX_DIR / "index.json" if library_dir == LIBRARY else library_dir / "index" / "index.json"
-        index = json.loads(index_file.read_text(encoding="utf-8")) if index_file.exists() else None
+        lib: LibraryRuntime = app.state.library
+        index = lib.index.meta if lib.index else None
         return {
             "ok": True,
             "version": __version__,
-            "library": {"chunks": index["chunks"], "documents": index["documents"], "builtAt": index["built_at"]} if index else None,
+            "library": {"chunks": index["chunks"], "documents": index["documents"], "builtAt": index["built_at"], **lib.info().as_dict()} if index else None,
         }
+
+    @app.get("/api/library")
+    def library_status() -> dict[str, Any]:
+        """What course materials are installed, and whether a newer version is available."""
+        return app.state.updater.status()
+
+    @app.post("/api/library/check")
+    def library_check() -> dict[str, Any]:
+        """Look for newer course materials now (the app also does this once when it starts)."""
+        return app.state.updater.check()
+
+    @app.post("/api/library/update", status_code=202)
+    def library_update() -> dict[str, Any]:
+        """Install newer course materials in the background; poll /api/library for progress."""
+        return app.state.updater.start_install()
 
     @app.get("/api/search")
     def search(
@@ -109,8 +133,8 @@ def create_app(
 
         `results` come from the shared course library; `personal` from the learner's uploads. The General collection
         is always searched; `collection` adds named ones."""
-        index: SharedIndex | None = app.state.index
-        pages: PageStore = app.state.pages
+        index: SharedIndex | None = app.state.library.index
+        pages: PageStore = app.state.library.pages
         results = []
         if index is not None:
             for hit in index.search(q, k=k):
@@ -129,7 +153,7 @@ def create_app(
     @app.get("/api/page")
     def get_page(source: str = Query(max_length=300), page: int = Query(ge=1)) -> dict[str, Any]:
         """One page of a shared-library document as text, for the citation preview."""
-        found = app.state.pages.get(source, page)
+        found = app.state.library.pages.get(source, page)
         if found is None:
             raise HTTPException(404, "That page is not in the course library")
         return found.as_dict()
@@ -273,8 +297,14 @@ def create_app(
         return {"ok": True}
 
     # ------------------------------------------------------------------ files
-    if library_dir.exists():
-        app.mount("/course-library", StaticFiles(directory=library_dir), name="course-library")
+    @app.get("/course-library/{path:path}", include_in_schema=False)
+    def library_file(path: str) -> FileResponse:
+        """The original PDFs of the course library (the current version, which an update can replace)."""
+        found = app.state.library.file(path)
+        if found is None:
+            raise HTTPException(404, "Not found")
+        return FileResponse(found)
+
     if static_dir.exists():
         if (static_dir / "assets").exists():
             app.mount("/assets", StaticFiles(directory=static_dir / "assets"), name="assets")
