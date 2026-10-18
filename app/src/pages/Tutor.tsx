@@ -26,7 +26,9 @@ export function Tutor() {
   useEffect(() => {
     if (topic) setMsgs([{ role: "tutor", text: tutorOpening(topic).text }]);
   }, [topic?.id]);
-  useEffect(() => endRef.current?.scrollIntoView({ block: "end" }), [msgs.length]);
+  useEffect(() => {
+    endRef.current?.scrollIntoView?.({ block: "end" });
+  }, [msgs.length]);
 
   if (!topic) return <p>Topic not found.</p>;
 

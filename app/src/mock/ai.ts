@@ -163,11 +163,10 @@ export async function generateExam(topic: Topic, focus: string): Promise<DraftEx
 /** Grade a multi-step written solution on setup choices and reasoning, not just the final answer. */
 export async function gradeExamAnswer(q: ExamQuestion, answer: string) {
   const { criteria, feedback } = await scoreExplanation(answer);
-  const covered = q.keyPoints.filter((kp) => answer.toLowerCase().includes(kp.toLowerCase().split(" ")[0])).length;
   return {
     criteria,
     feedback: feedback.map((f) => f.suggestion).join(" "),
-    keyPointNote: `Key points expected: ${q.keyPoints.join("; ")}. Matched about ${covered} of ${q.keyPoints.length}.`,
+    keyPointNote: `Key points a full solution covers: ${q.keyPoints.join("; ")}.`,
   };
 }
 

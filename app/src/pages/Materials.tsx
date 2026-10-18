@@ -75,7 +75,12 @@ export function Materials() {
     const q = query.trim();
     if (!q) return;
     const qs = new Set(words(q));
-    const shared = TOPICS.flatMap((t) => t.sources).filter((s) => words(s.excerpt + " " + s.title).some((w) => qs.has(w)));
+    const shared = TOPICS.flatMap((t) => t.sources)
+      .map((s) => ({ s, score: new Set(words(s.excerpt + " " + s.title).filter((w) => qs.has(w))).size }))
+      .filter((r) => r.score > 0)
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 5)
+      .map((r) => r.s);
     const allowed = new Set([GENERAL_ID, ...extra]);
     let personal = await searchPersonal(q, data.files, colName, allowed);
     const declined: string[] = [];

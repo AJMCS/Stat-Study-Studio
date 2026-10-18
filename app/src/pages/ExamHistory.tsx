@@ -4,6 +4,7 @@ import { topicById } from "../mock/topics";
 import { useStore } from "../lib/store";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
+import { RichText } from "../components/Math";
 import type { ExamRecord } from "../types";
 
 function downloadPdf(e: ExamRecord, title: string) {
@@ -80,7 +81,7 @@ export function ExamReview() {
       <ol className="review-list">
         {e.items.map((it) => (
           <li key={it.questionId}>
-            <p className="prompt">{it.prompt}</p>
+            <p className="prompt"><RichText text={it.prompt} /></p>
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
             <p><b>Score {it.composite}.</b> {it.feedback}</p>

@@ -1,4 +1,5 @@
-import { NavLink, Route, Routes } from "react-router-dom";
+import type { ReactNode } from "react";
+import { NavLink, Route, Routes, useParams } from "react-router-dom";
 import { Overview } from "./pages/Overview";
 import { TopicPage } from "./pages/TopicPage";
 import { Tutor } from "./pages/Tutor";
@@ -10,6 +11,12 @@ import { Progress } from "./pages/Progress";
 import { Materials } from "./pages/Materials";
 import { Notes } from "./pages/Notes";
 import { Settings } from "./pages/Settings";
+
+/** Remount a topic screen when the topic changes so quiz, exam and tutor state never leaks between topics. */
+function PerTopic({ children }: { children: ReactNode }) {
+  const { id } = useParams();
+  return <div key={id}>{children}</div>;
+}
 
 export function App() {
   return (
@@ -33,11 +40,11 @@ export function App() {
       <main id="main" tabIndex={-1}>
         <Routes>
           <Route path="/" element={<Overview />} />
-          <Route path="/topic/:id" element={<TopicPage />} />
-          <Route path="/topic/:id/tutor" element={<Tutor />} />
-          <Route path="/topic/:id/tutorial" element={<Tutorial />} />
-          <Route path="/topic/:id/quiz" element={<Quiz />} />
-          <Route path="/topic/:id/exam" element={<Exam />} />
+          <Route path="/topic/:id" element={<PerTopic><TopicPage /></PerTopic>} />
+          <Route path="/topic/:id/tutor" element={<PerTopic><Tutor /></PerTopic>} />
+          <Route path="/topic/:id/tutorial" element={<PerTopic><Tutorial /></PerTopic>} />
+          <Route path="/topic/:id/quiz" element={<PerTopic><Quiz /></PerTopic>} />
+          <Route path="/topic/:id/exam" element={<PerTopic><Exam /></PerTopic>} />
           <Route path="/exams" element={<ExamHistory />} />
           <Route path="/exams/:examId" element={<ExamReview />} />
           <Route path="/progress" element={<Progress />} />
