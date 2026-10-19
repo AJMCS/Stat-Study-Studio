@@ -1,24 +1,24 @@
-import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent } from "react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState, type KeyboardEvent as ReactKeyboardEvent, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { useStore } from "../lib/store";
 import { useAi } from "../lib/ai";
 import { useTheme } from "../lib/theme";
 import type { ProviderId } from "../lib/api";
 import type { AppData } from "../types";
-import { AiConnect } from "./AiConnect";
-import { Eyebrow, Note, Scribble } from "./Hand";
+import { AiConnect, KeyGuide } from "./AiConnect";
+import { Note, Scribble } from "./Hand";
 import { shouldPlayIntro } from "./Intro";
 
 type Choice = ProviderId | "none";
-type Slide = "welcome" | "choose" | "connect" | "done";
+type Slide = "welcome" | "choose" | "key" | "paste" | "done";
 
 /** One line on cost and privacy for each choice in first-run setup. */
 // `line` on wide screens, `short` on phones; both fit on one line
 const CHOICES: { id: Choice; name: string; line: string; short: string }[] = [
-  { id: "gemini", name: "Google Gemini", line: "Free tier with a Google account; data goes to Google.", short: "Free tier; data goes to Google." },
-  { id: "anthropic", name: "Anthropic Claude", line: "Pay per use with API credit; data goes to Anthropic.", short: "Pay per use with API credit." },
-  { id: "openai", name: "OpenAI", line: "Pay per use with API credit; data goes to OpenAI.", short: "Pay per use with API credit." },
-  { id: "ollama", name: "Ollama", line: "Free, runs on this computer; nothing leaves it.", short: "Free and local; nothing leaves it." },
+  { id: "gemini", name: "Google Gemini", line: "Free with a Google account; data goes to Google.", short: "Free with Google; data goes to Google." },
+  { id: "anthropic", name: "Anthropic Claude", line: "Costs a little: you add prepaid credit; data goes to Anthropic.", short: "Costs a little; data goes to Anthropic." },
+  { id: "openai", name: "OpenAI", line: "Costs a little: you add prepaid credit; data goes to OpenAI.", short: "Costs a little; data goes to OpenAI." },
+  { id: "ollama", name: "Ollama", line: "Free app you install; runs on this computer, nothing leaves it.", short: "Free app; runs here, nothing leaves it." },
   { id: "none", name: "No AI for now", line: "Lessons, quizzes and self-scored exams work without it.", short: "Everything else works without it." },
 ];
 const SHORT: Record<ProviderId, string> = { gemini: "Gemini", anthropic: "Claude", openai: "OpenAI", ollama: "Ollama" };
@@ -85,8 +85,9 @@ function SetupDialog({ onFinish }: { onFinish: () => void }) {
   const [slide, setSlide] = useState<Slide>("welcome");
   const [choice, setChoice] = useState<Choice>("gemini");
   const [skipped, setSkipped] = useState(false);
+  const [slot, setSlot] = useState<HTMLElement | null>(null);
 
-  const slides: Slide[] = choice === "none" ? ["welcome", "choose", "done"] : ["welcome", "choose", "connect", "done"];
+  const slides: Slide[] = choice === "none" ? ["welcome", "choose", "done"] : ["welcome", "choose", "key", "paste", "done"];
   const at = slides.indexOf(slide);
   const go = (s: Slide) => setSlide(s);
   const back = () => at > 0 && go(slides[at - 1]);
@@ -122,17 +123,36 @@ function SetupDialog({ onFinish }: { onFinish: () => void }) {
     }
   };
 
+
   const connected = ai.info?.connected ? ai.info : null;
   const provider = choice === "none" ? null : choice;
   const connectedHere = !!connected && connected.provider === provider;
 
+  // On the last slide the top bar comes back (cleanly, above the dialog) so the note can point at Settings in it.
+  const [topH, setTopH] = useState(0);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    root.classList.toggle("ob-show-top", slide === "done");
+    setTopH(slide === "done" ? (document.querySelector("header.top")?.getBoundingClientRect().bottom ?? 0) : 0);
+    return () => root.classList.remove("ob-show-top");
+  }, [slide]);
+
+  const reassure = <p className="muted ob-reassure">You can change this any time in Settings (top right).</p>;
   const titleId = `ob-title-${slide}`;
+  const title = (children: ReactNode) => (
+    <h2 id={titleId} ref={heading} tabIndex={-1} className="ob-title">
+      {children}
+    </h2>
+  );
+  const later = "any time in Settings."; // where Settings is follows on the next line
+
   return (
     <dialog
       ref={ref}
       className="onboard"
       aria-labelledby={titleId}
       onKeyDown={trap}
+      style={topH ? { top: topH, height: `calc(100% - ${topH}px)` } : undefined}
       onCancel={(e) => {
         // Esc skips setup; anything already chosen (theme, a connection) is kept
         e.preventDefault();
@@ -143,25 +163,35 @@ function SetupDialog({ onFinish }: { onFinish: () => void }) {
         {slide === "done" && <SettingsPointer />}
         <div className="ob-card">
           <div className="ob-head">
-            <Eyebrow>First-run setup</Eyebrow>
             <StepDots count={slides.length} at={at} />
+            {slide !== "done" && (
+              <button type="button" className="link ob-skip" onClick={onFinish}>
+                Skip setup
+              </button>
+            )}
           </div>
 
           <div className="ob-slide" key={slide}>
             {slide === "welcome" && (
               <>
-                <h2 id={titleId} ref={heading} tabIndex={-1} className="ob-title">
-                  Welcome to the <Scribble>studio</Scribble>
-                </h2>
-                <p>
-                  Stats Study Studio teaches each topic of the course, then has you prove it with quizzes, recalls and exams, and shows what is sticking. Everything works
-                  offline, with no account, and your progress stays on this computer.
-                </p>
-                <p className="muted">
-                  An AI service is optional. It adds a tutor that talks with you, scoring of written answers, exams written around what you want to practise, and better
-                  reading of handwritten notes.
-                </p>
-                <fieldset className="ob-theme">
+                <div className="ob-block">
+                  {title(
+                    <>
+                      Welcome to the <Scribble>studio</Scribble>
+                    </>,
+                  )}
+                </div>
+                <div className="ob-block">
+                  <p>
+                    Stats Study Studio teaches each topic of the course, then has you prove it with quizzes, recalls and exams, and shows what is sticking. Everything works
+                    offline, with no account, and your progress stays on this computer.
+                  </p>
+                  <p className="muted">
+                    An AI service is optional. It adds a tutor that talks with you, scoring of written answers, exams written around what you want to practise, and better
+                    reading of handwritten notes.
+                  </p>
+                </div>
+                <fieldset className="ob-block ob-theme">
                   <legend>Appearance</legend>
                   <div className="ob-theme-row">
                     {(["dark", "light"] as const).map((t) => (
@@ -179,11 +209,16 @@ function SetupDialog({ onFinish }: { onFinish: () => void }) {
 
             {slide === "choose" && (
               <>
-                <h2 id={titleId} ref={heading} tabIndex={-1} className="ob-title">
-                  Add an AI <Scribble>helper</Scribble>?
-                </h2>
-                <p className="muted ob-choose-lede">Choose where the model runs, or carry on without one. The online ones need a key from their website; the next step shows how.</p>
-                <fieldset className="ob-choices">
+                <div className="ob-block">
+                  {title(
+                    <>
+                      Add an AI <Scribble>helper</Scribble>?
+                    </>,
+                  )}
+                  <p className="muted">Pick an AI service, or carry on without one.</p>
+                  {reassure}
+                </div>
+                <fieldset className="ob-block ob-choices">
                   <legend className="sr-only">AI service</legend>
                   {CHOICES.map((c) => (
                     <label key={c.id} className={`choice opt-row${choice === c.id ? " on" : ""}${c.id === "none" ? " ob-none" : ""}`}>
@@ -208,104 +243,167 @@ function SetupDialog({ onFinish }: { onFinish: () => void }) {
               </>
             )}
 
-            {slide === "connect" && provider && (
+            {slide === "key" && provider && (
               <>
-                <h2 id={titleId} ref={heading} tabIndex={-1} className="ob-title">
-                  Connect <Scribble>{SHORT[provider]}</Scribble>
-                </h2>
+                <div className="ob-block">
+                  {title(
+                    provider === "ollama" ? (
+                      <>
+                        Install <Scribble>Ollama</Scribble>
+                      </>
+                    ) : (
+                      <>
+                        Get a <Scribble>key</Scribble>
+                      </>
+                    ),
+                  )}
+                  {reassure}
+                </div>
+                <div className="ob-block">
+                  <KeyGuide provider={provider} />
+                </div>
+              </>
+            )}
+
+            {slide === "paste" && provider && (
+              <>
+                <div className="ob-block">
+                  {title(
+                    provider === "ollama" ? (
+                      <>
+                        Pick your <Scribble>model</Scribble>
+                      </>
+                    ) : (
+                      <>
+                        Paste your <Scribble>key</Scribble>
+                      </>
+                    ),
+                  )}
+                  {reassure}
+                </div>
                 {connectedHere ? (
-                  <p role="status">
+                  <p className="ob-block" role="status">
                     Connected to {connected!.providerName}. {connected!.local ? "It runs on this computer, so nothing is sent over the internet." : "Your key is kept on this computer only."}
                   </p>
                 ) : (
-                  <AiConnect key={provider} provider={provider} headingLevel={3} compact onConnected={() => go("done")} />
+                  <AiConnect key={provider} provider={provider} headingLevel={3} compact connectSlot={slot} onConnected={() => go("done")} />
                 )}
               </>
             )}
 
             {slide === "done" && (
               <>
-                <h2 id={titleId} ref={heading} tabIndex={-1} className="ob-title">
-                  You're <Scribble>set</Scribble>
-                </h2>
-                <dl className="ob-summary">
-                  <div>
-                    <dt>AI service</dt>
-                    <dd>
-                      {connected ? (
-                        <>
-                          Connected to {connected.providerName}
-                          {connected.model && (
-                            <>
-                              {" "}
-                              <span className="mono nowrap">({connected.model})</span>
-                            </>
-                          )}
-                          .
-                        </>
-                      ) : skipped && provider
-                          ? `Not connected yet. Connect ${SHORT[provider]} whenever you have a key.`
-                          : "None for now. Features that need one will say so."}
-                    </dd>
-                  </div>
-                  <div>
-                    <dt>Appearance</dt>
-                    <dd>{theme === "dark" ? "Dark" : "Light"}</dd>
-                  </div>
-                  <div>
-                    <dt>Your progress</dt>
-                    <dd>Saved on this computer.</dd>
-                  </div>
-                </dl>
-                <p>
-                  You can change any of this in{" "}
-                  <Link to="/settings" onClick={onFinish}>
-                    Settings
-                  </Link>{" "}
-                  (top right).
-                </p>
+                <div className="ob-block">
+                  {title(
+                    connected ? (
+                      <>
+                        You're <Scribble>set</Scribble>
+                      </>
+                    ) : (
+                      <>
+                        All set to <Scribble>start</Scribble>
+                      </>
+                    ),
+                  )}
+                </div>
+                <div className="ob-block">
+                  <dl className="ob-summary">
+                    <div>
+                      <dt>AI service</dt>
+                      <dd>
+                        {connected ? (
+                          <>
+                            Connected to {connected.providerName}
+                            {connected.model && (
+                              <>
+                                {" "}
+                                <span className="mono nowrap">({connected.model})</span>
+                              </>
+                            )}
+                            .
+                          </>
+                        ) : skipped && provider ? (
+                          `Not connected yet: connect it ${later}`
+                        ) : (
+                          `None for now: add one ${later}`
+                        )}
+                      </dd>
+                    </div>
+                    <div>
+                      <dt>Appearance</dt>
+                      <dd>{theme === "dark" ? "Dark" : "Light"}</dd>
+                    </div>
+                    <div>
+                      <dt>Your progress</dt>
+                      <dd>Saved on this computer.</dd>
+                    </div>
+                  </dl>
+                  <p className="ob-change">
+                    You can change any of this in{" "}
+                    <Link to="/settings" onClick={onFinish}>
+                      Settings
+                    </Link>{" "}
+                    (top right).
+                  </p>
+                </div>
               </>
             )}
           </div>
 
-          <div className="ob-foot">
-            {slide !== "done" ? (
-              <button type="button" className="link ob-skip" onClick={onFinish}>
-                Skip setup
+          <div className={`ob-foot${slide === "key" ? " two" : (slide === "paste" && !connectedHere) || (slide === "done" && !connected && skipped) ? " pair" : ""}`}>
+            {at > 0 ? (
+              <button type="button" className="link ob-back" onClick={back}>
+                Back
               </button>
             ) : (
               <span />
             )}
             <div className="ob-nav">
-              {at > 0 && (
-                <button type="button" className="ghost" onClick={back}>
-                  Back
-                </button>
-              )}
               {slide === "welcome" && <button type="button" onClick={() => go("choose")}>Next</button>}
               {slide === "choose" && (
-                <button type="button" onClick={() => go(choice === "none" ? "done" : "connect")}>
+                <button type="button" onClick={() => go(choice === "none" ? "done" : "key")}>
                   Next
                 </button>
               )}
-              {slide === "connect" &&
-                (connectedHere ? (
-                  <button type="button" onClick={() => go("done")}>Continue</button>
-                ) : (
-                  <button
-                    type="button"
-                    className="ghost"
-                    onClick={() => {
-                      setSkipped(true);
-                      go("done");
-                    }}
-                  >
-                    Skip this step
-                  </button>
-                ))}
+              {/* the forward action comes first in the page order (it is drawn on the right) */}
+              {slide === "key" && (
+                <button type="button" onClick={() => go("paste")}>
+                  {provider === "ollama" ? "Next: pick it" : "Next: paste it"}
+                </button>
+              )}
+              {slide === "paste" && !connectedHere && <span className="connect-slot" ref={setSlot} />}
               {slide === "done" && (
                 <button type="button" onClick={onFinish}>
                   Start
+                </button>
+              )}
+              {slide === "done" && !connected && skipped && provider && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setSkipped(false);
+                    go("paste");
+                  }}
+                >
+                  Connect {SHORT[provider]} now
+                </button>
+              )}
+              {slide === "paste" && connectedHere && (
+                <button type="button" onClick={() => go("done")}>
+                  Continue
+                </button>
+              )}
+              {(slide === "key" || (slide === "paste" && !connectedHere)) && (
+                <button
+                  type="button"
+                  className="ghost"
+                  onClick={() => {
+                    setSkipped(true);
+                    go("done");
+                  }}
+                >
+                  Continue without AI
                 </button>
               )}
             </div>
@@ -344,6 +442,7 @@ function StepDots({ count, at }: { count: number; at: number }) {
   );
 }
 
+
 /** On the last slide: a hand-drawn ring around the real Settings link (top right) with a note pointing at it. */
 function SettingsPointer() {
   const [rect, setRect] = useState<DOMRect | null>(null);
@@ -358,15 +457,12 @@ function SettingsPointer() {
     return () => window.removeEventListener("resize", measure);
   }, []);
   if (!rect) return null;
-  const right = Math.max(8, window.innerWidth - rect.right - 6);
+  const right = Math.max(16, window.innerWidth - rect.right);
   return (
     <div className="ob-pointer" aria-hidden="true">
-      <span className="ob-ghost" style={{ left: rect.left, top: rect.top, width: rect.width, height: rect.height }}>
-        Settings
-        <svg className="ob-ring" viewBox="0 0 120 50" preserveAspectRatio="none">
-          <path pathLength={1} d="M62 4 C30 2 6 12 5 25 C4 40 34 47 62 46 C92 45 116 38 115 24 C114 10 90 3 56 6" />
-        </svg>
-      </span>
+      <svg className="ob-ring" viewBox="0 0 120 50" preserveAspectRatio="none" style={{ left: rect.left - 12, top: rect.top - 6, width: rect.width + 24, height: rect.height + 12 }}>
+        <path pathLength={1} d="M62 4 C30 2 6 12 5 25 C4 40 34 47 62 46 C92 45 116 38 115 24 C114 10 90 3 56 6" />
+      </svg>
       <span className="ob-pointer-note" style={{ top: rect.bottom + 8, right }}>
         <Note dir="upright">change it all here, any time</Note>
       </span>

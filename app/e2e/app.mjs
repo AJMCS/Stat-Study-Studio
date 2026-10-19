@@ -118,7 +118,7 @@ await step("onboarding: a new learner gets setup, can go without AI, and it does
     return out;
   });
   if (over.length) throw new Error(`setup overflows sideways on a phone: ${over.slice(0, 3).join("; ")}`);
-  if (!(await p.locator("dialog[open] >> text=1/4").count())) throw new Error("no step indicator");
+  if (!(await p.locator("dialog[open] >> text=1/5").count())) throw new Error("no step indicator");
   await p.click("dialog[open] button:has-text('Next')");
   await p.check("dialog[open] label:has-text('No AI for now') input");
   await p.click("dialog[open] button:has-text('Next')");
@@ -167,15 +167,26 @@ await step("onboarding: choosing Gemini connects it with a pasted key, and Setti
   await p.click("dialog[open] button:has-text('Next')");
   await p.check("dialog[open] label:has-text('Google Gemini') input");
   await p.click("dialog[open] button:has-text('Next')");
-  await p.waitForSelector("dialog[open] h2:has-text('Connect')");
+  await p.waitForSelector("dialog[open] h2:has-text('Get a key')");
+  await p.waitForSelector("dialog[open] >> text=password-like code");
   await p.waitForSelector("dialog[open] a[href*='aistudio.google.com']");
+  if (!(await p.locator("dialog[open] >> text=3/5").count())) throw new Error("the step indicator should show five steps with an AI service chosen");
+  await p.click("dialog[open] button:has-text('Next: paste it')");
+  await p.waitForSelector("dialog[open] h2:has-text('Paste your key')");
   await p.waitForSelector("dialog[open] summary:has-text('Read the full notice')");
   await p.waitForSelector("dialog[open] >> text=may use them to improve its products");
   if (await p.evaluate(() => { const s = document.querySelector("dialog[open] .ob-slide"); return s.scrollHeight > s.clientHeight + 1; })) throw new Error("the Connect step does not fit without scrolling");
   await p.click("dialog[open] summary:has-text('Read the full notice')");
   await p.waitForSelector("dialog[open] >> text=people may review it", { state: "visible" });
+  // Connect stays the obvious way forward: clicking it early says what is missing and moves focus there
+  if (!(await p.locator("dialog[open] .field-note").count())) throw new Error("no hand note on the paste step");
+  await p.click("dialog[open] button:text-is('Connect')");
+  await p.waitForSelector("dialog[open] [role=alert]:has-text('Paste your key first')");
+  if ((await p.evaluate(() => document.activeElement?.getAttribute("aria-label"))) !== "API key") throw new Error("focus did not move to the key field");
   await p.fill("dialog[open] input[aria-label='API key']", "good-key-123");
-  if (!(await p.locator("dialog[open] button:text-is('Connect')").isDisabled())) throw new Error("Connect must wait for the data notice to be accepted");
+  await p.click("dialog[open] button:text-is('Connect')");
+  await p.waitForSelector("dialog[open] [role=alert]:has-text('Tick the box to agree first')");
+  if ((await apiGet("ai")).keyStored) throw new Error("a key was stored without agreeing to the notice");
   await p.check("dialog[open] label:has-text('I have read this') input");
   await p.click("dialog[open] button:text-is('Connect')");
   await p.waitForSelector("dialog[open] >> text=Connected to Google Gemini", { timeout: 15000 });

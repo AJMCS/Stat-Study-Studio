@@ -135,6 +135,7 @@ try {
           await page.goto(`${origin}/#/`);
           await page.click("dialog[open] button:has-text('Next')");
           await page.click("dialog[open] button:has-text('Next')");
+          await page.click("dialog[open] button:has-text('Next: paste it')");
           await page.fill("dialog[open] input[aria-label='API key']", "wrong-key");
           await page.check("dialog[open] label:has-text('I have read this') input");
           await page.click("dialog[open] button:text-is('Connect')");

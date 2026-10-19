@@ -19,7 +19,7 @@ Two chromatic colours only. Everything else is achromatic.
 | Hard shadow | `#000000` | `#4a4a4a` solid, with a `#3a3a3a` 1px rim (see §5) | offset shadow |
 | **Signal orange** | `#ff5b29` | `#ff6a3d` | **voice**: one key word in a heading, large stat numerals, the active path/node in a diagram, decorative strokes. Never a button fill, never body text, never a link colour. |
 | **Chartreuse** | `#f5ff80` | `#f5ff80` (text on it is always `#000`) | **highlighter**: a marker stroke behind a word or phrase, the announcement/notice wash, a featured chip. Never a button fill. |
-| Danger | ink text + underline + `!` | ink text + underline + `!` | destructive actions and errors are worded, not coloured (amended after round 4: a red/orange danger tone read as the orange voice) |
+| Danger | ink text + underline + `!` | ink text + underline + `!` | destructive actions and errors are worded, not coloured (amended after round 4: a red/orange danger tone read as the orange voice). Clarified (piece C, round 3): an error message is the `!` marker + plain ink text, with no underline and no box; underline is for links (and the destructive button's label) only |
 
 **Orange as text (amended after round 1):** `#ff5b29` on the light canvas is 2.97:1, under the 3:1 needed even for
 large text. So in light mode, orange *text* (heading key word, stat numerals, θ mark) uses `#e0461a` (about 4:1 on

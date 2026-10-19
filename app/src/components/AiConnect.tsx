@@ -1,4 +1,5 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
+import { createPortal } from "react-dom";
 import { api, ServiceRejected, type AiInfo, type ProviderId } from "../lib/api";
 import { useAi } from "../lib/ai";
 import { Note } from "./Hand";
@@ -40,12 +41,15 @@ export function AiConnect({
   onConnected,
   headingLevel = 3,
   compact = false,
+  connectSlot = null,
 }: {
   provider: ProviderId;
   onConnected?: () => void;
   headingLevel?: 3 | 4;
   /** First-run setup: short steps and a two-line consent summary, so the whole step fits on one screen. */
   compact?: boolean;
+  /** Where to draw the Connect button instead of under the form (first-run setup puts it in the dialog's footer). */
+  connectSlot?: HTMLElement | null;
 }) {
   const ai = useAi();
   const info = ai.info;
@@ -86,15 +90,39 @@ export function AiConnect({
     if (provider === "ollama") void findModels();
   }, [provider]);
 
+  const keyField = useRef<HTMLInputElement>(null);
+  const modelField = useRef<HTMLSelectElement>(null);
+  const agreeBox = useRef<HTMLInputElement>(null);
+  const [missing, setMissing] = useState(false);
+
   const connect = async (apiKey: string, model?: string) => {
+    // first-run setup keeps Connect clickable and says what is missing instead
+    if (compact) {
+      const lack =
+        provider === "ollama"
+          ? !model && { msg: "Choose a model first.", el: modelField.current }
+          : !apiKey.trim() && { msg: "Paste your key first.", el: keyField.current };
+      const why = lack || (!accept && { msg: "Tick the box to agree first.", el: agreeBox.current });
+      if (why) {
+        setMissing(true);
+        setError(why.msg);
+        why.el?.focus();
+        return;
+      }
+    }
     setBusy(true);
     setError("");
+    setMissing(false);
     try {
       await ai.connect(apiKey, accept, model, provider);
       setKey("");
       onConnected?.();
     } catch (e) {
-      setError(e instanceof ServiceRejected ? e.message : SERVICE_UNREACHABLE);
+      let msg = e instanceof ServiceRejected ? e.message : SERVICE_UNREACHABLE;
+      if (compact && e instanceof ServiceRejected && e.kind === "invalid_key") {
+        msg = `The AI service did not accept your key. Check it's a ${PLAIN_NAME[provider]} key, copied in full.`;
+      }
+      setError(msg);
     } finally {
       setBusy(false);
     }
@@ -108,7 +136,7 @@ export function AiConnect({
   const name = preview?.providerName ?? PLAIN_NAME[provider];
   const consent = (
     <label className="choice consent">
-      <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
+      <input ref={agreeBox} type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
       <span>I have read this and want to use {provider === "ollama" ? "a model on this computer" : compact ? name : "an AI service"}</span>
     </label>
   );
@@ -137,84 +165,44 @@ export function AiConnect({
       <span className="err-text">{error}</span>
     </p>
   );
-  const connectRow = (disabled: boolean, onClick: () => void) => (
-    <div className="connect-row">
-      <button disabled={disabled} onClick={onClick}>
+  const reopen =
+    compact && error && !missing && provider !== "ollama" ? (
+      <p className="err-help">
+        <a href={KEY_PAGES[provider].url} target="_blank" rel="noreferrer">
+          Open the key page again
+        </a>
+      </p>
+    ) : null;
+  const connectRow = (disabled: boolean, onClick: () => void) => {
+    const button = (
+      <button type="button" className="connect-btn" disabled={compact ? busy : disabled} onClick={onClick}>
         {busy ? "Checking…" : "Connect"}
       </button>
-      {errorLine}
-    </div>
-  );
-
-  if (provider !== "ollama") {
-    const page = KEY_PAGES[provider];
+    );
+    if (compact) {
+      // the button lives in the footer (where Next was on the earlier steps); what went wrong stays here, by the field
+      return (
+        <>
+          {connectSlot && createPortal(button, connectSlot)}
+          {(errorLine || reopen) && (
+            <div className="connect-row">
+              {errorLine}
+              {reopen}
+            </div>
+          )}
+        </>
+      );
+    }
     return (
-      <div className={`ai-connect${compact ? " compact" : ""}`}>
-        {compact ? (
-          <ol className="key-steps">
-            <li>
-              Open <a href={page.url} target="_blank" rel="noreferrer">{page.label}</a>
-            </li>
-            <li>
-              Choose <em>Create API key</em> and copy it.
-            </li>
-            <li className="with-note">
-              <span>Paste it below.</span>
-              <Note dir="left" className="steps-note">about a minute</Note>
-            </li>
-          </ol>
-        ) : (
-          <ol className="key-steps">
-            <li>
-              Go to <a href={page.url} target="_blank" rel="noreferrer">{page.label}</a> and sign in.
-            </li>
-            <li>
-              Choose <em>Create API key</em> and copy it.
-            </li>
-            <li>Paste it below. It is checked with {preview?.providerName ?? "the service"} first, then kept on this computer only.</li>
-          </ol>
-        )}
-        {provider !== "gemini" &&
-          (compact ? (
-            <p className="muted">Needs a little API credit on their site; a chat subscription does not include it.</p>
-          ) : (
-            <p className="muted">
-              This uses your API credit, billed per use, so add a little credit on their site first. A Claude or ChatGPT chat subscription is separate and does not include API
-              credit.
-            </p>
-          ))}
-        <p className="muted">Stuck? Ask any AI chatbot to walk you through it.</p>
-        {info.keyStored && !info.consented && info.provider === provider && <p className="notice warn-box">The data notice changed since you last accepted it. Please read it again.</p>}
-        <label className="field">
-          <span>API key</span>
-          <input aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
-        </label>
-        {noticeBox}
-        {connectRow(busy || !key.trim() || !accept, () => void connect(key))}
+      <div className="connect-row">
+        {button}
+        {errorLine}
+        {reopen}
       </div>
     );
-  }
-
-  return (
-    <div className={`ai-connect${compact ? " compact" : ""}`}>
-      <ol className="key-steps">
-        <li>
-          Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a> and open it.
-        </li>
-        {compact ? (
-          <li>
-            Get a model: run <code>ollama pull llama3.2</code> in a terminal.
-          </li>
-        ) : (
-          <li>
-            Install a model, for example by running <code>ollama pull llama3.2</code> in a terminal. Any chat model works; larger ones are better at scoring and slower.
-          </li>
-        )}
-        <li className="with-note">
-          <span>{compact ? "Choose it below." : "Come back here and choose the model below."}</span>
-          {compact && <Note dir="left" className="steps-note">a few minutes</Note>}
-        </li>
-      </ol>
+  };
+  const status = (
+    <>
       {local && !local.running && (
         <p className="notice warn-box" role="status">
           Ollama does not seem to be running on this computer yet. Open the Ollama app, then check again.
@@ -222,27 +210,142 @@ export function AiConnect({
       )}
       {local?.running && local.models.length === 0 && (
         <p className="notice warn-box" role="status">
-          Ollama is running but has no models yet. Install one (step 2), then check again.
+          Ollama is running but has no models yet. Install one, then check again.
         </p>
       )}
-      <div className="row model-row">
-        <label className="field grow">
-          <span>Model</span>
-          <select aria-label="Ollama model" value={localModel} onChange={(e) => setLocalModel(e.target.value)} disabled={!local?.models.length}>
-            {!local?.models.length && <option value="">No models found</option>}
-            {local?.models.map((m) => (
-              <option key={m} value={m}>
-                {m}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button className="ghost" disabled={busy} onClick={() => void findModels()}>
-          Check again
-        </button>
+    </>
+  );
+
+  if (provider !== "ollama") {
+    const page = KEY_PAGES[provider];
+    return (
+      <div className={`ai-connect${compact ? " compact" : ""}`}>
+        {!compact && (
+          <div className="ac-block">
+            <ol className="key-steps">
+              <li>
+                Go to <a href={page.url} target="_blank" rel="noreferrer">{page.label}</a> and sign in.
+              </li>
+              <li>
+                Choose <em>Create API key</em> and copy it.
+              </li>
+              <li>Paste it below. It is checked with {preview?.providerName ?? "the service"} first, then kept on this computer only.</li>
+            </ol>
+            {provider !== "gemini" && (
+              <p className="muted">
+                This uses your API credit, billed per use, so add a little credit on their site first. A Claude or ChatGPT chat subscription is separate and does not include
+                API credit.
+              </p>
+            )}
+            <p className="muted">Stuck? Ask any AI chatbot to walk you through it.</p>
+          </div>
+        )}
+        <div className="ac-block">
+          {info.keyStored && !info.consented && info.provider === provider && <p className="notice warn-box">The data notice changed since you last accepted it. Please read it again.</p>}
+          <label className="field">
+            <span className="field-label">
+              API key
+              {compact && <Note dir="left" className="field-note">stays on this computer</Note>}
+            </span>
+            <input ref={keyField} aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
+          </label>
+          {noticeBox}
+          {connectRow(busy || !key.trim() || !accept, () => void connect(key))}
+        </div>
       </div>
-      {noticeBox}
-      {connectRow(busy || !localModel || !accept, () => void connect("", localModel))}
+    );
+  }
+
+  return (
+    <div className={`ai-connect${compact ? " compact" : ""}`}>
+      {!compact && (
+        <div className="ac-block">
+          <ol className="key-steps">
+            <li>
+              Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a> and open it.
+            </li>
+            <li>
+              Install a model, for example by running <code>ollama pull llama3.2</code> in a terminal. Any chat model works; larger ones are better at scoring and slower.
+            </li>
+            <li>Come back here and choose the model below.</li>
+          </ol>
+          {status}
+        </div>
+      )}
+      <div className="ac-block">
+        {compact && status}
+        <div className="row model-row">
+          <label className="field grow">
+            <span className="field-label">
+              Model
+              {compact && <Note dir="left" className="field-note">runs on this computer</Note>}
+            </span>
+            <select ref={modelField} aria-label="Ollama model" value={localModel} onChange={(e) => setLocalModel(e.target.value)} disabled={!local?.models.length}>
+              {!local?.models.length && <option value="">No models found</option>}
+              {local?.models.map((m) => (
+                <option key={m} value={m}>
+                  {m}
+                </option>
+              ))}
+            </select>
+          </label>
+          <button className="ghost" disabled={busy} onClick={() => void findModels()}>
+            Check again
+          </button>
+        </div>
+        {noticeBox}
+        {connectRow(busy || !localModel || !accept, () => void connect("", localModel))}
+      </div>
+    </div>
+  );
+}
+
+/** What a key is and how to get one (or, for Ollama, how to install it), for the first of the two setup steps. */
+export function KeyGuide({ provider }: { provider: ProviderId }) {
+  if (provider === "ollama") {
+    return (
+      <div className="key-guide">
+        <p>Ollama runs an AI model on this computer, so there is no key and nothing to pay. It needs a fairly fast computer.</p>
+        <ol className="key-steps">
+          <li>
+            Install it from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a> and open it.
+          </li>
+          <li className="with-note">
+            <span>
+              In a terminal, run <code>ollama pull llama3.2</code>
+            </span>
+            <Note dir="left" className="steps-note">a few minutes</Note>
+          </li>
+        </ol>
+        <p className="muted">Stuck? Ask any AI chatbot for help.</p>
+      </div>
+    );
+  }
+  const page = KEY_PAGES[provider];
+  const who = { gemini: "Google Gemini", anthropic: "Anthropic", openai: "OpenAI" }[provider];
+  const cost = {
+    gemini: "It is free with a Google account.",
+    anthropic: "It needs a little prepaid API credit; a Claude chat subscription does not include it.",
+    openai: "It needs a little prepaid API credit; a ChatGPT subscription does not include it.",
+  }[provider];
+  return (
+    <div className="key-guide">
+      <p>
+        An API key is a password-like code that lets this app use your {who} account. {cost}
+      </p>
+      <ol className="key-steps">
+        <li>
+          Open <a href={page.url} target="_blank" rel="noreferrer">{page.label}</a>
+        </li>
+        <li>
+          Choose <em>Create API key</em>.
+        </li>
+        <li className="with-note">
+          <span>Copy the key.</span>
+          <Note dir="left" className="steps-note">about a minute</Note>
+        </li>
+      </ol>
+      <p className="muted">Stuck? Ask any AI chatbot for help.</p>
     </div>
   );
 }
