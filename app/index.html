@@ -1,10 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 32 32%27%3E%3Crect width=%2732%27 height=%2732%27 rx=%276%27 fill=%27%232f5fd0%27/%3E%3Ctext x=%2716%27 y=%2723%27 font-size=%2720%27 text-anchor=%27middle%27 fill=%27white%27 font-family=%27serif%27%3E%CE%B8%3C/text%3E%3C/svg%3E" />
-    <title>Stats 132 Study Studio</title>
+    <meta name="color-scheme" content="dark light" />
+    <script>
+      // Apply the saved theme before the first paint (dark unless the learner chose light).
+      (function () {
+        var t = null;
+        try {
+          t = localStorage.getItem("studio-theme");
+        } catch (e) {}
+        document.documentElement.setAttribute("data-theme", t === "light" ? "light" : "dark");
+      })();
+    </script>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 48 48%27%3E%3Crect width=%2748%27 height=%2748%27 rx=%2712%27 fill=%27%23121212%27/%3E%3Cg fill=%27none%27 stroke=%27%23f2f0eb%27 stroke-width=%273%27 stroke-linecap=%27round%27%3E%3Cellipse cx=%2724%27 cy=%2724%27 rx=%279.5%27 ry=%2714.5%27/%3E%3Cpath d=%27M15.5 24h17%27/%3E%3C/g%3E%3C/svg%3E" />
+    <title>Stats Study Studio</title>
   </head>
   <body>
     <div id="root"></div>

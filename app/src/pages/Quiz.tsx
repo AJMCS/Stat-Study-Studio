@@ -7,6 +7,9 @@ import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
+import { Annotated, Eyebrow, KeyTitle, Scribble } from "../components/Hand";
+import { StepTrack } from "../components/StepTrack";
+import { BackToTopic } from "../components/BackLink";
 import { RATING_CREDIT, SelfRate, type Rating } from "../components/SelfCheck";
 import { uniformCriteria } from "../lib/scoring";
 import type { CriterionScores, QuizQuestion, QuizResult } from "../types";
@@ -89,19 +92,24 @@ export function Quiz() {
   if (!mode) {
     return (
       <>
-        <p><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-        <h1>{topic.title}: quiz</h1>
-        <p className="lede">10 questions, one at a time. Choose how you want feedback.</p>
+        <BackToTopic id={topic.id} title={topic.title} />
+        <Eyebrow>Quiz · {questions.length} questions</Eyebrow>
+        <h1><KeyTitle text={topic.title} /></h1>
+        <p className="lede">One question at a time. Choose how you want feedback.</p>
+        <Annotated block note="graded counts toward progress; practice tells you as you go">
         <div className="grid two">
-          <button className="card" onClick={() => setMode("graded")}>
+          <button className="card focal" onClick={() => setMode("graded")}>
             <h3>Graded quiz</h3>
             <p>Move Back and Next, change answers freely, review, then submit. Feedback arrives after you submit.</p>
+            <span className="card-go">Start graded quiz →</span>
           </button>
           <button className="card" onClick={() => setMode("practice")}>
             <h3>Low-stakes practice</h3>
             <p>Feedback right after each response. Your first response is what counts toward progress and is then locked; retries are saved separately.</p>
+            <span className="card-go">Start practice →</span>
           </button>
         </div>
+        </Annotated>
         <p className="muted">Multiple-choice questions are marked for you. For written answers you compare with a reference answer and score yourself, and those attempts are labeled <i>self-scored</i>.</p>
       </>
     );
@@ -252,14 +260,13 @@ export function Quiz() {
   if (result) {
     return (
       <>
-        <h1>Quiz summary</h1>
-        <p className="lede">
-          Score <strong>{result.score}</strong> / {result.total}
-        </p>
+        <Eyebrow>Quiz · {topic.title}</Eyebrow>
+        <h1>Quiz <Scribble voice={false}>summary</Scribble></h1>
+        <p className="eyebrow">{"// Score "}{result.score} / {result.total}</p>
         {summary && <ScoreBreakdown criteria={summary.criteria} cfg={cfg} selfScored={summary.selfScored} marked={!summary.selfScored && !summary.aiScored} />}
         {summary?.aiScored && <p className="muted small">The four criteria combine your AI-scored written answers with your multiple-choice marks.</p>}
         {result.flaggedConcepts.length > 0 && (
-          <p className="notice">Concepts flagged for review: {result.flaggedConcepts.join("; ")}</p>
+          <p className="notice hl">Concepts flagged for review: {result.flaggedConcepts.join("; ")}</p>
         )}
         <ol className="review-list">
           {result.items.map((it) => {
@@ -268,7 +275,8 @@ export function Quiz() {
               <li key={it.questionId}>
                 <p><RichText text={it.prompt} /></p>
                 <p className={it.correct ? "ok-text" : "bad-text"}>
-                  {it.unanswered ? "Unanswered" : it.correct ? "Correct" : `Partial credit ${Math.round((it.partial ?? 0) * 100)}%`}
+                  {it.unanswered ? "Unanswered" : it.correct ? "Correct" : "Partial credit"}
+                  {!it.unanswered && !it.correct && <span className="chip">{Math.round((it.partial ?? 0) * 100)}%</span>}
                   {it.selfScored && <span className="chip">Self-scored</span>}
                   {it.aiScored && <span className="chip">AI-scored</span>}
                 </p>
@@ -276,7 +284,7 @@ export function Quiz() {
                 {it.aiFeedback && (
                   <ul className="small">
                     {it.aiFeedback.map((f) => (
-                      <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]} {f.score}:</b> {f.comment} <i>Try:</i> {f.suggestion}</li>
+                      <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]}</b> <span className="chip">{f.score}</span> {f.comment} <i>Try:</i> {f.suggestion}</li>
                     ))}
                   </ul>
                 )}
@@ -298,7 +306,8 @@ export function Quiz() {
     const done = list.every((qq) => pending[qq.id]);
     return (
       <>
-        <h1>Score your written answers</h1>
+        <Eyebrow>Quiz · self-check</Eyebrow>
+        <h1>Score your written <Scribble>answers</Scribble></h1>
         {aiError.all && <p className="notice warn-box" role="alert">{aiError.all} Your answers are kept.</p>}
         {ai.connected && Object.keys(aiDone).length > 0 && <p className="muted">{Object.keys(aiDone).length} written answer(s) were already scored by the AI service.</p>}
         <p className="lede">Compare each answer with the reference answer and say how it went. Be honest: this is what tells you what to review. These are marked <i>self-scored</i> in your progress.</p>
@@ -327,8 +336,9 @@ export function Quiz() {
     const missing = questions.filter((qq) => !answered(qq.id)).length;
     return (
       <>
-        <h1>Review before submitting</h1>
-        {missing > 0 && <p className="notice">{missing} unanswered. You can still submit; each counts as a miss and flags its concept.</p>}
+        <Eyebrow>Quiz · review · {questions.length - missing} of {questions.length} answered</Eyebrow>
+        <h1>Review before <Scribble>submitting</Scribble></h1>
+        {missing > 0 && <p className="notice warn-box">Some questions are unanswered. You can still submit; each counts as a miss and flags its concept.</p>}
         <ol className="review-list">
           {questions.map((qq, idx) => (
             <li key={qq.id}>
@@ -351,10 +361,11 @@ export function Quiz() {
   const rf = retryOutcome[q.id];
   return (
     <>
-      <p><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-      <h1>Question {i + 1} of {questions.length}</h1>
-      <progress value={i + 1} max={questions.length} aria-label="Quiz progress" />
-      <section className="panel">
+      <BackToTopic id={topic.id} title={topic.title} />
+      <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {topic.title}</Eyebrow>
+      <h1 className="h-mono">Question {i + 1} of {questions.length}</h1>
+      <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
+      <section className="panel focal">
         <p className="prompt"><RichText text={q.prompt} /></p>
         {q.kind === "mc" ? (
           <fieldset disabled={locked}>

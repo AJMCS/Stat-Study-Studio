@@ -7,6 +7,7 @@ import { Pad, emptyPad, padToText } from "../components/Pad";
 import { Citations } from "../components/Citation";
 import { SelfCheck } from "../components/SelfCheck";
 import { RichText } from "../components/Math";
+import { Annotated, Eyebrow, KeyTitle } from "../components/Hand";
 import { selfScore, uniformCriteria } from "../lib/scoring";
 import { useAi } from "../lib/ai";
 import { aiFailure, aiScore, type AiScored } from "../lib/aiScore";
@@ -61,11 +62,13 @@ export function TopicPage() {
 
   return (
     <>
-      <p><Link to="/">← All topics</Link></p>
-      <h1>{topic.title}</h1>
-      <p className="muted">{topic.unit}</p>
-      {state && <StreakIndicator streak={state.streak} warn={state.warnCriteria} flagged={state.flagged} />}
-      <p className="lede">{topic.intro}</p>
+      <p className="back"><Link to="/learn">← Study journey</Link></p>
+      <Eyebrow>{topic.unit}</Eyebrow>
+      <h1><KeyTitle text={topic.title} /></h1>
+      {state && <p><StreakIndicator streak={state.streak} warn={state.warnCriteria} flagged={state.flagged} /></p>}
+      <Annotated block note="read this first">
+        <p className="lede">{topic.intro}</p>
+      </Annotated>
       <h2>What you'll study</h2>
       <ul>{topic.willStudy.map((w) => <li key={w}>{w}</li>)}</ul>
 
@@ -74,10 +77,12 @@ export function TopicPage() {
         <Link to={`/topic/${topic.id}/tutor`} className="card" onClick={() => mark("tutor")}>
           <h3>Adaptive tutor</h3>
           <p>A conversation that finds out what you know, fills the gaps, then bridges to the formal math. Needs an AI service.</p>
+          <span className="card-go">Talk it through →</span>
         </Link>
-        <Link to={`/topic/${topic.id}/tutorial`} className="card" onClick={() => mark("tutorial")}>
+        <Link to={`/topic/${topic.id}/tutorial`} className="card focal" onClick={() => mark("tutorial")}>
           <h3>Tutorial first</h3>
           <p>A guided lesson grounded in the lecture notes, using the professor's notation, with worked examples you can try before you see the answer.</p>
+          <span className="card-go">Start the tutorial →</span>
         </Link>
       </div>
 
@@ -85,21 +90,25 @@ export function TopicPage() {
       <div className="grid two">
         <Link to={`/topic/${topic.id}/quiz`} className="card" onClick={() => mark("quiz")}>
           <h3>Quiz</h3>
-          <p>10 questions, one at a time, with review before you submit.</p>
+          <p>One question at a time, with review before you submit.</p>
+          <span className="card-go">Take the quiz →</span>
         </Link>
         <Link to={`/topic/${topic.id}/exam`} className="card" onClick={() => mark("exam")}>
           <h3>Exam</h3>
           <p>Full written solutions that you score against a reference solution. Timed or untimed.</p>
+          <span className="card-go">Sit the exam →</span>
         </Link>
       </div>
 
       <h2>Revisit</h2>
       <section className="panel">
         <p>
-          Revisiting later builds your retention streak. A qualifying recall (a score of {data.config.compositeCutoff}+) counts whether it is the same day or a month later.
+          Revisiting later builds your retention streak. A recall at or above your cutoff counts whether it is the same day or a month later.
         </p>
         {!recalling ? (
-          <button onClick={() => setRecalling(true)}>Try a recall</button>
+          <Annotated note="come back in a few days and do it again">
+            <button onClick={() => setRecalling(true)}>Try a recall</button>
+          </Annotated>
         ) : checking ? (
           <>
             <p><strong><RichText text={topic.recall.prompt} /></strong></p>

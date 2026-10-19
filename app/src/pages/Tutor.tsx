@@ -7,6 +7,7 @@ import { Citations } from "../components/Citation";
 import { useStore } from "../lib/store";
 import { Pad, emptyPad, padToText } from "../components/Pad";
 import { RichText } from "../components/Math";
+import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
 import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores, type SourceRef } from "../types";
@@ -96,8 +97,9 @@ function TutorChat() {
 
   return (
     <>
-      <p><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-      <h1>Adaptive tutor</h1>
+      <p className="back"><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
+      <Eyebrow>Tutor · {topic.title}</Eyebrow>
+      <h1>Adaptive <Scribble>tutor</Scribble></h1>
       <div className="chat" role="log" aria-live="polite" aria-label="Tutor conversation">
         {msgs.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
@@ -159,17 +161,19 @@ export function Tutor() {
   if (ai.connected) return <TutorChat />;
   return (
     <>
-      <p><Link to={topic ? `/topic/${topic.id}` : "/"}>← {topic?.title ?? "All topics"}</Link></p>
-      <h1>Adaptive tutor</h1>
-      <p className="notice" role="status">
+      <p className="back"><Link to={topic ? `/topic/${topic.id}` : "/learn"}>← {topic?.title ?? "Study journey"}</Link></p>
+      <Eyebrow>Tutor</Eyebrow>
+      <h1>Adaptive <Scribble>tutor</Scribble></h1>
+      <p className="notice warn-box" role="status">
         The tutor talks with you, reads your explanations, finds the gaps and builds from there. That needs an AI service, and none is connected
         {ai.comingSoon ? " yet (connecting one is coming soon)" : ""}. Everything else here works without one.
       </p>
       {topic && (
         <>
           <h2>Learn it without the tutor</h2>
+          <Note dir="down" className="tutor-note">these two work fully offline</Note>
           <div className="grid two">
-            <Link to={`/topic/${topic.id}/tutorial`} className="card">
+            <Link to={`/topic/${topic.id}/tutorial`} className="card focal">
               <h3>Guided tutorial</h3>
               <p>Lecture-grounded explanations with worked examples: try each one, then reveal the full solution.</p>
             </Link>

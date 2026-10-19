@@ -101,15 +101,15 @@ export function Pad({
         </div>
       )}
       <div className="row">
-        <button type="button" className="ghost" onClick={() => setShowCanvas((s) => !s)} aria-expanded={showCanvas}>
+        <button type="button" className="ghost btn-sm" onClick={() => setShowCanvas((s) => !s)} aria-expanded={showCanvas}>
           {showCanvas ? "Hide drawing pad" : "Add a drawing (optional)"}
         </button>
         {showCanvas && !disabled && (
           <>
-            <button type="button" className="ghost" aria-pressed={erase} onClick={() => setErase((e) => !e)}>
+            <button type="button" className="ghost btn-sm" aria-pressed={erase} onClick={() => setErase((e) => !e)}>
               {erase ? "Eraser on" : "Pen"}
             </button>
-            <button type="button" className="ghost" onClick={clear}>
+            <button type="button" className="ghost btn-sm" onClick={clear}>
               Clear drawing
             </button>
           </>

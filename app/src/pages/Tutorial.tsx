@@ -4,6 +4,8 @@ import { Link, useParams } from "react-router-dom";
 import { sourceById, topicById } from "../mock/topics";
 import { Math as Tex, RichText } from "../components/Math";
 import { Citations } from "../components/Citation";
+import { Annotated, Eyebrow, KeyTitle } from "../components/Hand";
+import { StepTrack } from "../components/StepTrack";
 
 function Example({ n, prompt, solution }: { n: number; prompt: string; solution: string }) {
   const [open, setOpen] = useState(false);
@@ -16,7 +18,9 @@ function Example({ n, prompt, solution }: { n: number; prompt: string; solution:
         <span>Your attempt (optional, not saved)</span>
         <textarea rows={4} value={attempt} onChange={(e) => setAttempt(e.target.value)} placeholder="Work it out here or on paper, then compare." />
       </label>
-      <button className="ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide the solution" : "Show the solution"}</button>
+      <Annotated note={open ? "where did your steps differ?" : "try it on paper first"}>
+        <button className="ghost" aria-expanded={open} onClick={() => setOpen((o) => !o)}>{open ? "Hide the solution" : "Show the solution"}</button>
+      </Annotated>
       {open && (
         <div className="reference" role="region" aria-label={`Solution to worked example ${n}`}>
           <PageView text={solution} />
@@ -38,11 +42,12 @@ export function Tutorial() {
 
   return (
     <>
-      <p><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-      <h1>{topic.title}: tutorial</h1>
-      <p className="muted">Step {i + 1} of {topic.tutorial.length}. Grounded in the lecture notes and their notation.</p>
-      <progress value={i + 1} max={topic.tutorial.length} aria-label="Tutorial progress" />
-      <article className="panel" aria-live="polite">
+      <p className="back"><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
+      <Eyebrow>Tutorial · step {i + 1} of {topic.tutorial.length}</Eyebrow>
+      <h1><KeyTitle text={topic.title} /></h1>
+      <p className="muted">A guided lesson grounded in the lecture notes and their notation.</p>
+      <StepTrack at={i} total={topic.tutorial.length} label="Tutorial progress" note={i === 0 ? "start here" : "you are here"} />
+      <article className="panel focal" aria-live="polite">
         <h2>{step.heading}</h2>
         <p><RichText text={step.body} /></p>
         {step.formula && <div className="formula"><Tex tex={step.formula} display /></div>}

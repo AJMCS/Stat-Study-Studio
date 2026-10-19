@@ -1,4 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
+import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { GENERAL_ID, uid, useStore } from "../lib/store";
 import { Citations, SourcePreview } from "../components/Citation";
 import { PageView } from "../components/PageView";
@@ -164,17 +166,19 @@ export function Materials() {
 
   return (
     <>
-      <h1>Course materials</h1>
+      <p className="back"><Link to="/library">← Library</Link></p>
+      <Eyebrow>Library · course materials</Eyebrow>
+      <h1>Course <Scribble>materials</Scribble></h1>
       <p className="lede">Search the shared course library and your own uploads. Your files and personal index stay on this device.</p>
 
       <section className="panel" aria-label="Course library updates">
         <h2>Course library</h2>
         {lib.status ? (
           <>
-            <p>
-              Installed: version {lib.status.installed.version}
-              {lib.status.installed.builtAt ? ` (${new Date(lib.status.installed.builtAt).toLocaleDateString()})` : ""}
-              {lib.status.installed.source === "update" ? ", updated online" : ", included with the app"}.
+            <p className="eyebrow">
+              {"// Installed: version "}{lib.status.installed.version}
+              {lib.status.installed.builtAt ? ` · ${new Date(lib.status.installed.builtAt).toLocaleDateString()}` : ""}
+              {lib.status.installed.source === "update" ? " · updated online" : " · included with the app"}
             </p>
             <div className="row">
               <button
@@ -215,15 +219,18 @@ export function Materials() {
           </label>
           <button onClick={search} disabled={searching}>{searching ? "Searching…" : "Search"}</button>
         </div>
-        <fieldset>
-          <legend>Personal collections to include (General is always included)</legend>
-          {data.collections.filter((c) => c.id !== GENERAL_ID).length === 0 && <span className="muted">No named collections yet.</span>}
-          {data.collections.filter((c) => c.id !== GENERAL_ID).map((c) => (
-            <label key={c.id} className="choice">
-              <input type="checkbox" checked={extra.includes(c.id)} onChange={() => setExtra((e) => (e.includes(c.id) ? e.filter((x) => x !== c.id) : [...e, c.id]))} /> {c.name}
-            </label>
-          ))}
-        </fieldset>
+        {data.collections.filter((c) => c.id !== GENERAL_ID).length === 0 ? (
+          <p className="muted">Searches your General collection too. Named collections you create below can be included here.</p>
+        ) : (
+          <fieldset>
+            <legend>Personal collections to include (General is always included)</legend>
+            {data.collections.filter((c) => c.id !== GENERAL_ID).map((c) => (
+              <label key={c.id} className="choice">
+                <input type="checkbox" checked={extra.includes(c.id)} onChange={() => setExtra((e) => (e.includes(c.id) ? e.filter((x) => x !== c.id) : [...e, c.id]))} /> {c.name}
+              </label>
+            ))}
+          </fieldset>
+        )}
 
         {results && (
           <div aria-live="polite">
@@ -236,7 +243,7 @@ export function Materials() {
             ) : results.sources.length === 0 ? null : (
               <>
                 {results.both && (
-                  <p className="notice">Both shared course materials and your personal materials matched. If they disagree, the shared course materials take priority because they are the official class sources used for grading.</p>
+                  <p className="notice warn-box">Both shared course materials and your personal materials matched. If they disagree, the shared course materials take priority because they are the official class sources used for grading.</p>
                 )}
                 <Citations sources={results.sources} />
                 <ol className="excerpts">
@@ -253,16 +260,17 @@ export function Materials() {
         )}
       </section>
 
-      <section className="panel" aria-label="Upload">
+      <section className="panel focal" aria-label="Upload">
         <h2>Upload to a personal collection</h2>
         <p className="muted">PDF (including scans), Word (.docx), .txt and photos or images of notes. Scans and photos are read with OCR on this device.</p>
         {!ai.connected && (
-          <p className="notice" role="note">
+          <p className="notice warn-box" role="note">
             <b>Handwriting:</b> without an AI service connected, only typed or printed text is read reliably. Handwritten notes will usually come out
             incomplete or wrong, and any math in them will be missed. For a good transcription of handwriting, connect an AI service in Settings, then use <i>Improve with AI</i> on the file.
           </p>
         )}
         {ai.connected && <p className="muted">Handwritten or math-heavy file? Use <i>Improve with AI</i> next to it below to have your AI service re-read its pages from their pictures (you will be asked each time).</p>}
+        <Note dir="down" className="focal-note upload-note">add your own notes and scans here</Note>
         <div className="row">
           <label className="field">
             <span>Collection</span>
@@ -307,13 +315,13 @@ export function Materials() {
                   <span className="row">
                     {u.report && u.report.flaggedPages.length > 0 && (
                       <button
-                        className="ghost"
+                        className="ghost btn-sm"
                         onClick={() => setReview({ id: `${u.file!.id}-review`, kind: "Personal", title: u.filename, filename: u.filename, collection: data.collections.find((c) => c.id === u.file!.collectionId)?.name, page: u.report!.flaggedPages[0].page, fileId: u.file!.id, ocr: true })}
                       >
                         Review page {u.report.flaggedPages[0].page}
                       </button>
                     )}
-                    <button className="ghost" onClick={() => setUploads((rows) => rows.filter((r) => r.key !== u.key))}>
+                    <button className="ghost btn-sm" onClick={() => setUploads((rows) => rows.filter((r) => r.key !== u.key))}>
                       {u.report && u.report.flaggedPages.length > 0 ? "Accept as is" : "Dismiss"}
                     </button>
                   </span>
@@ -359,7 +367,7 @@ export function Materials() {
                   {files.map((f) => (
                     <li key={f.id} className="row between">
                       <span>
-                        {f.filename} <span className="muted">v{f.version} · {new Date(f.uploadedAt).toLocaleDateString()} · {f.pages} page{f.pages === 1 ? "" : "s"}</span>
+                        {f.filename} <span className="muted mono-meta">v{f.version} · {new Date(f.uploadedAt).toLocaleDateString()} · {f.pages} page{f.pages === 1 ? "" : "s"}</span>
                         {f.ocr && <span className="chip">OCR</span>}
                         {f.aiRead && <span className="chip" title="Some pages were re-read from their pictures by an AI model">AI-read</span>}
                         {(f.flaggedPages ?? 0) > 0 && <span className="chip flag" title="Some pages may be missing symbols or were read with low confidence">Check pages</span>}
@@ -367,27 +375,27 @@ export function Materials() {
                       </span>
                       <span className="row">
                         {f.linkBroken && (
-                          <button className="ghost" onClick={() => { setReconnecting(f); reconnectInput.current?.click(); }}>Reconnect</button>
+                          <button className="ghost btn-sm" onClick={() => { setReconnecting(f); reconnectInput.current?.click(); }}>Reconnect</button>
                         )}
                         {ai.connected && /\.(pdf|png|jpe?g|tiff?|bmp|webp)$/i.test(f.filename) && !f.linkBroken && (
-                          <button className="ghost" onClick={() => setImproving(f)}>Improve with AI</button>
+                          <button className="ghost btn-sm" onClick={() => setImproving(f)}>Improve with AI</button>
                         )}
                         {f.aiRead && (
                           <button
-                            className="ghost"
+                            className="ghost btn-sm"
                             onClick={() => void api.restoreReading(f.id).then(() => refreshFiles()).then(() => setFileNotice(`"${f.filename}" is back to its automatic reading.`)).catch((e) => setFileNotice(reason(e)))}
                           >
                             Use automatic reading
                           </button>
                         )}
-                        <button className="ghost" onClick={() => { setReplacing(f); replaceInput.current?.click(); }}>Replace</button>
+                        <button className="ghost btn-sm" onClick={() => { setReplacing(f); replaceInput.current?.click(); }}>Replace</button>
                         {confirmRemove === f.id ? (
                           <>
-                            <button className="danger" onClick={() => void removeFile(f)}>Remove for good</button>
-                            <button className="ghost" onClick={() => setConfirmRemove(null)}>Cancel</button>
+                            <button className="danger btn-sm" onClick={() => void removeFile(f)}>Remove for good</button>
+                            <button className="ghost btn-sm" onClick={() => setConfirmRemove(null)}>Cancel</button>
                           </>
                         ) : (
-                          <button className="ghost" onClick={() => setConfirmRemove(f.id)}>Remove</button>
+                          <button className="ghost btn-sm" onClick={() => setConfirmRemove(f.id)}>Remove</button>
                         )}
                       </span>
                     </li>

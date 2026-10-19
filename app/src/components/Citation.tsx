@@ -11,10 +11,23 @@ export const isLowOcr = (s: SourceRef) => !!s.ocr && (s.ocrConfidence ?? 1) < LO
 /** Answer keys (quiz reviews) must not be opened from study screens before a learner has submitted. */
 export const isAnswerKey = (s: SourceRef) => !!s.filename?.startsWith("quizzes/");
 
+/** A short code for a shared course file: L03 for lecture 3, HW02 for homework 2, otherwise its name. */
+export function docCode(filename?: string): string {
+  if (!filename) return "Course";
+  const base = filename.split("/").pop()!.replace(/\.[a-z0-9]+$/i, "");
+  const m = /^(lecture|homework|quiz|exam|hw)-?0*(\d+)/i.exec(base);
+  if (m) {
+    const kind = m[1].toLowerCase();
+    const prefix = kind === "lecture" ? "L" : kind === "homework" || kind === "hw" ? "HW" : kind === "quiz" ? "Quiz " : "Exam ";
+    return `${prefix}${m[2].padStart(2, "0")}`;
+  }
+  return base.replace(/[-_]+/g, " ").slice(0, 24);
+}
+
 export function SourceTag({ s }: { s: SourceRef }) {
   const parts =
     s.kind === "Shared"
-      ? ["Shared"]
+      ? [docCode(s.filename), s.page ? `p${s.page}` : undefined]
       : ["Personal", s.collection, s.filename, s.page ? `p. ${s.page}` : undefined];
   return (
     <span className="tag">
@@ -52,7 +65,7 @@ export function Citations({ sources, empty }: { sources: SourceRef[]; empty?: st
         </p>
       )}
       {sources.map((s) => (
-        <button key={s.id} className="cite" onClick={() => setOpen(s)} aria-haspopup="dialog">
+        <button key={s.id} className={s.kind === "Shared" ? "cite shared" : "cite"} onClick={() => setOpen(s)} aria-haspopup="dialog" title={s.kind === "Shared" ? `${s.title}${s.page ? `, page ${s.page}` : ""}` : undefined}>
           <SourceTag s={s} />
         </button>
       ))}

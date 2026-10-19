@@ -3,6 +3,7 @@ import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
 import { api, ServiceRejected, type AiInfo, type ProviderId } from "../lib/api";
+import { Eyebrow, Note, Scribble } from "../components/Hand";
 
 /** Where to get a key for each online service, and how each is described next to its radio button. */
 const KEY_PAGES: Record<string, { url: string; label: string }> = {
@@ -11,12 +12,13 @@ const KEY_PAGES: Record<string, { url: string; label: string }> = {
   openai: { url: "https://platform.openai.com/api-keys", label: "platform.openai.com/api-keys" },
 };
 const BLURB: Record<ProviderId, string> = {
-  gemini: "online, uses your own key. Google has a free tier, so this is the easiest start.",
-  anthropic: "online, uses your own API key and credit (pay per use).",
-  openai: "online, uses your own API key and credit (pay per use).",
-  ollama: "runs a model you install on this computer. Nothing leaves your computer, and it works offline.",
+  gemini: "Online with your own key; the free tier is the easiest start.",
+  anthropic: "Online with your own API key; pay per use.",
+  openai: "Online with your own API key; pay per use.",
+  ollama: "Runs on this computer; nothing leaves it, works offline.",
 };
 import { useAi } from "../lib/ai";
+import { useTheme } from "../lib/theme";
 
 function AiPanel() {
   const ai = useAi();
@@ -80,11 +82,12 @@ function AiPanel() {
   const shownModel = model ?? (info.model === info.defaultModel ? "" : info.model);
   const notice = preview?.notice ?? info.notice;
   const noticeBox = (
-    <div className="notice" data-testid="ai-notice">
+    <div className="notice warn-box" data-testid="ai-notice">
       <strong>What gets sent</strong>
       <p>{notice}</p>
-      <label>
-        <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} /> I have read this and want to use {selected === "ollama" ? "a model on this computer" : "an AI service"}
+      <label className="choice">
+        <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
+        <span>I have read this and want to use {selected === "ollama" ? "a model on this computer" : "an AI service"}</span>
       </label>
     </div>
   );
@@ -92,15 +95,16 @@ function AiPanel() {
   return (
     <section className="panel" aria-labelledby="ai-h">
       <h2 id="ai-h">AI service (optional)</h2>
-      <p>
+      <p className="muted">
         Everything in the app works without an AI service. Connecting one adds the adaptive tutor, automatic scoring on the four criteria,
         and exam questions written around what you want to practice. Choose where the model runs:
       </p>
-      <fieldset>
+      <fieldset className="provider-list">
         <legend className="sr-only">Where the AI model runs</legend>
+        <Note dir="left" className="focal-note settings-note">start here</Note>
         {info.providers.map((p) => (
-          <label key={p.id} className="choice">
-            <input type="radio" name="provider" checked={selected === p.id} onChange={() => setChoice(p.id)} /> <span><b>{p.name}</b>: {BLURB[p.id]}</span>
+          <label key={p.id} className={`choice opt-row${selected === p.id ? " on" : ""}`}>
+            <input type="radio" name="provider" checked={selected === p.id} onChange={() => setChoice(p.id)} /> <span className="opt"><b>{p.name}</b><span className="opt-desc">{BLURB[p.id]}</span></span>
           </label>
         ))}
       </fieldset>
@@ -140,7 +144,7 @@ function AiPanel() {
               Not sure how to make a key? Ask any AI chatbot to walk you through it.
             </p>
           )}
-          {info.keyStored && !info.consented && info.provider === selected && <p className="notice">The data notice changed since you last accepted it. Please read it again.</p>}
+          {info.keyStored && !info.consented && info.provider === selected && <p className="notice warn-box">The data notice changed since you last accepted it. Please read it again.</p>}
           <label className="field">
             <span>API key</span>
             <input aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
@@ -157,8 +161,8 @@ function AiPanel() {
             <li>Install a model, for example by running <code>ollama pull llama3.2</code> in a terminal. Any chat model works; larger ones are better at scoring and slower.</li>
             <li>Come back here and choose the model below.</li>
           </ol>
-          {local && !local.running && <p className="notice" role="status">Ollama does not seem to be running on this computer yet. Open the Ollama app, then check again.</p>}
-          {local?.running && local.models.length === 0 && <p className="notice" role="status">Ollama is running but has no models yet. Install one (step 2), then check again.</p>}
+          {local && !local.running && <p className="notice warn-box" role="status">Ollama does not seem to be running on this computer yet. Open the Ollama app, then check again.</p>}
+          {local?.running && local.models.length === 0 && <p className="notice warn-box" role="status">Ollama is running but has no models yet. Install one (step 2), then check again.</p>}
           <label className="field">
             <span>Model</span>
             <select aria-label="Ollama model" value={localModel} onChange={(e) => setLocalModel(e.target.value)} disabled={!local?.models.length}>
@@ -178,6 +182,26 @@ function AiPanel() {
       <p className="muted">
         {info.local ? "Because the model runs on this computer, all your collections can be used to ground answers." : "Hosted requests that use your uploaded files are also controlled per collection in Course materials."} Disconnecting removes the connection; the app keeps working on its own.
       </p>
+    </section>
+  );
+}
+
+/** Dark or light: the same switch as the theme button in the top bar. */
+function Appearance() {
+  const [theme, setTheme] = useTheme();
+  return (
+    <section className="panel" aria-labelledby="appearance-h">
+      <h2 id="appearance-h">Appearance</h2>
+      <p className="muted">Dark is the default. The top bar has the same switch.</p>
+      <fieldset>
+        <legend className="sr-only">Theme</legend>
+        {(["dark", "light"] as const).map((t) => (
+          <label key={t} className={`choice opt-row${theme === t ? " on" : ""}`}>
+            <input type="radio" name="theme" checked={theme === t} onChange={() => setTheme(t)} />
+            <span className="opt"><b>{t === "dark" ? "Dark" : "Light"}</b><span className="opt-desc">{t === "dark" ? "Chalk on a dark graph-paper canvas." : "Ink on white graph paper."}</span></span>
+          </label>
+        ))}
+      </fieldset>
     </section>
   );
 }
@@ -210,7 +234,10 @@ export function Settings() {
 
   return (
     <>
-      <h1>Settings</h1>
+      <Eyebrow>Settings</Eyebrow>
+      <h1>Your <Scribble>settings</Scribble></h1>
+      <div className="settings">
+      <AiPanel />
 
       <section className="panel">
         <h2>Scoring</h2>
@@ -234,7 +261,7 @@ export function Settings() {
         <button className="ghost" onClick={() => update((d) => ({ ...d, config: DEFAULT_CONFIG }))}>Reset to defaults</button>
       </section>
 
-      <AiPanel />
+      <Appearance />
 
       <section className="panel">
         <h2>Your data</h2>
@@ -253,6 +280,7 @@ export function Settings() {
           )}
         </div>
       </section>
+      </div>
     </>
   );
 }

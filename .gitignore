@@ -7,3 +7,6 @@ __pycache__
 *.pyc
 packaging/build/
 packaging/dist/
+design/shots/
+design/blind/
+design/reference/

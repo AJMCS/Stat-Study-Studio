@@ -6,6 +6,9 @@ import { api, hitToSource, personalHitToSource, ServiceRejected } from "../lib/a
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
+import { Annotated, Eyebrow, KeyTitle, Scribble, Note } from "../components/Hand";
+import { StepTrack } from "../components/StepTrack";
+import { BackToTopic } from "../components/BackLink";
 import { Citations, isAnswerKey } from "../components/Citation";
 import { SelfCheck } from "../components/SelfCheck";
 import { composite, selfScore, uniformCriteria } from "../lib/scoring";
@@ -97,8 +100,9 @@ export function Exam() {
   if (!exam) {
     return (
       <>
-        <p><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-        <h1>{topic.title}: exam</h1>
+        <BackToTopic id={topic.id} title={topic.title} />
+        <Eyebrow>Exam · {topic.unit}</Eyebrow>
+        <h1><KeyTitle text={topic.title} /></h1>
         <p className="lede">Write complete, multi-step solutions: set up the problem, justify your choices, and show the work. When you finish, you compare with a full reference solution and score yourself.</p>
         <fieldset className="panel">
           <legend>Mode</legend>
@@ -135,6 +139,7 @@ export function Exam() {
             {genBusy ? "Writing your exam…" : genError ? "Try again" : ai.connected && writeNew ? "Write my exam" : "Start exam"}
           </button>
           {genError && <button className="ghost" onClick={() => begin(selectExam(topic, focus))}>Use the question bank instead</button>}
+          {!genError && <Note dir="left" className="focal-note">untimed is fine for a first go</Note>}
         </div>
       </>
     );
@@ -214,7 +219,8 @@ export function Exam() {
     const unscored = answered.filter((q) => !aiRes[q.id]).length;
     return (
       <>
-        <h1>Score your exam</h1>
+        <Eyebrow>Exam · {topic.title} · {answered.length} of {exam.questions.length} answered</Eyebrow>
+        <h1>Score your <Scribble>exam</Scribble></h1>
         <p className="lede">
           Compare each answer with the reference solution, then tick the key points your work covered. This is scored by you, so be honest: it is what shows you where to study next.
           {timed && " Time is up, so your answers are locked."}
@@ -230,7 +236,7 @@ export function Exam() {
         )}
         {exam.questions.map((q, n) => (
           <section key={q.id} className="panel">
-            <h2>Question {n + 1}{q.aiWritten && <span className="chip">AI-written</span>}</h2>
+            <h2><span className="h-mono">Question {n + 1}</span>{q.aiWritten && <span className="chip">AI-written</span>}</h2>
             <p className="prompt"><RichText text={q.prompt} /></p>
             {written(answers[q.id]) && aiRes[q.id] ? (
               <>
@@ -253,8 +259,7 @@ export function Exam() {
           </section>
         ))}
         <div className="row">
-          <button onClick={finish}>Finish and save ({overall}/100)</button>
-          <span className="muted">{answered.length} of {exam.questions.length} answered</span>
+          <button onClick={finish}>Finish and save <span className="btn-num">{overall}/100</span></button>
         </div>
       </>
     );
@@ -268,14 +273,16 @@ export function Exam() {
 
   return (
     <>
-      <h1>{exam.title}</h1>
+      <Eyebrow>{timed ? "Timed exam" : "Exam"} · {topic.title}</Eyebrow>
+      <h1><KeyTitle text={exam.title} /></h1>
       {exam.focusMatched === true && <p className="muted">Chose the {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"} that match your focus.</p>}
-      {exam.focusMatched === false && <p className="notice" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}
+      {exam.focusMatched === false && <p className="notice warn-box" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}
       <div className="row between">
-        <span>Question {i + 1} of {exam.questions.length}{q.aiWritten && <span className="chip">AI-written</span>}</span>
+        <span className="q-count"><span className="eyebrow inline">{"// "}Question {i + 1} of {exam.questions.length}</span>{q.aiWritten && <span className="chip">AI-written</span>}</span>
         {timed ? <span className="timer" role="timer" aria-label={`Time left ${mm} minutes ${ss} seconds`}>{mm}:{ss}</span> : <span className="chip">Untimed</span>}
       </div>
-      <section className="panel">
+      <StepTrack at={i} total={exam.questions.length} label="Exam progress" note="you are here" />
+      <section className="panel focal">
         <p className="prompt"><RichText text={q.prompt} /></p>
         {q.aiWritten && <p className="muted small">Written by your AI service for this exam. If a reference solution later disagrees with the lecture notes, trust the notes.</p>}
         <Pad value={a} onChange={(v) => setAnswers((m) => ({ ...m, [q.id]: v }))} label="Your full solution" />
@@ -285,7 +292,7 @@ export function Exam() {
             <button className="ghost" onClick={() => setHints((h) => ({ ...h, [q.id]: true }))}>Hint</button>
           </div>
         )}
-        {!timed && hints[q.id] && <p className="notice" role="status">Hint: {q.hint}</p>}
+        {!timed && hints[q.id] && <p className="notice hl" role="status">Hint: {q.hint}</p>}
         {!timed && showSrc && <Citations sources={srcs} />}
       </section>
       <div className="row">

@@ -5,6 +5,7 @@ import { useStore } from "../lib/store";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
 import { RichText } from "../components/Math";
+import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { PageView } from "../components/PageView";
 import { CRITERION_LABELS, type ExamRecord } from "../types";
 
@@ -43,27 +44,39 @@ export function ExamHistory() {
   const { data } = useStore();
   return (
     <>
-      <h1>Exam history</h1>
+      <p className="back"><Link to="/practice">← Practice</Link></p>
+      <Eyebrow>Practice · {data.exams.length} exam{data.exams.length === 1 ? "" : "s"}</Eyebrow>
+      <h1>Exam <Scribble>history</Scribble></h1>
       {data.exams.length === 0 ? (
-        <p className="notice">No completed exams yet. Open a topic and choose Exam to start one.</p>
+        <div className="empty">
+          <p className="muted">No completed exams yet. Open a topic and choose Exam to start one.</p>
+          <div className="row">
+            <Link className="button" to="/practice">Start an exam</Link>
+            <Note dir="left">pick a topic, then sit it</Note>
+          </div>
+        </div>
       ) : (
-        <ul className="list">
+        <>
+        <Note dir="down" className="block-note">open one to see each answer next to the reference</Note>
+        <ul className="list exam-list">
           {data.exams.map((e) => {
             const t = topicById(e.topicId);
             return (
               <li key={e.id} className="row between">
                 <span>
-                  <Link to={`/exams/${e.id}`}>{t?.title ?? e.topicId} · attempt {e.attempt}</Link>
-                  <span className="muted"> · {new Date(e.at).toLocaleString()} · {e.timed ? "timed" : "untimed"}</span>
+                  <Link to={`/exams/${e.id}`}>{t?.title ?? e.topicId}</Link>
+                  <span className="eyebrow block">{"// attempt "}{e.attempt} · {new Date(e.at).toLocaleString()} · {e.timed ? "timed" : "untimed"}</span>
                 </span>
                 <span className="row">
-                  <b>{e.composite}</b>
-                  <button className="ghost" onClick={() => downloadPdf(e, t?.title ?? "Exam")}>Download PDF</button>
+                  <b className="score-num">{e.composite}</b>
+                  {e.composite < data.config.compositeCutoff && <span className="warn" role="img" aria-label="Below cutoff">!</span>}
+                  <button className="ghost btn-sm" onClick={() => downloadPdf(e, t?.title ?? "Exam")}>Download PDF</button>
                 </span>
               </li>
             );
           })}
         </ul>
+        </>
       )}
     </>
   );
@@ -77,9 +90,10 @@ export function ExamReview() {
   const t = topicById(e.topicId);
   return (
     <>
-      <p><Link to="/exams">← Exam history</Link></p>
-      <h1>{t?.title} exam · attempt {e.attempt}</h1>
-      <p className="muted">{new Date(e.at).toLocaleString()} · {e.timed ? "Timed" : "Untimed"}{e.focus && ` · Focus: ${e.focus}`}</p>
+      <p className="back"><Link to="/exams">← Exam history</Link></p>
+      <Eyebrow>Exam review · attempt {e.attempt} · {new Date(e.at).toLocaleString()} · {e.timed ? "timed" : "untimed"}</Eyebrow>
+      <h1>{t?.title} <Scribble>exam</Scribble></h1>
+      {e.focus && <p className="muted">Focus: {e.focus}</p>}
       <ScoreBreakdown criteria={e.criteria} cfg={data.config} selfScored={e.selfScored && !e.aiScored} />
       <ol className="review-list">
         {e.items.map((it) => (
@@ -87,11 +101,12 @@ export function ExamReview() {
             <p className="prompt"><RichText text={it.prompt} />{it.aiWritten && <span className="chip">AI-written</span>}</p>
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
-            <p><b>Score {it.composite}.</b> {it.feedback}</p>
+            <p className="eyebrow">{"// Score "}{it.composite}</p>
+            <p>{it.feedback}</p>
             {it.aiFeedback && (
               <ul className="small">
                 {it.aiFeedback.map((f) => (
-                  <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]} {f.score}:</b> {f.comment} <i>Try:</i> {f.suggestion}</li>
+                  <li key={f.criterion}><b>{CRITERION_LABELS[f.criterion]}</b> <span className="chip">{f.score}</span> {f.comment} <i>Try:</i> {f.suggestion}</li>
                 ))}
               </ul>
             )}

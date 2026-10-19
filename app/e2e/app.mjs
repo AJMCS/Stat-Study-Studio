@@ -83,15 +83,36 @@ await step("updates: newer course materials are offered, installed on request, a
   await shot("update-installed");
 });
 
-await step("overview lists 7 topics", async () => {
+await step("home offers Learn and Practice; the learn page lists 7 topics", async () => {
   await go("/");
-  const cards = await page.locator("a.card").count();
-  if (cards !== 7) throw new Error(`expected 7 topic cards, got ${cards}`);
-  await shot("overview");
+  await page.waitForSelector("main a:has-text('Learn')");
+  await page.waitForSelector("main a:has-text('Practice')");
+  await shot("home");
+  await go("/learn");
+  const topics = await page.locator(".journey-list a.topic-link").count();
+  if (topics !== 7) throw new Error(`expected 7 topics on the learn page, got ${topics}`);
+  await shot("learn");
+});
+
+await step("practice hub offers an exam and a quiz for the chosen topic", async () => {
+  await go("/practice");
+  await page.click("button:has-text('Change topic')"); // the picker shows the chosen topic; the full list opens on request
+  await page.click("label.pick:has-text('Maximum Likelihood Estimation')");
+  const exam = await page.locator("a:has-text('Start an exam')").getAttribute("href");
+  const quiz = await page.locator("a:has-text('Take a quiz')").getAttribute("href");
+  if (!exam.endsWith(`/topic/${T}/exam`) || !quiz.endsWith(`/topic/${T}/quiz`)) throw new Error(`wrong links: ${exam} ${quiz}`);
+  await shot("practice");
+});
+
+await step("library links to lecture notes and course materials", async () => {
+  await go("/library");
+  await page.waitForSelector("a.card[href$='/notes']");
+  await page.waitForSelector("a.card[href$='/materials']");
 });
 
 await step("topic page", async () => {
-  await page.locator("a.card", { hasText: "Maximum Likelihood Estimation" }).click();
+  await go("/learn");
+  await page.locator(".journey-map a.jn-topic", { hasText: "Maximum Likelihood Estimation" }).click(); // the visible map; the list is for screen readers on desktop
   await page.waitForSelector("h1:has-text('Maximum Likelihood Estimation')");
   await shot("topic");
 });
@@ -449,7 +470,7 @@ await step("settings export + delete", async () => {
 
 await step("mobile layout no horizontal overflow", async () => {
   await page.setViewportSize({ width: 380, height: 800 });
-  for (const p of ["/", `/topic/${T}`, "/progress", `/topic/${T}/quiz`]) {
+  for (const p of ["/", "/learn", "/practice", "/library", `/topic/${T}`, "/progress", `/topic/${T}/quiz`, "/materials", "/settings"]) {
     await go(p);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 4) throw new Error(`horizontal overflow ${over}px on ${p}`);

@@ -66,7 +66,7 @@ export function ImproveWithAi({ file, onClose, onDone, onReview }: { file: Perso
       {!info || !all ? (
         !error && <p className="muted">Checking the file…</p>
       ) : !info.connected ? (
-        <p className="notice">Connect an AI service in Settings first.</p>
+        <p className="notice warn-box">Connect an AI service in Settings first.</p>
       ) : finished ? (
         <>
           {job.status === "failed" ? (
@@ -104,7 +104,7 @@ export function ImproveWithAi({ file, onClose, onDone, onReview }: { file: Perso
           {info.local ? (
             <p className="muted">Nothing leaves this computer. Your model needs to be one that can read images, or the result may be poor.</p>
           ) : (
-            <p className="notice">
+            <p className="notice warn-box">
               Other AI features send only text. This sends the page images themselves, so everything visible on those pages goes to {info.providerName}, including anything personal.
               The notice you accepted in Settings covers text only, so please check {info.providerName}'s data terms. Each page is one request on your own account.
             </p>
