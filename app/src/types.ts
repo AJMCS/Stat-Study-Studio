@@ -238,6 +238,12 @@ export interface PersonalFile {
   aiRead?: boolean;
 }
 
+/** First-run setup. Kept by the service, so it survives clearing the browser's storage. */
+export interface OnboardingState {
+  done: boolean;
+  completedAt?: string;
+}
+
 export interface AppData {
   attempts: Attempt[];
   quizzes: QuizResult[];
@@ -249,4 +255,5 @@ export interface AppData {
   config: ScoringConfig;
   hostedDisclosureAck: boolean;
   chats: Record<string, ChatMessage[]>;
+  onboarding: OnboardingState;
 }

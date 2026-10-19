@@ -4,6 +4,7 @@
 //   node e2e/shots.mjs <outDir> [routes...]        e.g. node e2e/shots.mjs ../design/shots/round1 / /learn /practice
 //   node e2e/shots.mjs <outDir> --intro            filmstrip of the intro, both themes
 //   node e2e/shots.mjs <outDir> --onboarding       first-run setup, both themes
+//   node e2e/shots.mjs <outDir> --onboarding --empty --connect   ...plus a refused key and the connected last slide
 //
 // It starts the real service on a throwaway data folder (port 8797), so nothing on this machine is touched.
 // Contract with the app: localStorage "studio-theme" = "dark" | "light"; sessionStorage "studio-intro-seen" = "1" skips
@@ -13,6 +14,7 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { launchBrowser } from "./browser.mjs";
+import { GOOD_KEY, startFakeGemini } from "./fakegemini.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const python = join(root, "venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
@@ -22,9 +24,13 @@ const [outDir, ...rest] = process.argv.slice(2);
 if (!outDir) throw new Error("usage: node e2e/shots.mjs <outDir> [routes...|--intro|--onboarding]");
 mkdirSync(outDir, { recursive: true });
 const dataDir = mkdtempSync(join(tmpdir(), "studio-shots-"));
+// --connect (with --onboarding) also films the Connect slide with a refused key and the last slide after connecting,
+// against a stand-in for Gemini so no real key or network is needed.
+const connectShots = rest.includes("--connect");
+const gemini = connectShots ? await startFakeGemini() : null;
 const server = spawn(python, ["-m", "studio.server", "--no-browser", "--port", String(port)], {
   cwd: join(root, "backend"),
-  env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_AUTOCHECK: "0", STUDIO_KEYSTORE: "file" },
+  env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_AUTOCHECK: "0", STUDIO_KEYSTORE: "file", ...(gemini ? { STUDIO_GEMINI_BASE: gemini.url } : {}) },
   stdio: "ignore",
 });
 for (let i = 0; i < 60; i++) {
@@ -83,7 +89,7 @@ async function seed() {
   await put("session", { topicId: "maximum-likelihood-estimation", activity: "tutorial", at: day(17) });
 }
 if (!rest.includes("--empty")) await seed();
-const restArgs = rest.filter((r) => r !== "--empty");
+const restArgs = rest.filter((r) => r !== "--empty" && r !== "--connect");
 rest.length = 0;
 rest.push(...restArgs);
 
@@ -119,6 +125,33 @@ try {
         await ctx.close();
       }
     }
+    if (connectShots) {
+      const disconnect = () => fetch(`${origin}/api/ai`, { method: "DELETE", headers: { Origin: origin } }).catch(() => {});
+      for (const theme of ["dark", "light"]) {
+        for (const vp of ["desktop", "mobile"]) {
+          await setOnboarding(false);
+          await disconnect();
+          const { ctx, page } = await newPage(theme, vp);
+          await page.goto(`${origin}/#/`);
+          await page.click("dialog[open] button:has-text('Next')");
+          await page.click("dialog[open] button:has-text('Next')");
+          await page.fill("dialog[open] input[aria-label='API key']", "wrong-key");
+          await page.check("dialog[open] label:has-text('I have read this') input");
+          await page.click("dialog[open] button:text-is('Connect')");
+          await page.waitForSelector("dialog[open] [role=alert]");
+          await page.locator("dialog[open] [role=alert]").scrollIntoViewIfNeeded();
+          await page.waitForTimeout(400);
+          await page.screenshot({ path: join(outDir, `onboarding-${theme}-${vp}-connect-error.png`) });
+          await page.fill("dialog[open] input[aria-label='API key']", GOOD_KEY);
+          await page.click("dialog[open] button:text-is('Connect')");
+          await page.waitForSelector("dialog[open] h2:has-text('set')");
+          await page.waitForTimeout(1200);
+          await page.screenshot({ path: join(outDir, `onboarding-${theme}-${vp}-done-connected.png`) });
+          await ctx.close();
+        }
+      }
+      await disconnect();
+    }
   } else {
     await setOnboarding(true);
     // routes may be given without the leading slash (Git Bash rewrites "/x" into a Windows path); "home" means "/"
@@ -140,6 +173,7 @@ try {
 } finally {
   await browser.close();
   server.kill();
+  gemini?.close();
   await new Promise((r) => setTimeout(r, 800));
   try {
     rmSync(dataDir, { recursive: true, force: true });

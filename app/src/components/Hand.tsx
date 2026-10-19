@@ -24,12 +24,13 @@ export function Marker({ children }: { children: ReactNode }) {
   return <span className="marker">{children}</span>;
 }
 
-type Dir = "left" | "up" | "down" | "right";
+type Dir = "left" | "up" | "upright" | "down" | "right";
 
 const ARROWS: Record<Dir, { box: string; d: string; head: string }> = {
   left: { box: "0 0 60 32", d: "M56 4 C40 2 22 8 8 24", head: "M17.5 20.8 L8 24 L10 14" },
   right: { box: "0 0 60 32", d: "M4 4 C20 2 38 8 52 24", head: "M42.5 20.8 L52 24 L50 14" },
   up: { box: "0 0 40 50", d: "M24 46 C30 32 26 16 14 6", head: "M17.5 15.4 L14 6 L23.9 7.7" },
+  upright: { box: "0 0 40 50", d: "M16 46 C10 32 14 16 26 6", head: "M22.5 15.4 L26 6 L16.1 7.7" },
   down: { box: "0 0 40 50", d: "M10 4 C4 18 10 34 24 44", head: "M20 35 L24 44 L14 43" },
 };
 
@@ -47,7 +48,7 @@ export function HandArrow({ dir }: { dir: Dir }) {
 export function Note({ children, dir = "left", className }: { children: ReactNode; dir?: Dir; className?: string }) {
   return (
     <span className={`hand-note dir-${dir}${className ? ` ${className}` : ""}`}>
-      {(dir === "left" || dir === "up") && <HandArrow dir={dir} />}
+      {(dir === "left" || dir === "up" || dir === "upright") && <HandArrow dir={dir} />}
       <span className="hand-note-text">{children}</span>
       {(dir === "right" || dir === "down") && <HandArrow dir={dir} />}
     </span>

@@ -911,6 +911,146 @@ button.card:not(.focal) p { margin-bottom: 0; }
 .settings-link:hover { color: var(--ink); }
 .settings-link.active { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 8px; }
 
+/* ==================================================================== first-run setup (components/Onboarding.tsx) */
+/* the dialog fills the viewport (so the last slide can point at the real Settings link); the card is the raised element */
+dialog.onboard {
+  position: fixed; inset: 0; width: 100%; height: 100%; max-width: none; max-height: none; margin: 0; padding: 0;
+  border: none; background: transparent; color: var(--ink); overflow: auto; overscroll-behavior: contain;
+}
+dialog.onboard::backdrop { background: rgb(0 0 0 / 0.8); }
+:root[data-theme="light"] dialog.onboard::backdrop { background: rgb(250 250 250 / 0.9); }
+.ob-stage { height: 100%; display: flex; align-items: center; justify-content: center; padding: 40px 16px; }
+.ob-stage.with-pointer { padding-top: 120px; }
+/* the card never outgrows the window: its middle scrolls, the step indicator and the buttons stay in view */
+.ob-card {
+  position: relative; width: 100%; max-width: 600px; max-height: 100%; display: flex; flex-direction: column;
+  background: var(--surface); border: 1px solid var(--rim); border-radius: var(--r-md); box-shadow: var(--lift);
+  padding: 32px 40px 24px;
+}
+.ob-slide { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0 -8px; padding: 0 8px 4px; }
+.ob-head { display: flex; align-items: center; justify-content: space-between; gap: 16px; margin-bottom: 24px; }
+.ob-head .eyebrow { margin: 0; }
+.ob-steps { display: inline-flex; align-items: center; gap: 12px; }
+.ob-dots { display: block; overflow: visible; }
+.ob-dots .seg { fill: none; stroke: var(--faint); stroke-width: 1; }
+.ob-dots .seg.on { stroke: var(--orange); stroke-width: 1.5; }
+.ob-dots .ring { fill: var(--surface); stroke: var(--muted); stroke-width: 1; }
+.ob-dots .past .ring { stroke: var(--ink); }
+.ob-dots .past .dot { fill: var(--ink); }
+.ob-dots .current .ring { stroke: var(--orange); stroke-width: 1.5; }
+.ob-dots .current .dot { fill: var(--orange); }
+.ob-count { font-size: 13.5px; line-height: 20px; color: var(--muted); }
+h2.ob-title { font-size: 40px; line-height: 1.1; letter-spacing: -0.03em; font-weight: 700; margin: 0 0 24px; outline: none; text-wrap: balance; }
+.ob-slide > p { max-width: 520px; }
+.ob-slide ol { padding-left: 24px; margin: 0 0 16px; }
+.ob-slide .field { margin: 16px 0; }
+.ob-slide .warn-box { margin: 16px 0; }
+.notice-title { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0; margin: 0 0 4px; }
+.notice-title + p { margin-bottom: 12px; }
+.ob-theme { margin: 24px 0 0; }
+.ob-theme-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; }
+fieldset .choice.ob-pill, fieldset:not(.panel) .choice.ob-pill:first-of-type { align-items: center; gap: 8px; margin: 0; padding: 6px 16px 6px 12px; border: 1px solid var(--muted); border-radius: var(--r-pill); }
+.choice.ob-pill.on { border-color: var(--ink); }
+.choice.ob-pill input { margin: 0; }
+.choice.ob-pill:focus-within { outline: 2px solid var(--ink); outline-offset: 2px; }
+.ob-note { margin-left: 8px; }
+.hand-note.ob-note-narrow { display: none; font-size: 26px; margin: 2px 0 0 24px; }
+.ob-note-narrow .hand-arrow.up { width: 28px; height: 32px; }
+.ob-note .hand-note-text { text-wrap: nowrap; white-space: nowrap; }
+.ob-choices { margin: 16px 0 0; }
+fieldset.ob-choices .choice.opt-row { padding: 12px 0; }
+fieldset.ob-choices .choice.ob-none { margin-top: 0; }
+.ob-summary { margin: 0 0 16px; }
+.ob-summary > div { display: grid; grid-template-columns: 150px 1fr; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--hair); }
+.ob-summary > div:first-child { border-top: 1px solid var(--hair); }
+.ob-summary dt { font: 400 13.5px/24px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.ob-summary dd { margin: 0; }
+.ob-summary .nowrap { white-space: nowrap; font-size: 14px; }
+.ob-foot { flex: none; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; margin-top: 24px; padding-top: 24px; border-top: 1px solid var(--hair); }
+.ob-head { flex: none; }
+.opt-name { display: flex; flex-wrap: wrap; align-items: center; gap: 0 12px; }
+.opt-name .hand-note { font-size: 26px; max-width: none; }
+.opt-name .hand-note .hand-arrow.left { width: 40px; height: 22px; margin-top: 0; }
+.opt-name .hand-note-text { white-space: nowrap; }
+.ob-nav { display: flex; flex-wrap: wrap; gap: 12px; margin-left: auto; }
+button.link.ob-skip { color: var(--muted); }
+button.link.ob-skip:hover { color: var(--ink); }
+.ob-pointer { position: fixed; inset: 0; pointer-events: none; }
+/* the real Settings label, re-inked above the scrim; no box, only the hand-drawn ring */
+.ob-ghost {
+  position: fixed; display: inline-flex; align-items: center; justify-content: center;
+  font-weight: 500; color: var(--ink); background: none;
+}
+/* while setup is open the page behind shows only its graph-paper canvas */
+html.onboarding-open main, html.onboarding-open .banner { visibility: hidden; }
+
+/* round 2: links and buttons inside setup follow the system exactly */
+button.link.ob-skip { color: var(--ink); }
+.ob-card button.ghost:hover:not(:disabled), .ob-card button.ghost:active { transform: none; box-shadow: none; }
+.ob-card button.ghost:hover:not(:disabled) { text-decoration: underline; text-underline-offset: 3px; }
+/* choose: one-line descriptions, section-level gaps, no doubled rule above the footer */
+.opt-desc .short-line { display: none; }
+.ob-choose-lede { margin-bottom: 0; }
+fieldset.ob-choices { margin: 32px 0 0; }
+fieldset.ob-choices .choice.opt-row { padding: 10px 0; }
+fieldset.ob-choices > .choice:last-of-type { border-bottom: none; padding-bottom: 0; }
+/* compact connect: short steps, a two-line consent summary, the full notice one click away */
+.ai-connect.compact .key-steps { margin: 0 0 4px; }
+.ai-connect.compact .key-steps li { margin: 2px 0; }
+.key-steps li.with-note { display: list-item; }
+.key-steps li.with-note > span:first-child { margin-right: 12px; }
+.steps-note { vertical-align: middle; }
+.hand-note.steps-note { font-size: 26px; display: inline-flex; max-width: none; }
+.steps-note .hand-arrow.left { width: 40px; height: 22px; }
+.steps-note .hand-note-text { white-space: nowrap; }
+.ai-connect.compact > p.muted { margin: 0 0 8px; }
+.ai-connect.compact .field { margin: 12px 0; }
+.consent-block { margin: 16px 0; }
+.consent-summary { margin: 0 0 4px; color: var(--muted); }
+.full-notice summary { font-weight: 400; margin: 0 0 8px; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; width: fit-content; }
+.full-notice[open] p { margin: 0 0 12px; padding-left: 16px; border-left: 1px solid var(--hair); }
+.choice.consent { margin: 8px 0 0; }
+.connect-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 16px 0 0; }
+.err-line { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink); flex: 1 1 260px; }
+.err-line .warn { margin: 3px 0 0; }
+.err-text { text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
+.settings .connect-row { margin-top: 16px; }
+.ob-ring { position: absolute; left: -14px; top: -8px; width: calc(100% + 28px); height: calc(100% + 16px); overflow: visible; }
+.ob-ring path { fill: none; stroke: var(--ink); stroke-width: 1.6; stroke-linecap: round; vector-effect: non-scaling-stroke; }
+.ob-pointer-note { position: fixed; }
+.ob-pointer-note .hand-note { max-width: none; font-size: 30px; }
+.ob-pointer-note .hand-note-text { white-space: nowrap; }
+.hand-note.dir-upright { flex-direction: column; align-items: flex-end; }
+.hand-note.dir-upright .hand-arrow { margin-right: 4px; }
+.hand-arrow.upright { width: 36px; height: 45px; }
+@media (prefers-reduced-motion: no-preference) {
+  .ob-slide { animation: ob-in 240ms ease-out both; }
+  .ob-ring path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 600ms 200ms ease-out forwards; }
+  .ob-pointer-note { animation: ob-fade 300ms 300ms ease-out both; }
+}
+@keyframes ob-in { from { opacity: 0; transform: translateX(12px); } to { opacity: 1; transform: none; } }
+@keyframes ob-fade { from { opacity: 0; } to { opacity: 1; } }
+@media (max-width: 760px) {
+  .ob-stage { padding: 16px; }
+  .ob-stage.with-pointer { padding-top: 112px; }
+  .ob-card { padding: 20px 16px; }
+  h2.ob-title { font-size: 32px; }
+  .ob-head { margin-bottom: 16px; }
+  .ob-summary > div { grid-template-columns: 1fr; gap: 0; }
+  .ob-note { display: none; }
+  .hand-note.ob-note-narrow { display: inline-flex; }
+  .ob-pointer-note .hand-note { font-size: 26px; }
+  .ob-foot { margin-top: 20px; padding-top: 16px; }
+  .opt-desc .wide-line { display: none; }
+  .opt-desc .short-line { display: inline; }
+  fieldset.ob-choices { margin-top: 24px; }
+  .opt-name .hand-note { font-size: 22px; }
+  .opt-name .hand-note .hand-arrow.left { width: 30px; height: 18px; }
+  h2.ob-title { margin-bottom: 16px; }
+  .ob-nav { gap: 8px; }
+  .ob-nav button { padding: 10px 16px; }
+}
+
 /* after the intro, focus rests on Learn quietly; the ring returns with the first key press */
 .button[data-quiet-focus]:focus-visible { outline: none; }
 

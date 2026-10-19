@@ -33,8 +33,11 @@ const step = async (name, fn) => {
     console.log("FAIL", name, "-", e.message.split("\n")[0]);
     problems.push(`step ${name}: ${e.message.split("\n")[0]}`);
     await shot("FAIL-" + name.replace(/\W+/g, "-")).catch(() => {});
+    if (side) await side.screenshot({ path: `${OUT}/${String(++n).padStart(2, "0")}-FAIL-side-${name.replace(/\W+/g, "-")}.png` }).catch(() => {});
   }
+  side = null;
 };
+let side = null; // a second page a step opened, also captured when the step fails
 const go = (p) => page.goto(BASE + p).then(() => page.waitForTimeout(250));
 const T = "maximum-likelihood-estimation";
 
@@ -74,6 +77,130 @@ async function photoOf(html) {
   await tmp.close();
   return png;
 }
+
+// ---------------------------------------------------------------------------------------------- first-run setup
+const ORIGIN_URL = BASE.split("#")[0].replace(/\/$/, "");
+const putSlice = async (name, value) => {
+  const r = await page.request.put(`${ORIGIN_URL}/api/state/${name}`, { data: value, headers: { Origin: ORIGIN_URL } });
+  if (!r.ok()) throw new Error(`PUT ${name} failed: ${r.status()}`);
+};
+/** A browser context past the intro, as a learner opening the app. */
+const opened = async (viewport = { width: 1100, height: 900 }) => {
+  const c = await browser.newContext({ viewport });
+  await c.addInitScript(() => {
+    try {
+      sessionStorage.setItem("studio-intro-seen", "1");
+    } catch {
+      /* storage blocked */
+    }
+  });
+  const p = await c.newPage();
+  p.setDefaultTimeout(8000);
+  p.on("pageerror", (e) => problems.push(`onboarding pageerror: ${e.message}`));
+  side = p;
+  return { c, p };
+};
+const dialogShot = (p, name) => p.screenshot({ path: `${OUT}/${String(++n).padStart(2, "0")}-${name}.png` });
+
+await step("onboarding: a new learner gets setup, can go without AI, and it does not come back", async () => {
+  const { c, p } = await opened({ width: 390, height: 844 });
+  await p.goto(BASE + "/");
+  await p.waitForSelector("dialog[open] h2:has-text('Welcome')");
+  await dialogShot(p, "onboarding-welcome-phone");
+  // nothing in the dialog may stick out sideways or need sideways scrolling
+  const over = await p.evaluate(() => {
+    const out = [];
+    if (document.documentElement.scrollWidth - innerWidth > 4) out.push("page");
+    for (const e of document.querySelectorAll("dialog[open] *")) {
+      const r = e.getBoundingClientRect();
+      if (r.width && (r.right > innerWidth + 1 || r.left < -1)) out.push(`${e.tagName}.${e.getAttribute("class")} ${Math.round(r.left)}..${Math.round(r.right)}`);
+    }
+    return out;
+  });
+  if (over.length) throw new Error(`setup overflows sideways on a phone: ${over.slice(0, 3).join("; ")}`);
+  if (!(await p.locator("dialog[open] >> text=1/4").count())) throw new Error("no step indicator");
+  await p.click("dialog[open] button:has-text('Next')");
+  await p.check("dialog[open] label:has-text('No AI for now') input");
+  await p.click("dialog[open] button:has-text('Next')");
+  await p.waitForSelector("dialog[open] h2:has-text('set')");
+  await p.waitForSelector("dialog[open] >> text=None for now");
+  await p.waitForSelector("dialog[open] >> text=You can change any of this in Settings");
+  await p.click("dialog[open] button:has-text('Start')");
+  await p.waitForSelector("dialog[open]", { state: "detached" });
+  await p.waitForSelector("main a:has-text('Learn')");
+  await p.waitForTimeout(700);
+  const s = await apiGet("state");
+  if (s.state.onboarding?.done !== true || !s.state.onboarding.completedAt) throw new Error("setup was not saved as done: " + JSON.stringify(s.state.onboarding));
+  await p.reload();
+  await p.waitForSelector("main a:has-text('Learn')");
+  await p.waitForTimeout(1000);
+  if (await p.locator("dialog[open]").count()) throw new Error("setup came back after it was finished");
+  await c.close();
+});
+
+await step("onboarding: waits for the opening animation; Esc skips setup and keeps it skipped", async () => {
+  await putSlice("onboarding", { done: false });
+  const c = await browser.newContext({ viewport: { width: 1100, height: 900 } }); // the intro plays in this one
+  const p = await c.newPage();
+  side = p;
+  await p.goto(BASE + "/");
+  await p.waitForSelector(".intro", { timeout: 4000 });
+  await p.waitForTimeout(1500);
+  if (await p.locator("dialog[open]").count()) throw new Error("setup opened over the opening animation");
+  await p.keyboard.press("Escape"); // skips the intro
+  await p.waitForSelector(".intro", { state: "detached" });
+  await p.waitForSelector("dialog[open] h2:has-text('Welcome')");
+  await p.keyboard.press("Tab");
+  if (!(await p.evaluate(() => !!document.activeElement?.closest("dialog[open]")))) throw new Error("focus left the setup dialog");
+  await p.keyboard.press("Escape");
+  await p.waitForSelector("dialog[open]", { state: "detached" });
+  await p.waitForTimeout(700);
+  if ((await apiGet("state")).state.onboarding?.done !== true) throw new Error("Esc did not mark setup as done");
+  await c.close();
+});
+
+await step("onboarding: choosing Gemini connects it with a pasted key, and Settings shows it connected", async () => {
+  await putSlice("onboarding", { done: false });
+  const { c, p } = await opened();
+  await p.goto(BASE + "/");
+  await p.waitForSelector("dialog[open] h2:has-text('Welcome')");
+  await p.click("dialog[open] button:has-text('Next')");
+  await p.check("dialog[open] label:has-text('Google Gemini') input");
+  await p.click("dialog[open] button:has-text('Next')");
+  await p.waitForSelector("dialog[open] h2:has-text('Connect')");
+  await p.waitForSelector("dialog[open] a[href*='aistudio.google.com']");
+  await p.waitForSelector("dialog[open] summary:has-text('Read the full notice')");
+  await p.waitForSelector("dialog[open] >> text=may use them to improve its products");
+  if (await p.evaluate(() => { const s = document.querySelector("dialog[open] .ob-slide"); return s.scrollHeight > s.clientHeight + 1; })) throw new Error("the Connect step does not fit without scrolling");
+  await p.click("dialog[open] summary:has-text('Read the full notice')");
+  await p.waitForSelector("dialog[open] >> text=people may review it", { state: "visible" });
+  await p.fill("dialog[open] input[aria-label='API key']", "good-key-123");
+  if (!(await p.locator("dialog[open] button:text-is('Connect')").isDisabled())) throw new Error("Connect must wait for the data notice to be accepted");
+  await p.check("dialog[open] label:has-text('I have read this') input");
+  await p.click("dialog[open] button:text-is('Connect')");
+  await p.waitForSelector("dialog[open] >> text=Connected to Google Gemini", { timeout: 15000 });
+  await dialogShot(p, "onboarding-connected");
+  await p.click("dialog[open] button:has-text('Start')");
+  await p.waitForSelector("dialog[open]", { state: "detached" });
+  await p.click("header a.settings-link");
+  await p.waitForSelector("text=Connected to Google Gemini");
+  await p.click("button:has-text('Disconnect and forget my key')"); // the AI steps further down start disconnected
+  await p.waitForSelector("text=What gets sent");
+  await c.close();
+});
+
+await step("onboarding: a learner who already has progress never sees it", async () => {
+  await putSlice("onboarding", { done: false });
+  await putSlice("attempts", [{ id: "pre", topicId: T, at: "2026-10-01T10:00:00.000Z", kind: "quiz", counted: true, composite: 70, criteria: { core: 70, depth: 70, relevance: 70, application: 70 } }]);
+  const { c, p } = await opened();
+  await p.goto(BASE + "/");
+  await p.waitForSelector("main a:has-text('Learn')");
+  await p.waitForTimeout(1500);
+  if (await p.locator("dialog[open]").count()) throw new Error("setup was shown to a learner with progress");
+  if ((await apiGet("state")).state.onboarding?.done !== true) throw new Error("setup should be marked done for an existing learner");
+  await c.close();
+  await putSlice("attempts", []);
+});
 
 await step("updates: newer course materials are offered, installed on request, and used at once", async () => {
   await go("/");
@@ -504,6 +631,7 @@ await step("settings export + delete", async () => {
   await page.click("button:has-text('Delete all my data')");
   await page.click("button:has-text('Yes, delete everything')");
   await page.waitForTimeout(500);
+  await putSlice("onboarding", { done: true }); // deleting everything starts setup over; the steps below are past it
 });
 
 await step("mobile layout no horizontal overflow", async () => {

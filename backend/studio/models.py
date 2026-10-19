@@ -82,6 +82,13 @@ class ScoringConfig(Wire):
     recency_window: int = Field(ge=1, le=50)
 
 
+class Onboarding(Wire):
+    """First-run setup. Kept by the service so it survives a browser-storage wipe."""
+
+    done: bool
+    completed_at: str | None = None
+
+
 class Record(BaseModel):
     """Quizzes and exams are stored as documents; only the identifying fields are required."""
 
@@ -96,7 +103,7 @@ class Record(BaseModel):
 # Personal files are not a slice: the service owns them (uploads, versions, removal) and the app only reads them.
 LIST_SLICES = {"attempts": Attempt, "quizzes": Record, "exams": Record, "collections": Collection}
 MAP_SLICES = {"topicState": TopicState}
-VALUE_SLICES = {"session": Session, "config": ScoringConfig}
+VALUE_SLICES = {"session": Session, "config": ScoringConfig, "onboarding": Onboarding}
 FLAG_SLICES = {"hostedDisclosureAck"}
 FREE_SLICES = {"chats"}
 ALL_SLICES = set(LIST_SLICES) | set(MAP_SLICES) | set(VALUE_SLICES) | FLAG_SLICES | FREE_SLICES

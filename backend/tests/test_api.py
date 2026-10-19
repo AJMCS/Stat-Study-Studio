@@ -73,6 +73,7 @@ def test_every_slice_roundtrips(client):
         "config": CONFIG,
         "hostedDisclosureAck": True,
         "chats": {"t1": [{"role": "tutor", "text": "hi"}]},
+        "onboarding": {"done": True, "completedAt": "2026-10-19T12:00:00Z"},
     }
     for name, value in state.items():
         assert put(client, name, value).status_code == 200, name
@@ -135,6 +136,47 @@ def test_export_contains_everything_and_delete_erases_it(client):
     after = client.get("/api/state").json()
     assert after["initialized"] is False and after["state"]["attempts"] == []
     assert [c["name"] for c in after["state"]["collections"]] == ["General"]
+
+
+def test_onboarding_defaults_to_not_done_and_takes_the_plain_shape(client):
+    assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
+    assert put(client, "onboarding", {"done": True}).status_code == 200
+    got = client.get("/api/state").json()
+    assert got["state"]["onboarding"] == {"done": True}
+    # finishing setup is a preference, not study data, so a later migration of old browser progress still runs
+    assert got["initialized"] is False
+    assert put(client, "onboarding", {"done": False}).status_code == 200
+    assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
+
+
+def test_onboarding_rejects_other_shapes(client):
+    assert put(client, "onboarding", True).status_code == 422
+    assert put(client, "onboarding", {"done": "yes please"}).status_code == 422
+    assert put(client, "onboarding", {"done": True, "extra": 1}).status_code == 422
+    assert put(client, "onboarding", {}).status_code == 422
+
+
+def test_onboarding_is_exported_imported_and_wiped(client):
+    put(client, "onboarding", {"done": True, "completedAt": "2026-10-19T12:00:00Z"})
+    body = json.loads(client.get("/api/export").content)
+    assert body["data"]["onboarding"] == {"done": True, "completedAt": "2026-10-19T12:00:00Z"}
+    assert client.delete("/api/data", headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
+    restored = {k: v for k, v in body["data"].items() if k != "files"}
+    assert client.post("/api/import?overwrite=true", json=restored, headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["onboarding"]["done"] is True
+    # an older export without the field imports as "not done"
+    older = {k: v for k, v in restored.items() if k != "onboarding"}
+    assert client.post("/api/import?overwrite=true", json=older, headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
+
+
+def test_onboarding_survives_a_restart(tmp_path):
+    kwargs = dict(data_dir=tmp_path / "d", static_dir=tmp_path / "x", port=PORT)
+    with TestClient(create_app(**kwargs), base_url=f"http://127.0.0.1:{PORT}") as c:
+        assert c.put("/api/state/onboarding", json={"done": True}, headers=ORIGIN).status_code == 200
+    with TestClient(create_app(**kwargs), base_url=f"http://127.0.0.1:{PORT}") as c:
+        assert c.get("/api/state").json()["state"]["onboarding"]["done"] is True
 
 
 def test_data_survives_a_restart(tmp_path):

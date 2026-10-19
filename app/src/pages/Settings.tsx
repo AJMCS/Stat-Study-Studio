@@ -2,21 +2,9 @@ import { useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
-import { api, ServiceRejected, type AiInfo, type ProviderId } from "../lib/api";
+import { ServiceRejected, type ProviderId } from "../lib/api";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
-
-/** Where to get a key for each online service, and how each is described next to its radio button. */
-const KEY_PAGES: Record<string, { url: string; label: string }> = {
-  gemini: { url: "https://aistudio.google.com/apikey", label: "aistudio.google.com/apikey" },
-  anthropic: { url: "https://console.anthropic.com/settings/keys", label: "console.anthropic.com/settings/keys" },
-  openai: { url: "https://platform.openai.com/api-keys", label: "platform.openai.com/api-keys" },
-};
-const BLURB: Record<ProviderId, string> = {
-  gemini: "Online with your own key; the free tier is the easiest start.",
-  anthropic: "Online with your own API key; pay per use.",
-  openai: "Online with your own API key; pay per use.",
-  ollama: "Runs on this computer; nothing leaves it, works offline.",
-};
+import { AiConnect, BLURB, SERVICE_UNREACHABLE } from "../components/AiConnect";
 import { useAi } from "../lib/ai";
 import { useTheme } from "../lib/theme";
 
@@ -24,44 +12,13 @@ function AiPanel() {
   const ai = useAi();
   const info = ai.info;
   const [choice, setChoice] = useState<ProviderId | null>(null);
-  const [preview, setPreview] = useState<AiInfo | null>(null);
-  const [key, setKey] = useState("");
-  const [accept, setAccept] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [model, setModel] = useState<string | null>(null);
   const [tested, setTested] = useState(false);
-  const [local, setLocal] = useState<{ running: boolean; models: string[] } | null>(null);
-  const [localModel, setLocalModel] = useState("");
 
   const selected: ProviderId = choice ?? info?.provider ?? "gemini";
-
-  // The notice shown must be the one for the service being set up, so fetch it when the choice changes.
-  useEffect(() => {
-    if (!info) return;
-    setAccept(false);
-    setError("");
-    if (selected === info.provider) {
-      setPreview(info);
-      return;
-    }
-    let live = true;
-    api.aiStatus(selected).then((p) => live && setPreview(p)).catch(() => {});
-    return () => { live = false; };
-  }, [selected, info]);
-
-  const findModels = async () => {
-    try {
-      const r = await api.aiLocalModels();
-      setLocal(r);
-      setLocalModel((m) => (r.models.includes(m) ? m : r.models[0] ?? ""));
-    } catch {
-      setLocal({ running: false, models: [] });
-    }
-  };
-  useEffect(() => {
-    if (selected === "ollama" && info && !(info.connected && info.provider === "ollama")) void findModels();
-  }, [selected, info?.connected]);
+  useEffect(() => setError(""), [selected]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -70,7 +27,7 @@ function AiPanel() {
     try {
       await fn();
     } catch (e) {
-      setError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service. Check that it is still running, then try again.");
+      setError(e instanceof ServiceRejected ? e.message : SERVICE_UNREACHABLE);
     } finally {
       setBusy(false);
     }
@@ -80,17 +37,6 @@ function AiPanel() {
 
   const connectedHere = info.connected && selected === info.provider;
   const shownModel = model ?? (info.model === info.defaultModel ? "" : info.model);
-  const notice = preview?.notice ?? info.notice;
-  const noticeBox = (
-    <div className="notice warn-box" data-testid="ai-notice">
-      <strong>What gets sent</strong>
-      <p>{notice}</p>
-      <label className="choice">
-        <input type="checkbox" checked={accept} onChange={(e) => setAccept(e.target.checked)} />
-        <span>I have read this and want to use {selected === "ollama" ? "a model on this computer" : "an AI service"}</span>
-      </label>
-    </div>
-  );
 
   return (
     <section className="panel" aria-labelledby="ai-h">
@@ -131,53 +77,8 @@ function AiPanel() {
             <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect{info.local ? "" : " and forget my key"}</button>
           </div>
         </>
-      ) : selected !== "ollama" ? (
-        <>
-          <ol>
-            <li>Go to <a href={KEY_PAGES[selected].url} target="_blank" rel="noreferrer">{KEY_PAGES[selected].label}</a> and sign in.</li>
-            <li>Choose <em>Create API key</em> and copy it.</li>
-            <li>Paste it below. It is checked with {preview?.providerName ?? "the service"} first, then kept on this computer only.</li>
-          </ol>
-          {selected !== "gemini" && (
-            <p className="muted">
-              This uses your API credit, billed per use, so add a little credit on their site first. A Claude or ChatGPT chat subscription is separate and does not include API credit.
-              Not sure how to make a key? Ask any AI chatbot to walk you through it.
-            </p>
-          )}
-          {info.keyStored && !info.consented && info.provider === selected && <p className="notice warn-box">The data notice changed since you last accepted it. Please read it again.</p>}
-          <label className="field">
-            <span>API key</span>
-            <input aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
-          </label>
-          {noticeBox}
-          <button disabled={busy || !key.trim() || !accept} onClick={() => void run(async () => { await ai.connect(key, accept, undefined, selected); setKey(""); })}>
-            {busy ? "Checking…" : "Connect"}
-          </button>
-        </>
       ) : (
-        <>
-          <ol>
-            <li>Install Ollama from <a href="https://ollama.com/download" target="_blank" rel="noreferrer">ollama.com/download</a> and open it.</li>
-            <li>Install a model, for example by running <code>ollama pull llama3.2</code> in a terminal. Any chat model works; larger ones are better at scoring and slower.</li>
-            <li>Come back here and choose the model below.</li>
-          </ol>
-          {local && !local.running && <p className="notice warn-box" role="status">Ollama does not seem to be running on this computer yet. Open the Ollama app, then check again.</p>}
-          {local?.running && local.models.length === 0 && <p className="notice warn-box" role="status">Ollama is running but has no models yet. Install one (step 2), then check again.</p>}
-          <label className="field">
-            <span>Model</span>
-            <select aria-label="Ollama model" value={localModel} onChange={(e) => setLocalModel(e.target.value)} disabled={!local?.models.length}>
-              {!local?.models.length && <option value="">No models found</option>}
-              {local?.models.map((m) => <option key={m} value={m}>{m}</option>)}
-            </select>
-          </label>
-          <div className="row">
-            <button className="ghost" disabled={busy} onClick={() => void findModels()}>Check again</button>
-          </div>
-          {noticeBox}
-          <button disabled={busy || !localModel || !accept} onClick={() => void run(() => ai.connect("", accept, localModel, "ollama"))}>
-            {busy ? "Checking…" : "Connect"}
-          </button>
-        </>
+        <AiConnect key={selected} provider={selected} />
       )}
       <p className="muted">
         {info.local ? "Because the model runs on this computer, all your collections can be used to ground answers." : "Hosted requests that use your uploaded files are also controlled per collection in Course materials."} Disconnecting removes the connection; the app keeps working on its own.

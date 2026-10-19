@@ -202,6 +202,7 @@ class Database:
                 "collections": collections,
                 "files": files,
                 "config": self._setting("config"),
+                "onboarding": self._setting("onboarding", {"done": False}),
                 "hostedDisclosureAck": self._setting("hostedDisclosureAck", False),
                 "chats": self._setting("chats", {}),
             }
@@ -212,7 +213,9 @@ class Database:
             raise KeyError(name)
         with self._tx() as c:
             self._write_slice(c, name, value)
-            self._set_setting(c, "initialized", True)
+            # finishing first-run setup is not study data: a later migration of old browser progress must still run
+            if name != "onboarding":
+                self._set_setting(c, "initialized", True)
 
     def _write_slice(self, c: sqlite3.Connection, name: str, value: Any) -> None:
         if name in LIST_SLICES:
@@ -281,7 +284,7 @@ class Database:
         with self._tx() as c:
             self._wipe_tables(c)
             for name, value in state.items():
-                if name in {"config", "session"} and value is None:
+                if name in VALUE_SLICES and value is None:
                     continue
                 self._write_slice(c, name, value)
             self._seed_general()
