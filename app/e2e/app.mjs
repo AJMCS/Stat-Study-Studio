@@ -8,6 +8,14 @@ mkdirSync(OUT, { recursive: true });
 const BASE = process.env.BASE || "http://localhost:5173/#";
 const browser = await launchBrowser();
 const ctx = await browser.newContext({ viewport: { width: 1100, height: 900 }, acceptDownloads: true });
+// The opening animation plays once per browser session; the steps below start past it (one step tests it on its own).
+await ctx.addInitScript(() => {
+  try {
+    sessionStorage.setItem("studio-intro-seen", "1");
+  } catch {
+    /* storage blocked */
+  }
+});
 const page = await ctx.newPage();
 page.setDefaultTimeout(8000);
 const problems = [];
@@ -92,6 +100,36 @@ await step("home offers Learn and Practice; the learn page lists 7 topics", asyn
   const topics = await page.locator(".journey-list a.topic-link").count();
   if (topics !== 7) throw new Error(`expected 7 topics on the learn page, got ${topics}`);
   await shot("learn");
+});
+
+await step("intro: plays once per session, resolves into Learn and Practice, and can be skipped", async () => {
+  const c2 = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+  const p2 = await c2.newPage();
+  p2.on("pageerror", (e) => problems.push(`intro pageerror: ${e.message}`));
+  await p2.goto(BASE + "/");
+  await p2.waitForSelector(".intro", { timeout: 4000 });
+  await p2.waitForSelector(".intro", { state: "detached", timeout: 9000 });
+  await p2.waitForSelector("main a:has-text('Learn')", { state: "visible" });
+  await p2.waitForSelector("main a:has-text('Practice')", { state: "visible" });
+  if ((await p2.evaluate(() => document.activeElement?.textContent?.trim())) !== "Learn") throw new Error("focus did not land on Learn after the intro");
+  await p2.screenshot({ path: `${OUT}/${String(++n).padStart(2, "0")}-intro-end.png` });
+  await p2.reload();
+  await p2.waitForSelector("main a:has-text('Learn')", { state: "visible" });
+  await p2.waitForTimeout(600);
+  if (await p2.locator(".intro").count()) throw new Error("the intro replayed after a reload in the same session");
+  await p2.click("main a:has-text('Practice')");
+  await p2.waitForURL(/#\/practice$/);
+  await c2.close();
+  // a new session can skip it straight away with Esc
+  const c3 = await browser.newContext({ viewport: { width: 1100, height: 900 } });
+  const p3 = await c3.newPage();
+  await p3.goto(BASE + "/");
+  await p3.waitForSelector(".intro-skip", { timeout: 4000 });
+  await p3.keyboard.press("Escape");
+  await p3.waitForSelector(".intro", { state: "detached", timeout: 1500 });
+  await p3.click("main a:has-text('Learn')");
+  await p3.waitForURL(/#\/learn$/);
+  await c3.close();
 });
 
 await step("practice hub offers an exam and a quiz for the chosen topic", async () => {

@@ -91,12 +91,14 @@ try {
   if (rest[0] === "--intro") {
     await setOnboarding(true);
     for (const theme of ["dark", "light"]) {
-      const { ctx, page } = await newPage(theme, "desktop", { intro: true });
+      const vp = process.env.INTRO_VP === "mobile" ? "mobile" : "desktop"; // INTRO_VP=mobile films the phone layout
+      const { ctx, page } = await newPage(theme, vp, { intro: true });
       const t0 = Date.now();
       await page.goto(`${origin}/#/`);
-      for (const at of [300, 900, 1600, 2400, 3200, 4000, 4800, 5600, 6400, 7200, 8500]) {
+      // every 400ms, so a critic can see whether any movement is shorter than that
+      for (const at of [...Array.from({ length: 20 }, (_, i) => 200 + i * 400), 9000]) {
         await page.waitForTimeout(Math.max(0, at - (Date.now() - t0)));
-        await page.screenshot({ path: join(outDir, `intro-${theme}-${String(at).padStart(5, "0")}ms.png`) });
+        await page.screenshot({ path: join(outDir, `intro-${vp === "mobile" ? "mobile-" : ""}${theme}-${String(at).padStart(5, "0")}ms.png`) });
       }
       await ctx.close();
     }

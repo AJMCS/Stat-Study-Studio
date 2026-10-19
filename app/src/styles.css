@@ -469,15 +469,85 @@ td input { width: 6rem; padding: 6px 8px; }
 @keyframes draw { to { stroke-dashoffset: 0; } }
 
 /* ================================================================== home */
-.home { min-height: calc(100vh - 200px); display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; padding: 32px 0; }
-.home-mark { color: var(--ink); margin-bottom: 32px; }
-.home h1 { font-size: var(--display); line-height: 1.05; letter-spacing: -0.04em; max-width: 1000px; margin: 0; text-wrap: balance; }
-.home-support { font-size: 24px; line-height: 33px; letter-spacing: -0.02em; color: var(--muted); max-width: 640px; margin: 28px auto 0; text-wrap: balance; }
-.home-actions { position: relative; display: flex; flex-wrap: wrap; justify-content: center; gap: 16px; margin-top: 40px; }
-.home-note { position: absolute; right: calc(100% + 12px); top: 50%; transform: translateY(-62%); white-space: nowrap; }
-.home-eyebrow { margin-top: 64px; }
-.home-note.narrow-only { position: static; transform: none; order: -1; flex-basis: 100%; align-items: center; margin-bottom: -8px; }
-.home-note.narrow-only .hand-arrow { margin-left: 40px; }
+/* one object: the headline beside the θ diagram (θ hub, two branches, the two ways in) */
+.home {
+  min-height: calc(100vh - 200px); max-width: 1060px; margin: 0 auto; padding: 24px 0 40px;
+  display: grid; grid-template-columns: minmax(0, 1fr) 440px; column-gap: 56px; align-content: center;
+  grid-template-areas: "copy mark" "copy tree" "cont actions";
+}
+.home-copy { grid-area: copy; align-self: center; }
+.home h1 { font-size: var(--display); line-height: 1.05; letter-spacing: -0.04em; margin: 0; max-width: 560px; text-wrap: balance; }
+.hub-mark { grid-area: mark; justify-self: center; position: relative; line-height: 0; }
+.home-mark { display: block; width: clamp(96px, 10vw, 144px); height: auto; aspect-ratio: 1; color: var(--ink); }
+.home-mark .theta-ring { stroke-width: 1px; vector-effect: non-scaling-stroke; } /* §6: node rings are 1px */
+.home-mark .theta-oval, .home-mark .theta-bar { stroke: var(--voice-text); stroke-width: 4; }
+.home-note-wide { position: absolute; left: calc(100% + 12px); top: 6%; width: max-content; line-height: 1; text-align: left; }
+.home-note-wide .hand-note { max-width: 240px; font-size: 28px; }
+.hub-tree { grid-area: tree; line-height: 0; position: relative; }
+/* each branch ends in a small ringed node on the top edge of its button, node to node like the reference */
+.hub-node {
+  position: absolute; bottom: -5px; width: 11px; height: 11px; margin-left: -5.5px; border-radius: 50%;
+  border: 1px solid var(--muted); background: var(--canvas); display: grid; place-items: center; z-index: 1;
+}
+.hub-node::after { content: ""; width: 4px; height: 4px; border-radius: 50%; background: var(--ink); }
+.hub-node.learn { left: 25%; border-color: var(--orange); }
+.hub-node.practice { left: 75%; }
+.hub-branches { display: block; width: 100%; height: 96px; margin-top: -4px; overflow: visible; }
+.hub-branch { stroke: var(--muted); stroke-width: 1.25; }
+.hub-branch.voice { stroke: var(--orange); stroke-width: 1.75; }
+.hub-actions { grid-area: actions; display: grid; grid-template-columns: 1fr 1fr; justify-items: center; }
+.home-continue { grid-area: cont; align-self: center; margin: 0; color: var(--muted); }
+.home.intro-on [data-reveal]:not([data-reveal="branch"]) { opacity: 0; }
+.home.intro-on .hub-branch { stroke-dasharray: 1 2; stroke-dashoffset: 1; }
+.home.intro-on .home-mark { visibility: hidden; }
+.intro-playing header.top { opacity: 0; }
+@media (max-width: 760px) {
+  /* one centred column: headline, the θ, its branches, the two buttons side by side, the way back */
+  .home {
+    min-height: calc(100vh - 140px); padding: 8px 0 24px; grid-template-columns: minmax(0, 1fr);
+    grid-template-areas: "copy" "mark" "tree" "actions" "cont";
+  }
+  .home h1 { font-size: 44px; text-align: center; margin: 0 auto 32px; }
+  .home-note-wide { top: 10%; }
+  .home-note-wide { left: calc(100% + 6px); }
+  .home-note-wide .hand-note { font-size: 20px; max-width: 118px; gap: 2px; } /* ends inside the 16px gutter */
+  .home-note-wide .hand-arrow.left { width: 34px; height: 22px; }
+  .hub-branches { height: 80px; }
+  .hub-actions .button.big { min-width: 0; width: calc(100% - 16px); }
+  .home-continue { margin-top: 32px; text-align: center; }
+}
+
+/* ------------------------------------------------------------------ intro (components/Intro.tsx) */
+.intro { position: fixed; inset: 0; z-index: 60; cursor: pointer; }
+.intro-art { position: absolute; inset: 0; width: 100%; height: 100%; overflow: visible; }
+.intro-art .i-edge, .intro-art .i-ring, .intro-art .i-route, .intro-art .i-stem, .intro-art .i-stroke,
+.intro-art .theta-ring, .intro-art .theta-oval, .intro-art .theta-bar { stroke-dasharray: 1 2; stroke-dashoffset: 1; }
+.intro-art .i-edge { stroke: var(--muted); stroke-width: 1px; }
+.intro-art .i-glyph { stroke: var(--ink); stroke-width: 1.25px; opacity: 0; }
+.intro-art .i-focal .i-glyph { stroke-width: 2px; }
+.intro-art .i-prior { stroke: var(--muted); stroke-width: 1.25px; }
+.intro-art .i-like { stroke: var(--ink); stroke-width: 1.25px; }
+.intro-art .i-post { stroke: var(--ink); stroke-width: 2px; }
+.intro-art .i-label { fill: var(--muted); stroke: none; font-family: var(--hand); font-weight: 500; opacity: 0; }
+.intro-art .i-note { fill: var(--ink); stroke: none; font-family: var(--hand); font-weight: 500; opacity: 0; }
+.intro-art .i-ring { stroke: var(--muted); stroke-width: 1px; }
+.intro-art .i-node { fill: var(--ink); stroke: none; opacity: 0; }
+.intro-art .i-route { stroke: var(--orange); stroke-width: 1.5px; }
+.intro-art .i-stem { stroke: var(--ink); stroke-width: 1.5px; }
+.intro-art .i-head { fill: var(--ink); stroke: none; opacity: 0; }
+.intro-art .i-stroke { stroke: var(--ink); stroke-width: 1.5px; }
+.intro-art .i-word { fill: var(--ink); fill-opacity: 0; stroke: none; font-family: "Geist Sans", sans-serif; font-weight: 700; letter-spacing: -0.03em; }
+.intro-art .theta { transform-origin: 0 0; }
+.intro-art .theta-ring { stroke: var(--ink); }
+.intro-art .theta-disc { fill: var(--canvas); stroke: none; opacity: 0; }
+.intro-art .theta-oval, .intro-art .theta-bar { stroke: var(--voice-text); }
+.intro-skip { position: absolute; right: 24px; bottom: 24px; gap: 8px; color: var(--muted); background: transparent; }
+button.btn-sm.ghost.intro-skip { border-color: var(--muted); }
+.intro-skip kbd {
+  font-family: "Geist Mono", ui-monospace, monospace !important; font-size: 13.5px; font-weight: 500; line-height: 18px;
+  border: 1px solid var(--muted); border-radius: var(--r-sm); padding: 0 6px;
+}
+.intro-skip:hover { color: var(--ink); }
 
 /* ================================================================== learn: study journey */
 .journey { margin: 32px 0 36px; }
@@ -834,3 +904,19 @@ button.card:not(.focal) p { margin-bottom: 0; }
 .provider-list .settings-note { position: absolute; right: 0; top: 10px; margin: 0; white-space: nowrap; }
 .provider-list .settings-note .hand-note-text { text-wrap: nowrap; }
 .settings ol { padding-left: 28px; margin-left: 0; }
+
+/* the Settings item is a plain nav link at every width, like the others */
+.settings-link { border: 1px solid transparent; padding: 8px 12px; border-radius: var(--r-sm); color: var(--muted); font-weight: 500; }
+.settings-link svg { display: none; }
+.settings-link:hover { color: var(--ink); }
+.settings-link.active { color: var(--ink); text-decoration-thickness: 2px; text-underline-offset: 8px; }
+
+/* after the intro, focus rests on Learn quietly; the ring returns with the first key press */
+.button[data-quiet-focus]:focus-visible { outline: none; }
+
+/* phones: Settings stays beside the theme toggle at the right of the top row */
+@media (max-width: 760px) {
+  .settings-link { display: inline-flex; padding: 6px 4px; }
+  .main-nav a.nav-mobile { display: none; }
+  .main-nav { justify-content: flex-start; gap: 20px; }
+}
