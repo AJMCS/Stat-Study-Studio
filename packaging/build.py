@@ -70,12 +70,15 @@ TO START
   3. A Terminal window opens and then your web browser shows the app. Leave the Terminal window open while you
      study. Closing it stops the app.
 
-IF MACOS SAYS IT "CANNOT BE OPENED" OR IS FROM AN "UNIDENTIFIED DEVELOPER"
-  This is normal for apps that are not from the App Store. Right-click (or Control-click) "Start Stats Studio.command",
-  choose Open, then choose Open again. If that does not work, open Terminal and run this once, with the folder
-  dragged in after the last word:
+IF MACOS SAYS "PYTHON.FRAMEWORK IS DAMAGED", "CANNOT BE OPENED", OR "UNIDENTIFIED DEVELOPER"
+  Nothing is damaged. macOS says this about any downloaded app that is not signed with an Apple developer
+  certificate. Do this once:
+  1. Right-click (or Control-click) "Start Stats Studio.command" and choose Open, then Open again in the dialog.
+     The starter clears macOS's download flag from the whole folder and starts the app.
+  2. If macOS still refuses, open Terminal, type the line below with a space after it, drag the StatsStudio folder
+     into the window, and press Return. Then double-click the starter again.
       xattr -dr com.apple.quarantine
-  Then double-click again. (System Settings > Privacy & Security also shows an "Open Anyway" button after a blocked try.)
+  (System Settings > Privacy & Security also shows an "Open Anyway" button after a blocked try.)
 
 """
     + COMMON.format(data="~/Library/Application Support/StatsStudio")
@@ -112,7 +115,15 @@ IF SOMETHING GOES WRONG
 """,
 }
 
-START_COMMAND = '#!/bin/bash\ncd "$(dirname "$0")"\n./StatsStudio\n'
+START_COMMAND = (
+    "#!/bin/bash\n"
+    'cd "$(dirname "$0")"\n'
+    # macOS marks everything downloaded from the internet as quarantined, and because this app is not signed with an
+    # Apple developer certificate, Gatekeeper then refuses the bundled libraries as "damaged". Once the learner has opened
+    # this starter (right-click > Open the first time), clear that flag from the whole folder so the program can load.
+    "xattr -dr com.apple.quarantine . 2>/dev/null || true\n"
+    "./StatsStudio\n"
+)
 
 
 def run(cmd: list[str], cwd: Path | None = None) -> None:

@@ -109,8 +109,10 @@ shows which self-test line or smoke check failed.
 
 **The Mac and Linux builds have never run on a real Mac or Linux machine** (they were written on Windows). Before
 telling classmates they work, get one person on each to download from Releases, follow `README-FIRST.txt`, and do a
-topic tutorial plus a search. Known things to expect: macOS shows an "unidentified developer" warning (the
-README-FIRST explains Open Anyway, and you can avoid it only by paying Apple for signing); some Linux desktops need
+topic tutorial plus a search. Known things to expect: macOS refuses the download at first, either as "unidentified
+developer" or as "Python.framework is damaged" (both are Gatekeeper's quarantine flag on an unsigned app, not a broken
+build; the starter `.command` clears the flag from the folder once it has been opened via right-click > Open, and
+README-FIRST explains it; you can avoid it only by paying Apple for signing and notarization); some Linux desktops need
 `libgl1` installed and may not offer "Run in terminal" on double-click. The runner labels (`macos-latest`,
 `macos-15-intel`, `ubuntu-24.04`) are GitHub's and change: if a job never starts, check their runner list. Intel Macs
 are on a runner GitHub plans to retire in 2027; after that Intel Mac students can run from source.
