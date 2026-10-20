@@ -65,7 +65,7 @@ def main() -> None:
         print(f"service up: {health['library']['documents']} documents, {health['library']['chunks']} passages")
 
         status, page = get("/")
-        if status != 200 or b"Stats 132" not in page:
+        if status != 200 or b"Stats Study Studio" not in page:  # the app's <title>
             fail("the app page was not served")
         status, manifest = get("/course-library/library.json")
         if status != 200 or "files" not in json.loads(manifest):
