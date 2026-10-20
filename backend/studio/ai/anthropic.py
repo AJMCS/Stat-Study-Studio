@@ -45,12 +45,16 @@ class Claude:
             raise AiError("model_missing", self.model)
 
     def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
+        # No sampling parameters: current Claude models reject any non-default temperature with a 400, which used to
+        # surface here as "unreadable" on every request. The model's default sampling is right for these tasks anyway.
+        # max_tokens is a ceiling, not a target: the newer models think before answering (that costs output tokens),
+        # and a page transcription can be long, so give them room rather than truncating mid-answer.
+        del temperature
         body = {
             "model": self.model,
-            "max_tokens": 4096,
+            "max_tokens": 16000,
             "system": system + ("\n\nReply with the JSON document only, no other text." if json_output else ""),
             "messages": _alternating(messages),
-            "temperature": temperature,
         }
         data = self._send("POST", "/v1/messages", json=body)
         if data.get("stop_reason") == "refusal":
@@ -98,4 +102,8 @@ def _from_status(r: httpx.Response) -> AiError:
         return AiError("rate_limited", detail)
     if code >= 500:
         return AiError("server", detail)
+    if code == 400:
+        # The service understood us and said no (a parameter it does not accept, an oversized image, ...). That is a
+        # fault in the app's request, not a transient glitch: say what the service said instead of "retry".
+        return AiError("rejected", detail or "the request was rejected")
     return AiError("bad_response", f"{code} {detail}")

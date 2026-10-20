@@ -489,3 +489,24 @@ def test_exam_generation_works_through_claude(client, claude):
     claude.replies = [json.dumps({"questions": [question(1), question(2)]})]
     r = client.post("/api/ai/exam", json=exam_body())
     assert r.status_code == 200 and len(r.json()["questions"]) == 2
+
+
+def test_claude_requests_send_no_sampling_parameters(client, claude):
+    """Current Claude models reject any non-default temperature with a 400, which used to surface on every request as
+    "unreadable". The request carries no sampling parameters and a roomy output ceiling."""
+    connect_with(client, "anthropic")
+    claude.reject_temperature = True
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    sent = claude.requests[0]
+    assert "temperature" not in sent and "top_p" not in sent and "top_k" not in sent
+    assert sent["max_tokens"] >= 8192
+
+
+def test_a_rejected_claude_request_quotes_the_reason_instead_of_asking_for_a_retry(client, claude):
+    connect_with(client, "anthropic")
+    claude.replies = [(400, {"error": {"type": "invalid_request_error", "message": "temperature: this model does not support non-default values."}})]
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 502 and r.json()["kind"] == "rejected"
+    assert "does not support non-default values" in r.json()["detail"]
+    assert "Retrying" not in r.json()["detail"]
