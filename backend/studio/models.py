@@ -64,7 +64,7 @@ class TopicState(Wire):
 
 class Session(Wire):
     topic_id: str
-    activity: Literal["tutor", "tutorial", "quiz", "exam"]
+    activity: Literal["tutor", "tutorial", "quiz", "exam", "vocab", "breakdown", "check"]
     at: str
 
 
@@ -89,6 +89,37 @@ class Onboarding(Wire):
     completed_at: str | None = None
 
 
+class VocabProgress(Wire):
+    known: list[str] = Field(default_factory=list)
+    not_yet: list[str] = Field(default_factory=list)
+
+
+class CheckAnswer(Wire):
+    credit: float = Field(ge=0, le=1)
+    choice: int | None = Field(default=None, ge=0)
+    rating: Literal["got", "partly", "missed"] | None = None
+    skipped: bool | None = None  # the learner moved on without answering; it counts as not answered
+    retried: bool | None = None  # answered again after "Try it again"; the credit is still the first attempt's
+    at: str
+
+
+class BreakdownProgress(Wire):
+    revealed: list[Literal["ask", "given", "tool", "plan", "pitfalls"]] = Field(default_factory=list)
+    done: bool = False
+    at: str
+
+
+class Learning(Wire):
+    """Progress in the learning activities (vocabulary flashcards, comprehension checks, question breakdowns).
+
+    Keyed by topic id, then by term / check / breakdown id. This is study progress, but it never feeds scores:
+    those come only from counted attempts."""
+
+    vocab: dict[str, VocabProgress] = Field(default_factory=dict)
+    checks: dict[str, dict[str, CheckAnswer]] = Field(default_factory=dict)
+    breakdowns: dict[str, dict[str, BreakdownProgress]] = Field(default_factory=dict)
+
+
 class Record(BaseModel):
     """Quizzes and exams are stored as documents; only the identifying fields are required."""
 
@@ -103,7 +134,7 @@ class Record(BaseModel):
 # Personal files are not a slice: the service owns them (uploads, versions, removal) and the app only reads them.
 LIST_SLICES = {"attempts": Attempt, "quizzes": Record, "exams": Record, "collections": Collection}
 MAP_SLICES = {"topicState": TopicState}
-VALUE_SLICES = {"session": Session, "config": ScoringConfig, "onboarding": Onboarding}
+VALUE_SLICES = {"session": Session, "config": ScoringConfig, "onboarding": Onboarding, "learning": Learning}
 FLAG_SLICES = {"hostedDisclosureAck"}
 FREE_SLICES = {"chats"}
 ALL_SLICES = set(LIST_SLICES) | set(MAP_SLICES) | set(VALUE_SLICES) | FLAG_SLICES | FREE_SLICES

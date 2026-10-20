@@ -6,14 +6,14 @@ import type { ReactNode } from "react";
  * Never for body text, buttons, form labels or math.
  */
 
-/** A slightly irregular hand-drawn underline under a key word. `voice` draws it (and the word) in signal orange. */
+/** A slightly irregular hand-drawn underline under a key word, one stroke that spans the whole word. `voice` draws it
+ * (and the word) in signal orange. */
 export function Scribble({ children, voice = true }: { children: ReactNode; voice?: boolean }) {
   return (
     <span className={`scribble${voice ? " voice" : ""}`}>
       {children}
       <svg className="scribble-line" viewBox="0 0 200 14" preserveAspectRatio="none" aria-hidden="true">
-        <path pathLength={1} d="M3 9.5 C 28 6.5, 52 11, 82 8.2 S 140 5.5, 165 8.4 S 190 7.6, 197 6.2" />
-        <path pathLength={1} className="second" d="M22 12.4 C 60 10.4, 104 12.6, 150 10.8 S 182 11.2, 190 10.6" />
+        <path d="M3 9.5 C 28 6.5, 52 11, 82 8.2 S 140 5.5, 165 8.4 S 190 7.6, 197 6.2" />
       </svg>
     </span>
   );

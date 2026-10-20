@@ -6,12 +6,14 @@ import { currentTopicId, journey, splitUnit, units, type TopicProgress } from ".
 import { topicById } from "../mock/topics";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { JourneyMap, RowCurve, leafSize } from "../components/JourneyMap";
+import { PATH_ROUTE, topicPath, type PathStep } from "../lib/learning";
 
-const ACTIVITY_PATH = { tutor: "tutor", tutorial: "tutorial", quiz: "quiz", exam: "exam" } as const;
+const ACTIVITY_PATH = { tutor: "tutor", tutorial: "tutorial", quiz: "quiz", exam: "exam", vocab: "vocab", breakdown: "breakdown", check: "check" } as const;
+const NEXT_LABEL: Record<PathStep, string> = { vocab: "Start with the vocabulary", tutorial: "Continue: the tutorial", breakdown: "Continue: break down a question", practice: "Continue: take the quiz" };
 
 /** One line of mono state for a topic: not started / score and streak / revisit. */
 export function StateLine({ r }: { r: TopicProgress }) {
-  if (r.status === "new") return <span className="state">Not started</span>;
+  if (r.status === "new") return <span className="state">{r.touched ? "In progress" : "Not started"}</span>;
   return (
     <span className="state">
       {r.status === "revisit" && <>Revisit · </>}
@@ -102,6 +104,7 @@ export function Learn() {
   const s = data.session;
   const resumeTopic = s ? topicById(s.topicId) : undefined;
   const done = rows.filter((r) => r.status === "strength").length;
+  const curNext = topicPath(data, cur.topic).next;
 
   return (
     <>
@@ -155,12 +158,15 @@ export function Learn() {
             </div>
             <div className="row">
               <Link className="button" to={`/topic/${cur.topic.id}`}>Open topic</Link>
-              <Link className="button ghost" to={`/topic/${cur.topic.id}/tutorial`}>Start the tutorial</Link>
+              <Link className="button ghost" to={`/topic/${cur.topic.id}/${PATH_ROUTE[curNext]}`}>{NEXT_LABEL[curNext]}</Link>
             </div>
           </section>
         )}
 
         <JourneyList rows={rows} current={current} />
+        <p className="glossary-line">
+          Stuck on a word? <Link to="/glossary">The glossary</Link> has every term from the lectures, with search.
+        </p>
       </div>
     </>
   );

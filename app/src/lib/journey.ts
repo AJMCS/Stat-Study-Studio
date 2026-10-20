@@ -9,6 +9,8 @@ export interface TopicProgress {
   score: number | null;
   streak: number;
   status: TopicStatus;
+  /** Some study has happened here, even if nothing has been scored yet. */
+  touched: boolean;
 }
 
 /** Where each topic stands, in course order. */
@@ -19,7 +21,15 @@ export function journey(data: AppData, includeSelf: boolean): TopicProgress[] {
     const st = data.topicState[topic.id];
     const cls = classify(score, data.config);
     const status: TopicStatus = st?.flagged ? "revisit" : score === null ? "new" : cls === "strength" ? "strength" : "started";
-    return { topic, score, streak: st?.streak ?? 0, status };
+    // Begun but not yet scored: the learner's last session was here, or any attempt or learning activity exists.
+    const l = data.learning;
+    const touched =
+      data.session?.topicId === topic.id ||
+      data.attempts.some((a) => a.topicId === topic.id) ||
+      (l.vocab[topic.id]?.known.length ?? 0) + (l.vocab[topic.id]?.notYet.length ?? 0) > 0 ||
+      Object.keys(l.checks[topic.id] ?? {}).length > 0 ||
+      Object.values(l.breakdowns[topic.id] ?? {}).some((b) => b.revealed.length > 0);
+    return { topic, score, streak: st?.streak ?? 0, status, touched };
   });
 }
 

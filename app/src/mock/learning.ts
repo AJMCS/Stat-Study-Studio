@@ -25,34 +25,34 @@ export const EXAMPLES: Record<string, WorkedExample[]> = {
   "probability-review-and-inference": [
     {
       step: 0,
-      prompt: m`A fair coin is tossed 10 times. What is the probability of exactly 6 heads?`,
+      prompt: m`A fair coin is tossed $10$ times. What is the probability of exactly $6$ heads?`,
       solution: m`The parameter is known ($p=0.5$) and we compute the probability of data, so this is a probability problem.
 
 $$P(X=6)=\binom{10}{6}\left(\tfrac12\right)^{6}\left(\tfrac12\right)^{4}=\frac{210}{1024}\approx 0.205.$$`,
     },
     {
       step: 0,
-      prompt: m`You toss a coin 10 times and see 8 heads. Give a good guess for the probability of heads, and say why this is inference.`,
-      solution: m`Now the data (8 heads in 10 tosses) are observed and the parameter $p$ is unknown, so we are inferring $p$ from data. A natural point estimate is the sample proportion
+      prompt: m`You toss a coin $10$ times and see $8$ heads. Give a good guess for the probability of heads, and say why this is inference.`,
+      solution: m`Now the data ($8$ heads in $10$ tosses) are observed and the parameter $p$ is unknown, so we are inferring $p$ from data. A natural point estimate is the sample proportion
 
 $$\hat p=\frac{8}{10}=0.8,$$
 
-which is also the value of $p$ that makes the observed data most probable (Lecture 5 shows why).`,
+which is also the value of $p$ that makes the observed data most probable; ‹L05› shows why.`,
     },
   ],
   "frequentist-vs-bayesian": [
     {
       step: 2,
-      prompt: m`You observe 8 heads in 10 independent flips of a coin with unknown heads probability $p$. Write the likelihood and say where it is largest.`,
+      prompt: m`You observe $8$ heads in $10$ independent flips of a coin with unknown heads probability $p$. Write the likelihood and say where it is largest.`,
       solution: m`The likelihood is the binomial probability of the observed data, viewed as a function of $p$:
 
 $$L(p)=\binom{10}{8}p^{8}(1-p)^{2}\ \propto\ p^{8}(1-p)^{2}.$$
 
-It is near zero for small $p$, peaks at $p=0.8$, and falls to zero at $p=1$ (the plot in Lecture 2). It is **not** a probability distribution over $p$: it does not integrate to one.`,
+It is near zero for small $p$, peaks at $p=0.8$, and falls to zero at $p=1$, as the plot in ‹L02› shows. It is **not** a probability distribution over $p$: it does not integrate to one.`,
     },
     {
       step: 2,
-      prompt: m`Scores are $N(\mu,10^2)$ with $\mu$ unknown. You observe 45, 55 and 50. Write the likelihood of $\mu$.`,
+      prompt: m`Scores are $N(\mu,10^2)$ with $\mu$ unknown. You observe $45$, $55$ and $50$. Write the likelihood of $\mu$.`,
       solution: m`$$L(\mu)=\prod_{i=1}^{3}\frac{1}{10\sqrt{2\pi}}\exp\left\{-\frac{(x_i-\mu)^2}{200}\right\}\ \propto\ \exp\left\{-\frac{(45-\mu)^2+(55-\mu)^2+(50-\mu)^2}{200}\right\}.$$
 
 The sum of squares equals $3(\mu-50)^2+50$, so $L(\mu)\propto \exp\{-3(\mu-50)^2/200\}$, which is largest at the sample mean $\mu=50$.`,
@@ -60,7 +60,7 @@ The sum of squares equals $3(\mu-50)^2+50$, so $L(\mu)\propto \exp\{-3(\mu-50)^2
     {
       step: 3,
       prompt: m`Lamp lifetimes are exponential with rate $\theta$. You want a gamma prior for $\theta$ with mean $0.0002$ and standard deviation $0.0001$. Find $\alpha$ and $\beta$.`,
-      solution: m`For Gamma($\alpha,\beta$) the mean is $\alpha/\beta$ and the variance is $\alpha/\beta^2$. So
+      solution: m`For $\mathrm{Gamma}(\alpha,\beta)$ the mean is $\alpha/\beta$ and the variance is $\alpha/\beta^2$. So
 
 $$\frac{\alpha}{\beta}=0.0002,\qquad \frac{\alpha}{\beta^2}=(0.0001)^2=10^{-8}.$$
 
@@ -70,7 +70,7 @@ Dividing, $\beta=\dfrac{0.0002}{10^{-8}}=20000$, and then $\alpha=0.0002\cdot 20
   "posterior-distribution": [
     {
       step: 2,
-      prompt: m`You observe 8 heads in 10 flips and use a Beta(1, 1) prior. Find the posterior of $p$, its mean and its variance.`,
+      prompt: m`You observe $8$ heads in $10$ flips and use a $\mathrm{Beta}(1,\,1)$ prior. Find the posterior of $p$, its mean and its variance.`,
       solution: m`Add successes to $\alpha$ and failures to $\beta$:
 
 $$p\mid\mathbf{x}\sim\text{Beta}(1+8,\ 1+10-8)=\text{Beta}(9,3).$$
@@ -79,7 +79,7 @@ Mean: $\dfrac{9}{9+3}=\dfrac34$. Variance: $\dfrac{\alpha\beta}{(\alpha+\beta)^2
     },
     {
       step: 2,
-      prompt: m`A store models arrivals as Poisson with unknown rate $\lambda$ per hour and a Gamma(3, 2) prior. One hour has $X=3$ arrivals. Find the posterior, the prior variance and the posterior variance.`,
+      prompt: m`A store models arrivals as Poisson with unknown rate $\lambda$ per hour and a $\mathrm{Gamma}(3,\,2)$ prior. One hour has $X=3$ arrivals. Find the posterior, the prior variance and the posterior variance.`,
       solution: m`$$\lambda\mid x\sim\text{Gamma}(3+3,\ 2+1)=\text{Gamma}(6,3).$$
 
 Prior variance $\alpha/\beta^2=3/4$; posterior variance $6/9=2/3$. The data reduced our uncertainty.`,
@@ -99,15 +99,15 @@ So $\mu\mid\mathbf{x}\sim N(3/26,\ 60/13)$.`,
   "loss-functions-bayes-estimators": [
     {
       step: 2,
-      prompt: m`With a uniform prior and 8 heads in 10 flips, what is the Bayes estimate of $p$ under squared error loss?`,
-      solution: m`The posterior is Beta(9, 3). Under squared error loss the Bayes estimator is the posterior mean, so
+      prompt: m`With a uniform prior and $8$ heads in $10$ flips, what is the Bayes estimate of $p$ under squared error loss?`,
+      solution: m`The posterior is $\mathrm{Beta}(9,\,3)$. Under squared error loss the Bayes estimator is the posterior mean, so
 
 $$\delta(\mathbf{x})=E(p\mid\mathbf{x})=\frac{9}{12}=\frac34.$$`,
     },
     {
       step: 2,
-      prompt: m`A Gamma(3, 2) prior on a Poisson rate and an observed $X=3$: find the Bayes estimate under squared error loss.`,
-      solution: m`The posterior is Gamma(6, 3), with mean $6/3=2$. So the Bayes estimate is $2$ (compare the prior mean $3/2$ and the data value $3$: it sits between them).`,
+      prompt: m`A $\mathrm{Gamma}(3,\,2)$ prior on a Poisson rate and an observed $X=3$: find the Bayes estimate under squared error loss.`,
+      solution: m`The posterior is $\mathrm{Gamma}(6,\,3)$, with mean $6/3=2$. So the Bayes estimate is $2$ (compare the prior mean $3/2$ and the data value $3$: it sits between them).`,
     },
     {
       step: 3,
@@ -118,19 +118,19 @@ $$\delta(\mathbf{x})=E(p\mid\mathbf{x})=\frac{9}{12}=\frac34.$$`,
   "maximum-likelihood-estimation": [
     {
       step: 2,
-      prompt: m`A sample of size 3 from an exponential distribution with parameter $\theta$ is $X_1=3$, $X_2=1.5$, $X_3=2.1$. Compute the MLE of $\theta$.`,
+      prompt: m`A sample of size $3$ from an exponential distribution with parameter $\theta$ is $X_1=3$, $X_2=1.5$, $X_3=2.1$. Compute the MLE of $\theta$.`,
       solution: m`$$L(\theta)=\prod_{i=1}^3\theta e^{-\theta x_i}=\theta^3e^{-6.6\theta},\qquad \ell(\theta)=3\log\theta-6.6\theta.$$
 
 Set $\ell'(\theta)=\dfrac{3}{\theta}-6.6=0$, so $\hat\theta=\dfrac{3}{6.6}=\dfrac{5}{11}\approx 0.4545$. Check: $\ell''(\theta)=-3/\theta^2<0$, so it is a maximum. In general $\hat\theta=n/\sum x_i=1/\bar x$.`,
     },
     {
       step: 2,
-      prompt: m`Daily failures 3, 2, 4, 3, 5, 2, 3 are Poisson($\lambda$). Find the MLE of $\lambda$.`,
+      prompt: m`Daily failures $3, 2, 4, 3, 5, 2, 3$ are $\mathrm{Poisson}(\lambda)$. Find the MLE of $\lambda$.`,
       solution: m`$$\ell(\lambda)=\Big(\sum x_i\Big)\log\lambda-n\lambda+\text{const},\qquad \ell'(\lambda)=\frac{\sum x_i}{\lambda}-n=0\ \Rightarrow\ \hat\lambda=\bar x=\frac{22}{7}\approx 3.14.$$`,
     },
     {
       step: 3,
-      prompt: m`For a sample from Uniform$[0,\theta]$, why does setting the derivative to zero fail, and what is the MLE?`,
+      prompt: m`For a sample from $\mathrm{Uniform}[0,\theta]$, why does setting the derivative to zero fail, and what is the MLE?`,
       solution: m`$$L(\theta)=\theta^{-n}\,\mathbf{1}\{\theta\ge \max_i x_i\}.$$
 
 For $\theta\ge\max x_i$ we have $\ell(\theta)=-n\log\theta$, so $\ell'(\theta)=-n/\theta$ is never zero. $L$ is decreasing in $\theta$, so we want the smallest allowed value, on the edge of the parameter space: $\hat\theta=\max_i X_i$.`,
@@ -146,7 +146,7 @@ $$\widehat{\text{mean}}=\frac{1}{\hat\lambda}=\bar x,\qquad \widehat{\text{varia
     },
     {
       step: 0,
-      prompt: m`For a sample from Uniform$[0,\theta]$, find the MLE of the median of the distribution.`,
+      prompt: m`For a sample from $\mathrm{Uniform}[0,\theta]$, find the MLE of the median of the distribution.`,
       solution: m`The median is $\theta/2$ and $\hat\theta=\max X_i$, so by invariance the MLE of the median is $\max_i X_i/2$.`,
     },
     {
@@ -162,7 +162,7 @@ The bias is $-\theta/(n+1)$: biased low for every finite $n$, but it tends to ze
   "sampling-distributions": [
     {
       step: 2,
-      prompt: m`$X_1,\dots,X_n$ are i.i.d. Bernoulli($p$) and $T=\frac1n\sum X_i$. What is the sampling distribution of $T$, and its variance?`,
+      prompt: m`$X_1,\dots,X_n$ are i.i.d. $\mathrm{Bernoulli}(p)$ and $T=\frac1n\sum X_i$. What is the sampling distribution of $T$, and its variance?`,
       solution: m`$nT=\sum X_i\sim\text{Binomial}(n,p)$, so $T$ takes values $0,\tfrac1n,\dots,1$ with binomial probabilities. Its mean is $p$ and, by independence,
 
 $$\text{Var}(T)=\frac{1}{n^{2}}\cdot n\,p(1-p)=\frac{p(1-p)}{n}.$$
@@ -191,7 +191,7 @@ $$E[\hat\theta]=\frac{n}{n+1}\,\theta\ \longrightarrow\ \theta\quad(n\to\infty).
 export const RECALL: Record<string, Recall> = {
   "probability-review-and-inference": {
     prompt: "From memory: explain how probability and statistical inference differ, using a coin as an example.",
-    reference: m`**Probability** starts from a known model, for example a fair coin ($p=0.5$), and asks how likely some data are ($P(6\text{ heads in }10)$). **Inference** runs the other way: the data are observed (8 heads in 10 tosses), the parameter is unknown, and we ask what the data say about it (a good guess is $\hat p=0.8$). A *statistic* is a function of the data that does not depend on unknown parameters, such as $\bar X$.`,
+    reference: m`**Probability** starts from a known model, for example a fair coin ($p=0.5$), and asks how likely some data are ($P(6\text{ heads in }10)$). **Inference** runs the other way: the data are observed ($8$ heads in $10$ tosses), the parameter is unknown, and we ask what the data say about it (a good guess is $\hat p=0.8$). A *statistic* is a function of the data that does not depend on unknown parameters, such as $\bar X$.`,
     keyPoints: [
       "Probability: parameters are known and we compute chances of data",
       "Inference: data are observed and the parameters are unknown",
@@ -210,11 +210,11 @@ export const RECALL: Record<string, Recall> = {
   },
   "posterior-distribution": {
     prompt: "From memory: what is the posterior distribution, and how does conjugate updating work for Beta-Bernoulli?",
-    reference: m`The posterior $\pi(\theta\mid\mathbf{x})$ is the distribution of the parameter **after** seeing the data, and $\pi(\theta\mid\mathbf{x})\propto f(\mathbf{x}\mid\theta)\pi(\theta)$ (the marginal of the data is a constant). A prior is **conjugate** if the posterior is in the same family. For Bernoulli data with a Beta($\alpha,\beta$) prior the posterior is Beta($\alpha+\sum x_i,\ \beta+n-\sum x_i$): add successes to $\alpha$ and failures to $\beta$. With little data the prior matters; with a lot, the posterior mean moves toward the sample mean.`,
+    reference: m`The posterior $\pi(\theta\mid\mathbf{x})$ is the distribution of the parameter **after** seeing the data, and $\pi(\theta\mid\mathbf{x})\propto f(\mathbf{x}\mid\theta)\pi(\theta)$ (the marginal of the data is a constant). A prior is **conjugate** if the posterior is in the same family. For Bernoulli data with a $\mathrm{Beta}(\alpha,\beta)$ prior the posterior is $\mathrm{Beta}(\alpha+\sum x_i,\ \beta+n-\sum x_i)$: add successes to $\alpha$ and failures to $\beta$. With little data the prior matters; with a lot, the posterior mean moves toward the sample mean.`,
     keyPoints: [
       "Posterior is proportional to likelihood times prior",
       "Conjugate means the prior and posterior are in the same family",
-      "Beta($\\alpha+\\sum x_i$, $\\beta+n-\\sum x_i$) for Bernoulli data",
+      m`$\mathrm{Beta}(\alpha+\sum x_i,\ \beta+n-\sum x_i)$ for Bernoulli data`,
       "More data (or a vaguer prior) means the data dominate",
     ],
   },
@@ -229,30 +229,30 @@ export const RECALL: Record<string, Recall> = {
   },
   "maximum-likelihood-estimation": {
     prompt: "From memory: how do you find an MLE, and when can the usual method fail?",
-    reference: m`The MLE $\hat\theta=\arg\max_\theta L(\theta\mid\mathbf{x})$ treats $\theta$ as a fixed unknown (no prior). Because $\log$ is increasing we maximize $\ell=\log L$: (1) write $\ell(\theta)$, (2) set $\ell'(\theta)=0$, (3) solve for the candidate $\hat\theta$, (4) check $\ell''(\hat\theta)<0$. It can fail when the maximum is on the **edge** of the parameter space: for Uniform$[0,\theta]$ the likelihood is decreasing in $\theta$ for $\theta\ge\max x_i$, so $\hat\theta=\max X_i$.`,
+    reference: m`The MLE $\hat\theta=\arg\max_\theta L(\theta\mid\mathbf{x})$ treats $\theta$ as a fixed unknown (no prior). Because $\log$ is increasing we maximize $\ell=\log L$: write $\ell(\theta)$, set $\ell'(\theta)=0$, solve for the candidate $\hat\theta$, then check $\ell''(\hat\theta)<0$. It can fail when the maximum is on the **edge** of the parameter space: for $\mathrm{Uniform}[0,\theta]$ the likelihood is decreasing in $\theta$ for $\theta\ge\max x_i$, so $\hat\theta=\max X_i$.`,
     keyPoints: [
       "The MLE maximizes the likelihood; the parameter is fixed and there is no prior",
       "Steps: log-likelihood, differentiate and set to zero, solve, check the second derivative is negative",
-      "The maximum can be on the boundary, such as Uniform[0, θ] with the maximum observation",
+      m`The maximum can be on the boundary, such as $\mathrm{Uniform}[0,\theta]$ with the maximum observation`,
     ],
   },
   "maximum-likelihood-properties": {
     prompt: "From memory: what are invariance and consistency of the MLE, and is the MLE always unbiased?",
     reference: m`**Invariance:** if $\hat\theta$ is the MLE of $\theta$, then $g(\hat\theta)$ is the MLE of $g(\theta)$. **Consistency:** $\hat\theta_n\xrightarrow{P}\theta_T$ as $n\to\infty$. The MLE is **not always unbiased**: for $U(0,\theta)$, $E[\max X_i]=\tfrac{n}{n+1}\theta$, and the normal variance MLE divides by $n$ so $E[\hat\sigma^2]=\tfrac{n-1}{n}\sigma^2$. The bias tends to zero as $n$ grows.`,
     keyPoints: [
-      "Invariance: the MLE of g(θ) is g of the MLE",
-      "Consistency: the MLE converges to the true value as n grows",
+      m`Invariance: the MLE of $g(\theta)$ is $g$ of the MLE`,
+      m`Consistency: the MLE converges to the true value as $n$ grows`,
       "Not always unbiased, with an example (uniform maximum or the normal variance MLE)",
-      "The bias goes to zero as n grows",
+      m`The bias goes to zero as $n$ grows`,
     ],
   },
   "sampling-distributions": {
-    prompt: "From memory: what is a sampling distribution, and why does the standard error shrink as n grows?",
+    prompt: "From memory: what is a sampling distribution, and why does the standard error shrink as $n$ grows?",
     reference: m`A statistic $T=t(X_1,\dots,X_n)$ is random because the data are, so it has a distribution: its **sampling distribution**. The **standard error** is the standard deviation of that distribution. For the sample mean, $\text{SE}(\bar X)=\sigma/\sqrt n$, so larger samples are more precise; the distribution also becomes closer to normal (Central Limit Theorem).`,
     keyPoints: [
       "A statistic is random, and its distribution is the sampling distribution",
       "The standard error is the standard deviation of the sampling distribution",
-      "SE of the sample mean is σ/√n, so more data means a more precise estimate",
+      m`SE of the sample mean is $\sigma/\sqrt n$, so more data means a more precise estimate`,
     ],
   },
 };
@@ -262,7 +262,7 @@ export const RECALL: Record<string, Recall> = {
 export const SOLUTIONS: Record<string, string> = {
   "pr-e1": m`**(a)** $P(X=6)=\binom{10}{6}(1/2)^{10}=\dfrac{210}{1024}\approx 0.205$.
 
-**(b)** The data (8 heads in 10 tosses) are observed and $p$ is unknown, so this is an inference problem. A reasonable point estimate is $\hat p=8/10=0.8$: it is the sample proportion, and also the value of $p$ that makes the observed data most probable.`,
+**(b)** The data ($8$ heads in $10$ tosses) are observed and $p$ is unknown, so this is an inference problem. A reasonable point estimate is $\hat p=8/10=0.8$: it is the sample proportion, and also the value of $p$ that makes the observed data most probable.`,
   "pr-e2": m`A **statistic** is a function of the data that does not depend on any unknown parameter.
 
 (i) $\bar X$: yes. (ii) $S^2$: yes. (iv) $\max_i X_i$: yes. (iii) $\bar X-\mu$: **no**, because it depends on the unknown $\mu$ and cannot be computed from the sample alone.`,
@@ -291,10 +291,10 @@ $$\mu_1=\frac{\sigma^2\mu_0+n\sigma_0^2\bar x_n}{\sigma^2+n\sigma_0^2}=\frac{150
 **(c)** As $n\to\infty$, $w\to 1$ and $\sigma_1^2\to 0$: the posterior concentrates at $\bar x_n$.`,
   "po-e2": m`**(a)** The likelihood is $f(\mathbf{x}\mid p)=p^{\sum x_i}(1-p)^{n-\sum x_i}$ and the prior is $\pi(p)=1$ on $[0,1]$. So
 $$\pi(p\mid\mathbf{x})\propto p^{\sum x_i}(1-p)^{n-\sum x_i}=p^{(1+\sum x_i)-1}(1-p)^{(1+n-\sum x_i)-1},$$
-the kernel of Beta($1+\sum x_i,\ 1+n-\sum x_i$).
+the kernel of $\mathrm{Beta}(1+\sum x_i,\ 1+n-\sum x_i)$.
 
-**(b)** The prior (Beta(1,1)) and the posterior are both Beta distributions: same family, so updating only changes the parameters. That is what conjugate means.`,
-  "po-e3": m`The posterior is Gamma($\alpha+\sum x_i,\ \beta+n$), with mean
+**(b)** The prior ($\mathrm{Beta}(1,\,1)$) and the posterior are both Beta distributions: same family, so updating only changes the parameters. That is what conjugate means.`,
+  "po-e3": m`The posterior is $\mathrm{Gamma}(\alpha+\sum x_i,\ \beta+n)$, with mean
 $$\frac{\alpha+n\bar X_n}{\beta+n}=\underbrace{\frac{n}{\beta+n}}_{\gamma_n}\bar X_n+\underbrace{\frac{\beta}{\beta+n}}_{1-\gamma_n}\cdot\frac{\alpha}{\beta}.$$
 Since the prior mean is $\mu_0=\alpha/\beta$, this is $\gamma_n\bar X_n+(1-\gamma_n)\mu_0$ with $\gamma_n=\dfrac{n}{\beta+n}\to 1$ as $n\to\infty$.`,
   "po-e4": m`**(a)** Posterior precision is prior precision plus data precision: $\dfrac{1}{\sigma_1^2}=\dfrac{1}{\sigma_0^2}+\dfrac{n}{\sigma^2}$, so $30=\dfrac{1}{\sigma_0^2}+22$ and $\sigma_0^2=\dfrac18$.
@@ -311,10 +311,10 @@ For absolute error loss, $\frac{d}{da}E|\theta-a|=P(\theta<a\mid\mathbf{x})-P(\t
 
 **(b)** Under squared error loss the estimate is the posterior mean: $\dfrac{9}{54}=\dfrac16\approx 0.167$.
 
-**(c)** The sample proportion is $7/50=0.14$. The Bayes estimate is higher: it is pulled toward the prior mean $1/2$ of the Beta(2,2) prior, so it lies between $0.14$ and $0.5$.`,
+**(c)** The sample proportion is $7/50=0.14$. The Bayes estimate is higher: it is pulled toward the prior mean $1/2$ of the $\mathrm{Beta}(2,\,2)$ prior, so it lies between $0.14$ and $0.5$.`,
   "lf-e3": m`**(a)** $\alpha/\beta=0.2$ and $\alpha/\beta^2=1$ give $\beta=0.2$ and $\alpha=0.04$.
 
-**(b)** The likelihood is $\propto\lambda^{10}e^{-\lambda\sum x_i}=\lambda^{10}e^{-30\lambda}$, so the posterior is $\propto\lambda^{0.04-1+10}e^{-(0.2+30)\lambda}$, that is Gamma($10.04,\ 30.2$).
+**(b)** The likelihood is $\propto\lambda^{10}e^{-\lambda\sum x_i}=\lambda^{10}e^{-30\lambda}$, so the posterior is $\propto\lambda^{0.04-1+10}e^{-(0.2+30)\lambda}$, that is $\mathrm{Gamma}(10.04,\ 30.2)$.
 
 **(c)** Squared error loss gives the posterior mean: $\dfrac{10.04}{30.2}\approx 0.332$.`,
   "ml-e1": m`**(a)** $L(\theta)=\prod_{i=1}^n\dfrac{2x_i}{\theta^2}\,\mathbf{1}\{x_i\le\theta\}=2^n\Big(\prod x_i\Big)\theta^{-2n}\,\mathbf{1}\{\theta\ge\max x_i\}$.

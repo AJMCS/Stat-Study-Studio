@@ -429,7 +429,6 @@ td input { width: 6rem; padding: 6px 8px; }
 .scribble:not(.voice) { color: inherit; }
 .scribble-line { position: absolute; left: -3%; width: 106%; bottom: -0.2em; height: 0.34em; overflow: visible; pointer-events: none; }
 .scribble-line path { fill: none; stroke: var(--orange); stroke-width: 2.6; stroke-linecap: round; vector-effect: non-scaling-stroke; }
-.scribble-line path.second { stroke-width: 1.4; }
 .scribble:not(.voice) .scribble-line path { stroke: var(--ink); }
 .marker { position: relative; z-index: 0; color: #000; padding: 0 0.15em; white-space: nowrap; }
 .marker::before {
@@ -462,11 +461,14 @@ td input { width: 6rem; padding: 6px 8px; }
 
 /* draw-on: strokes draw from one end, then rest */
 @media (prefers-reduced-motion: no-preference) {
-  .scribble-line path, .home-underline path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 700ms 250ms ease-out forwards; }
-  .scribble-line path.second { animation-delay: 650ms; animation-duration: 500ms; }
+  .home-underline path { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 700ms 250ms ease-out forwards; }
+  /* the hand underline wipes on left to right. (A pathLength dash with a non-scaling stroke in a non-uniformly scaled
+     SVG draws only part of a wide word in Chromium, so the underline is drawn whole and revealed by a clip.) */
+  .scribble-line { clip-path: inset(-50% 100% -50% 0); animation: wipe 700ms 250ms ease-out forwards; }
   .card, button, .button, .pick { transition: transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease, background-color 200ms ease; }
 }
 @keyframes draw { to { stroke-dashoffset: 0; } }
+@keyframes wipe { to { clip-path: inset(-50% 0 -50% 0); } }
 
 /* ================================================================== home */
 /* one object: the headline beside the θ diagram (θ hub, two branches, the two ways in) */
@@ -1127,3 +1129,825 @@ h2.ob-title { margin-bottom: 20px; }
   .main-nav a.nav-mobile { display: none; }
   .main-nav { justify-content: flex-start; gap: 20px; }
 }
+
+/* ==================================================================== piece D: vocabulary, checks, breakdowns, glossary */
+
+/* ---- the topic path: ringed nodes on one line; done filled, the line into the next step orange, its card raised */
+.topic-path { list-style: none; padding: 0; margin: 16px 0 0; }
+.topic-path > li.tp-step { position: relative; margin: 0; padding: 0 0 0 48px; }
+.topic-path > li.tp-step::before, .topic-path > li.tp-step::after { content: ""; position: absolute; left: 15px; width: 1px; background: var(--faint); }
+.topic-path > li.tp-step::before { top: 0; height: 30px; }
+.topic-path > li.tp-step::after { top: 30px; bottom: 0; }
+.topic-path > li.tp-step:first-child::before, .topic-path > li.tp-step:last-child::after { display: none; }
+.topic-path > li.passed::before, .topic-path > li.passed::after { background: var(--ink); }
+.topic-path > li.current::before { background: var(--orange); width: 2px; left: 14.5px; }
+.tp-node { position: absolute; left: 8px; top: 23px; width: 15px; height: 15px; border-radius: var(--r-pill); border: 1px solid var(--muted); background: var(--canvas); z-index: 1; }
+.tp-step.done .tp-node { border-color: var(--ink); background: var(--ink); }
+.tp-step.started:not(.current) .tp-node { border-color: var(--ink); box-shadow: inset 0 0 0 4px var(--canvas), inset 0 0 0 8px var(--ink); }
+.tp-step.current .tp-node { left: 6px; top: 21px; width: 19px; height: 19px; border: 2px solid var(--orange); box-shadow: inset 0 0 0 3px var(--canvas), inset 0 0 0 8px var(--orange); }
+.tp-body { padding: 16px 0 24px; }
+.tp-body.card.focal { padding: 16px 24px 24px; margin: 0; }
+.topic-path > li.tp-step.current { padding-bottom: 24px; }
+.tp-body .eyebrow { margin: 0 0 4px; }
+.tp-body h3 { margin: 0; font-size: 24px; line-height: 33px; letter-spacing: -0.02em; }
+.tp-step:not(.current) .tp-body h3 { font-size: 16px; line-height: 24px; letter-spacing: 0; }
+.tp-desc { color: var(--muted); margin: 4px 0 8px; max-width: 600px; }
+.tp-body .state { white-space: normal; margin: 0; }
+.tp-actions { margin: 16px 0 0; }
+.tp-more { margin: 8px 0 0; }
+.tp-step.current .tp-more { margin-top: 16px; }
+
+/* ---- vocabulary */
+.mode-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+.mode-row .row { margin: 0; gap: 8px; }
+.term-name { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; margin: 0 0 16px; }
+h2.term-name { margin: 0 0 16px; }
+.term-symbol { font-weight: 400; }
+.term-plain { max-width: 640px; }
+.term-part { margin: 16px 0 0; }
+.term-part .eyebrow { margin: 0 0 4px; }
+.term-part .page-view > :first-child { margin-top: 0; }
+.term-part .page-view > :last-child { margin-bottom: 0; }
+.term-card .citations { margin-top: 16px; }
+.term-card .reveal { border-top: 1px solid var(--hair); padding-top: 16px; }
+.term-card > .row:last-child, .term-card fieldset.rate { margin-bottom: 0; }
+fieldset.rate { margin: 24px 0 0; }
+fieldset.rate .row { margin: 0; }
+.next-activity { margin-top: var(--section-gap); color: var(--muted); }
+.term-chips { margin: 0 0 16px; }
+
+/* the glossary: flat rows, term on the left, plain definition on the right */
+.glossary { margin: 16px 0 0; }
+.g-row { display: grid; grid-template-columns: minmax(200px, 280px) minmax(0, 1fr); gap: 4px 32px; padding: 16px 0; border-bottom: 1px solid var(--hair); }
+.g-row:first-child { border-top: 1px solid var(--hair); }
+.g-row dt { font-weight: 600; display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+.g-row dt .term-name { margin: 0; gap: 4px 12px; }
+.g-row dd { margin: 0; }
+.g-row dd .citations { margin: 8px 0 0; }
+.g-known { font-size: 13.5px; }
+.glossary-search { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 24px; }
+.glossary-search .field { flex: 1 1 320px; max-width: 480px; margin-bottom: 8px; }
+.glossary-search .focal-note { margin-bottom: 8px; }
+.glossary-group { margin-top: var(--section-gap); }
+.g-head { margin: 0 0 8px; align-items: baseline; }
+.glossary-line { margin-top: 40px; color: var(--muted); }
+.glossary-line a { color: var(--ink); }
+@media (max-width: 760px) {
+  .g-row { grid-template-columns: 1fr; }
+}
+
+/* ---- comprehension checks: open sections under the tutorial step, every option explained once marked */
+.checks { margin-top: var(--section-gap); }
+.checks > h2 { margin-top: 0; }
+.check { border-top: 1px solid var(--hair); padding: 24px 0 8px; }
+.check .prompt { display: flex; gap: 12px; margin: 0 0 8px; }
+.check-n { color: var(--muted); font-size: 13.5px; line-height: 24px; font-weight: 400; }
+.check fieldset { margin: 8px 0; }
+.check fieldset:disabled .choice { cursor: default; }
+.check fieldset:disabled input { opacity: 1; }
+.choice-wrap { border-bottom: 1px solid var(--hair); }
+.check legend + .choice-wrap { border-top: 1px solid var(--hair); }
+fieldset:not(.panel) .choice-wrap .choice, fieldset:not(.panel) legend + .choice-wrap .choice { border: none; margin: 0; padding: 12px 0; }
+.choice-wrap.is-right .choice > span { font-weight: 600; }
+.choice-wrap .chip { margin-left: 8px; }
+.why { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 4px 12px; padding: 0 0 12px; color: var(--muted); }
+.why .citations { grid-column: 2; margin: 4px 0 0; }
+.why-mark { font: 600 16px/24px var(--mono); color: var(--ink); text-align: center; }
+.is-right .why { color: var(--ink); }
+.check-result { margin: 8px 0; }
+.check-foot { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 24px; }
+.check-foot .citations { margin: 8px 0; }
+.check .reference { margin-top: 0; }
+.step-nav { margin-top: var(--section-gap); }
+
+/* summary of the checks by tutorial step */
+.check-summary .row.between { margin: 0 0 8px; }
+.step-list { list-style: none; padding: 0; margin: 0; }
+.step-list li { position: relative; display: grid; grid-template-columns: 32px minmax(0, 1fr) auto auto; align-items: baseline; gap: 4px 16px; padding: 12px 0; margin: 0; border-bottom: 1px solid var(--hair); }
+.step-list li:last-child { border-bottom: none; padding-bottom: 0; }
+.sl-n { color: var(--muted); font-size: 13.5px; }
+.step-list li.review .sl-title { font-weight: 600; }
+.step-list .state { white-space: nowrap; }
+.sl-note { position: absolute; left: calc(100% + 24px); top: 4px; max-width: none; white-space: nowrap; }
+@media (max-width: 1240px) { .sl-note { display: none; } }
+@media (max-width: 760px) {
+  .step-list li { grid-template-columns: 28px minmax(0, 1fr); }
+  .step-list .state, .step-list .sl-go { grid-column: 2; }
+}
+
+/* ---- breakdown: the five-part method as a node track; the next part orange */
+.method-wrap { position: relative; }
+.method { list-style: none; padding: 0; margin: 0; display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 0 12px; }
+.method > li { position: relative; margin: 0; padding: 28px 0 0; display: flex; flex-direction: column; gap: 2px; }
+.method > li::before { content: ""; position: absolute; top: 7px; left: 15px; right: -12px; height: 1px; background: var(--faint); }
+.method > li:last-child::before { display: none; }
+.method > li.done::before { background: var(--ink); }
+.method > li:has(+ li.current)::before { background: var(--orange); height: 2px; top: 6.5px; }
+.m-node { position: absolute; top: 0; left: 0; width: 15px; height: 15px; border-radius: var(--r-pill); border: 1px solid var(--muted); background: var(--canvas); }
+.method > li.done .m-node { border-color: var(--ink); background: var(--ink); }
+.method > li.current .m-node { width: 19px; height: 19px; top: -2px; left: -2px; border: 2px solid var(--orange); box-shadow: inset 0 0 0 3px var(--canvas), inset 0 0 0 8px var(--orange); }
+.m-n { color: var(--muted); font-size: 13.5px; line-height: 20px; }
+.m-title { font-weight: 600; line-height: 24px; }
+.method > li:not(.done):not(.current) .m-title { color: var(--muted); font-weight: 500; }
+.method-note { margin: 8px 0 0 40px; font-size: 30px; }
+.bd-tabs { margin-top: 40px; gap: 8px; }
+.bd-tabs + .bd-problem { margin-top: 16px; }
+.bd-problem h2 { margin-top: 0; }
+.bd-part { border-top: 1px solid var(--hair); margin: 32px 0 0; padding: 24px 0 0; }
+.bd-part h3 { margin: 0 0 4px; font-size: 24px; line-height: 33px; letter-spacing: -0.02em; display: flex; gap: 12px; align-items: baseline; }
+.bd-part h3 .m-n { font-size: 13.5px; letter-spacing: 0; }
+.bd-part > p.muted { margin: 0 0 8px; }
+.bd-part .reference { margin-top: 16px; }
+.bd-part .reference .page-view > :first-child { margin-top: 0; }
+.bd-part .reference .page-view > :last-child { margin-bottom: 0; }
+.bd-solution h2 { margin: 0 0 16px; }
+@media (max-width: 760px) {
+  .method { grid-template-columns: 1fr; gap: 0; }
+  .method > li { padding: 0 0 12px 32px; flex-direction: row; gap: 12px; align-items: baseline; }
+  .method > li::before { top: 15px; left: 7px; right: auto; bottom: 0; width: 1px; height: auto; }
+  .method > li:has(+ li.current)::before { width: 2px; left: 6.5px; height: auto; top: 15px; }
+  .method-note { margin: 0 0 0 4px; font-size: 26px; }
+}
+
+/* the library has three doors */
+@media (min-width: 900px) { .library-grid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+
+/* ==================================================================== piece D round 2 */
+
+/* curves joining ringed nodes: faint ahead, ink behind, orange for the travelled route into the current node */
+svg.curve { display: block; overflow: visible; flex: none; }
+svg.curve path { fill: none; stroke: var(--faint); stroke-width: 1; stroke-linecap: round; }
+svg.curve.done path { stroke: var(--ink); }
+svg.curve.route path { stroke: var(--orange); stroke-width: 2; }
+
+/* step tracks (tutorial, vocabulary, flashcards, quiz): nodes at alternating heights, curves between */
+.st-track { display: flex; align-items: flex-start; justify-content: flex-start; height: 28px; }
+.st-track { min-width: 0; }
+.st-track > svg.curve.h { flex: 1 1 0; width: 0; min-width: 4px; height: 28px; }
+.m-rail > svg.m-h { width: 0; min-width: 0; }
+.st-node { flex: none; }
+.step-track { align-items: center; }
+
+/* the topic path: an S-curve down the left, nodes alternating left and right of it */
+.topic-path > li.tp-step::before, .topic-path > li.tp-step::after { display: none; }
+.topic-path > li.tp-step { padding-left: 56px; }
+svg.tp-curve { position: absolute; left: 0; top: 30px; height: 100%; }
+.tp-step .tp-node, .tp-step.current .tp-node { left: auto; }
+
+/* breakdown method: the same rail across the five columns (down the left on phones) */
+.method > li::before, .method > li:has(+ li.current)::before { display: none; }
+.method > li { padding: 0; }
+.m-rail { display: flex; align-items: flex-start; height: 28px; margin-right: -12px; }
+.m-node { position: relative; top: auto; left: auto; flex: none; }
+.method > li.current .m-node { top: auto; left: auto; }
+.m-rail > svg.m-h { flex: 1 1 0; height: 28px; }
+.m-rail > svg.m-v { display: none; }
+@media (max-width: 760px) {
+  .method > li { display: block; position: relative; padding: 0 0 14px 36px; }
+  .m-rail { position: absolute; left: 0; top: 0; bottom: 0; width: 24px; height: auto; margin: 0; display: block; }
+  .m-rail > svg.m-h { display: none; }
+  .m-rail > svg.m-v { display: block; position: absolute; left: 0; top: 11.5px; height: 100%; }
+  .m-node { position: absolute; top: 4px; left: 0.5px; margin-top: 0 !important; }
+  .method > li:nth-child(even) .m-node { left: 8.5px; }
+  .method > li.current .m-node { top: 2px; left: -1.5px; }
+  .method > li.current:nth-child(even) .m-node { left: 6.5px; }
+  .method > li .m-n { margin-right: 12px; }
+}
+
+/* switchers are pills: the active one is the primary pill, the rest secondary */
+.pill-row { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+button.pill { padding: 6px 16px; font-weight: 500; }
+.mode-row .pill-row { margin: 0; }
+.bd-tabs { display: flex; flex-direction: column; gap: 12px; margin-top: 40px; }
+
+/* status words are a sans caption; only their numbers are mono */
+.status, .status-note { font: 400 13.5px/20px var(--sans); color: var(--muted); }
+.status b, .status-note b { color: var(--ink); font-weight: 600; }
+.status { margin: 0; }
+.status-note { margin-left: 8px; }
+.pill-row .status-note { margin: 0 4px 0 0; }
+
+/* the learner's own words and the model answer: open sections, body sans */
+.your-answer { margin: 16px 0 0; }
+.your-answer p:last-child { margin: 0; }
+.your-answer .eyebrow, .model-answer .eyebrow { margin: 0 0 8px; }
+.model-answer { border-top: 1px solid var(--hair); margin: 16px 0 0; padding: 16px 0 0; }
+.model-answer .page-view > :first-child { margin-top: 0; }
+.model-answer .page-view > :last-child { margin-bottom: 0; }
+.model-answer > p:last-child { margin-bottom: 0; }
+
+/* glossary jump links */
+.g-jump { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; margin: 24px 0 0; }
+.g-jump button.link { font-size: 16px; }
+
+/* checks results: one orange numeral, the rest ink mono */
+.check-summary .stats { margin: 8px 0 24px; }
+.check-summary .stats b { font-size: 48px; }
+.summary-head { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 0 24px; margin: 0 0 8px; }
+.summary-head h2 { margin: 0; }
+.summary-note { font-size: 30px; max-width: none; }
+.summary-note .hand-note-text { white-space: nowrap; }
+@media (max-width: 760px) { .check-summary .stats b { font-size: 40px; } .summary-note { font-size: 24px; } .summary-note .hand-note-text { white-space: normal; } }
+
+/* the library cards' call to action stays on one line */
+.card-go { white-space: nowrap; }
+
+/* ==================================================================== piece D round 3: four sizes, status words in sans */
+/* status words are sans at body size (muted); only their numbers are mono. (Stat-block labels stay mono uppercase.) */
+.state { font: 400 16px/24px var(--sans); text-transform: none; letter-spacing: normal; color: var(--muted); }
+.state b { font-family: var(--mono); color: var(--ink); font-weight: 600; }
+.status, .status-note { font-size: 16px; line-height: 24px; }
+.status b, .status-note b { font-weight: 600; }
+
+/* the topic intro's note sits right beside the paragraph it points at */
+.annotated.block:has(> p.lede) { width: fit-content; max-width: 600px; }
+.annotated.block:has(> p.lede) > .lede { max-width: 600px; text-wrap: balance; }
+/* hang the note under the paragraph, arrow up into it, so it is attached at every width */
+@media (min-width: 761px) {
+  .annotated.block:has(> p.lede) > .margin-note { position: static; width: auto; transform: none; margin: -4px 0 0 24px; }
+  .annotated.block:has(> p.lede) .hand-note.wide-only { display: none; }
+  .annotated.block:has(> p.lede) .hand-note.narrow-only { display: inline-flex; font-size: 30px; }
+}
+
+/* the checks summary: an eyebrow, not a fifth size, heads the step list */
+.summary-head .eyebrow { margin: 0; }
+
+/* ==================================================================== piece D round 4 */
+/* markers: ✓ for right, ! for wrong or attention, nothing else */
+.bad-text::before { content: "! "; }
+
+/* one rule between a revealed choice list and the model answer below it */
+.bd-part fieldset:disabled + .model-answer { border-top: none; padding-top: 8px; }
+
+/* a disabled primary pill is the system's disabled state: an outline in the Faint token, muted label */
+button:disabled:not(.ghost):not(.link):not(.danger):not(.icon-btn),
+.button[aria-disabled="true"] { background: transparent; border-color: var(--faint); color: var(--muted); opacity: 1; }
+
+/* glossary jump links: the label sits above the links, sharing their left edge */
+.g-jump { display: block; margin: 24px 0 0; }
+.g-jump .eyebrow { margin: 0 0 8px; }
+.g-jump-links { display: flex; flex-wrap: wrap; gap: 4px 24px; }
+
+/* vocabulary quiz */
+.quiz-options .choice.is-right .term-name > span:first-child { font-weight: 600; }
+.quiz-options .term-name { margin: 0; }
+.term-card .prompt { margin: 0 0 8px; }
+
+/* phones: the raised card and its 5px shadow stay inside the 16px gutter */
+@media (max-width: 760px) {
+  .card.focal, .panel.focal, button.card.focal, .tp-body.card.focal { margin-right: 5px; }
+}
+
+/* ==================================================================== piece D round 5: rails in the journey's language */
+/* ringed nodes the size of the journey's leaves; one gentle arc per pair of nodes */
+:root { --ring: 32px; }
+@media (max-width: 760px) { :root { --ring: 22px; } }
+.ring-node {
+  position: relative; flex: none; box-sizing: border-box; width: var(--ring); height: var(--ring);
+  display: inline-flex; align-items: center; justify-content: center;
+  border-radius: var(--r-pill); border: 1.2px solid var(--muted); background: var(--canvas);
+}
+.ring-node .ring-dot { width: 42%; height: 42%; border-radius: var(--r-pill); }
+.ring-node.done { border-color: var(--ink); }
+.ring-node.done .ring-dot { background: var(--ink); }
+.ring-node.current { border: 2px solid var(--orange); }
+.ring-node.current .ring-dot { background: var(--orange); width: 32%; height: 32%; }
+.ring-node.current::after { content: ""; position: absolute; inset: -8px; border-radius: var(--r-pill); border: 1px dashed var(--orange); }
+svg.arc { display: block; overflow: visible; }
+svg.arc path { fill: none; stroke: var(--muted); stroke-width: 1.1; stroke-linecap: round; }
+svg.arc.done path { stroke: var(--ink); }
+svg.arc.route path { stroke: var(--orange); stroke-width: 2; }
+svg.arc.h { flex: 1 1 0; width: 0; min-width: 6px; height: 16px; }
+svg.arc.v { flex: none; width: 16px; }
+
+/* step tracks */
+.st-track { display: flex; align-items: center; height: calc(var(--ring) + 20px); padding: 0 10px; min-width: 0; }
+.st-note > span { transform: translateX(-7px); }
+
+/* the topic path: rings down the left, one arc between each pair */
+.topic-path > li.tp-step { padding-left: 60px; }
+.topic-path .tp-step .tp-node.ring-node, .topic-path .tp-step.current .tp-node.ring-node, .topic-path .tp-step.started:not(.current) .tp-node.ring-node {
+  position: absolute; left: 8px; top: 14px; width: var(--ring); height: var(--ring); box-shadow: none;
+}
+.topic-path .tp-step.done .tp-node.ring-node { background: var(--canvas); }
+svg.arc.tp-curve { position: absolute; left: calc(8px + var(--ring) / 2 - 8px); top: calc(14px + var(--ring)); height: calc(100% - var(--ring)); }
+@media (max-width: 760px) { .topic-path > li.tp-step { padding-left: 44px; } }
+
+/* breakdown method: rings across five columns, short labels that don't wrap */
+.m-rail { display: flex; align-items: center; height: calc(var(--ring) + 20px); margin-right: -12px; padding-left: 9px; }
+.m-rail > svg.arc.m-h { height: 16px; }
+.m-rail > svg.arc.m-v { display: none; }
+.method .m-title { white-space: nowrap; }
+@media (max-width: 760px) {
+  .method > li { display: flex; align-items: center; gap: 12px; position: relative; padding: 0 0 14px 36px; min-height: var(--ring); }
+  .m-rail { position: absolute; left: 0; top: 0; bottom: 0; width: var(--ring); height: auto; margin: 0; padding: 0; display: block; }
+  .m-rail > .ring-node { position: absolute; left: 0; top: 0; }
+  .m-rail > svg.arc.m-h { display: none; }
+  .m-rail > svg.arc.m-v { display: block; position: absolute; left: calc(var(--ring) / 2 - 8px); top: var(--ring); height: calc(100% - var(--ring)); }
+  .method > li .m-n { margin: 0; }
+}
+
+/* one quiet switch instead of pill rows: plain links, the open one underlined by hand (ink, not orange) */
+.quiet-switch { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 24px; }
+.quiet-switch button.link.qs-item { text-decoration: none; color: var(--muted); font-weight: 400; }
+.quiet-switch button.link.qs-item:hover, .quiet-switch button.link.qs-item.on { color: var(--ink); }
+.qs-group { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 16px; }
+.qs-label { color: var(--ink); font-weight: 600; }
+.qs-sep { color: var(--faint); }
+.qs-done { margin-left: 4px; color: var(--muted); font-size: 13.5px; }
+.bd-switch { margin-top: 40px; }
+.bd-switch + .bd-problem { margin-top: 24px; }
+.mode-row .quiet-switch { margin: 0; }
+
+/* the quiz's marked state: the hint lines up with the option, and the verdict is body weight */
+.quiz-label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 12px; }
+.quiz-label .status-note { margin: 0; }
+.result-line, .check-result .ok-text, .check-result .bad-text { font-weight: 400; }
+
+/* stat block numerals: Geist Mono 700 */
+.stats b { font-weight: 700; }
+.self-marked { margin: -8px 0 24px; }
+
+/* phones: the topic intro keeps its hand note, hung under the paragraph, in the first viewport */
+@media (max-width: 760px) {
+  .annotated.block:has(> p.lede) > .margin-note { display: block; position: static; width: auto; margin: 4px 0 0 24px; transform: none; }
+  .annotated.block:has(> p.lede) .hand-note.wide-only { display: none; }
+  .annotated.block:has(> p.lede) .hand-note.narrow-only { display: inline-flex; font-size: 26px; }
+}
+
+/* phones: a long track (more than six steps) keeps every ring, just smaller, so the arcs between them stay visible */
+@media (max-width: 760px) { .st-track.long { --ring: 14px; padding: 0 6px; } .st-track.long .ring-node.current::after { inset: -5px; } .st-track.long svg.arc.h { min-width: 10px; } }
+
+/* ==================================================================== piece D round 6: narrow fixes */
+/* display maths never clips: it scrolls sideways inside its block, wherever it is rendered */
+.katex-display { overflow-x: auto; overflow-y: hidden; max-width: 100%; }
+
+/* the one result treatment: a hairline above, a "// Result" eyebrow, the sentence in body ink with its ✓ or ! */
+.result { border-top: 1px solid var(--hair); margin: 16px 0; padding: 12px 0 0; }
+.result .eyebrow { margin: 0 0 4px; }
+.result p:not(.eyebrow) { margin: 0; color: var(--ink); font-weight: 400; }
+fieldset:has(+ .result) .choice:last-of-type, fieldset:has(+ .result) .choice-wrap:last-of-type,
+fieldset:has(+ .result) .choice-wrap:last-of-type .choice { border-bottom: none; }
+.result + .model-answer { margin-top: 0; }
+.result + .check-foot { margin-top: 0; }
+.check .result { margin-bottom: 8px; }
+
+/* one marker placement on every option list: the radio stays, the note sits after the option text */
+.why { display: block; padding: 0 0 12px 30px; color: var(--muted); }
+.why .citations { margin: 4px 0 0; }
+.is-right .why { color: var(--ink); }
+
+/* phones: the summary's numerals stay well under the title */
+@media (max-width: 760px) { .check-summary .stats b { font-size: 32px; } }
+
+/* selectors wrap between groups, never inside one */
+.qs-group { white-space: nowrap; flex-wrap: nowrap; }
+.qs-group .qs-sep { margin-right: 8px; }
+
+/* the three library doors: eyebrows take two lines' room, so the titles sit level */
+@media (min-width: 900px) { .library-grid .big-card .eyebrow { min-height: 40px; } }
+
+/* display maths that is wider than its column scrolls, and says so: a thin bar in faint ink below it (an overlay
+   scrollbar would leave the cut edge looking like a bug) */
+.katex-display { padding-bottom: 6px; }
+.katex-display::-webkit-scrollbar { height: 4px; }
+.katex-display::-webkit-scrollbar-track { background: transparent; }
+.katex-display::-webkit-scrollbar-thumb { background: var(--faint); border-radius: var(--r-pill); }
+
+/* phones: a display formula's side-by-side parts are stacked on their own lines by components/Math.tsx */
+@media (max-width: 760px) { .katex-display .katex-html > .newline { margin-top: 0.4em; } }
+
+/* ==================================================================== piece D round 7 */
+/* the hand underline is one stroke, app-wide; it spans the whole word (Hand.tsx draws a single path) */
+.scribble-line { left: -2%; width: 104%; }
+
+/* trackers: connectors are 1px muted everywhere (done or not), so the ink rings are the only heavy stroke and the
+   orange route into the current node is the one accent */
+svg.arc path { stroke: var(--muted); stroke-width: 1; }
+svg.arc.done path { stroke: var(--muted); }
+svg.arc.route path { stroke: var(--orange); stroke-width: 2; }
+
+/* step track: the track and its own label on one line (the label wraps under it on a phone); nothing else */
+.step-wrap { margin: 8px 0 16px; }
+.step-track { flex-wrap: wrap; gap: 8px 16px; }
+.st-label { margin: 0; white-space: nowrap; }
+.st-label b { font-weight: 600; }
+.st-label b:not(.mono) { font-family: var(--sans); color: var(--ink); }
+@media (max-width: 760px) { .st-label { white-space: normal; } }
+
+/* after an answer the sentence is in ink at body size and the option markers (✓ the right answer, ! the learner's
+   wrong pick) sit in ink in the same trailing place everywhere; the result's eyebrow is muted like every eyebrow (§7,
+   round 12) */
+.result-action button.link { font: inherit; color: var(--ink); }
+.status-note { color: var(--ink); white-space: nowrap; margin-left: 8px; font-weight: 400; }
+.status-note > span[aria-hidden] { font-weight: 600; }
+.choice.is-right > span { font-weight: 600; }
+.choice.is-right > span .status-note { font-weight: 400; }
+
+/* comprehension checks: the reasons wait behind "Why" on the verdict row */
+.whys { list-style: none; padding: 0; margin: 0 0 8px; }
+.whys .why { display: grid; grid-template-columns: 18px minmax(0, 1fr); gap: 0 12px; padding: 8px 0; margin: 0; border-bottom: 1px solid var(--hair); color: var(--muted); }
+.whys .why:last-child { border-bottom: none; }
+.whys .why.is-right { color: var(--ink); }
+.why-mark { font: 600 16px/24px var(--mono); color: var(--ink); text-align: center; }
+.why-option { display: block; color: var(--ink); }
+.why.is-right .why-option { font-weight: 600; }
+.why-text { display: block; }
+.why-body .citations { margin: 4px 0 0; }
+.check-later { margin: 8px 0 0; }
+.summary-head { gap: 8px 24px; }
+
+/* vocabulary: a hand note hung on the term (flashcards) or the definition (quiz me): beside it on a wide screen,
+   under it on a phone, never a term's name above the card */
+.beside { display: flex; align-items: flex-start; gap: 8px 20px; margin: 0 0 16px; }
+.beside > :first-child { margin: 0; }
+.beside-note { flex: none; }
+.beside-note .hand-note { font-size: 30px; max-width: 260px; color: var(--ink); }
+.beside-note .hand-note-text { text-wrap: balance; }
+.hand-note.beside-narrow { display: none; }
+.term-head .beside-note { margin-top: 2px; }
+.quiz-def .term-plain { flex: 0 0 420px; max-width: 420px; }
+.quiz-def .beside-note { margin-top: 4px; }
+.rate { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; margin: 16px 0 0; }
+.rate-ask { font-weight: 600; }
+.flashcard .citations { margin-top: 8px; }
+@media (max-width: 760px) {
+  .beside { flex-wrap: wrap; }
+  .hand-note.beside-wide { display: none; }
+  .hand-note.beside-narrow { display: inline-flex; font-size: 26px; max-width: 100%; }
+  .beside-note { flex-basis: 100%; }
+  .quiz-def .term-plain { flex: 1 1 100%; max-width: none; }
+}
+
+/* breakdown: the note hangs off node 01's label (arrow up into it; left into it on a phone), one section gap
+   between the tracker block and the problem block, 16px inside a block */
+.method-note { display: contents; }
+.hand-note.m-note-wide { font-size: 30px; max-width: none; white-space: nowrap; margin: -8px 0 0; }
+.hand-note.m-note-narrow { display: none; }
+.bd-switch { margin-top: 48px; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; }
+.bd-switch + .bd-problem { margin-top: 16px; }
+.bd-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; }
+.bd-switch .qs-label { flex: 0 0 104px; }
+.bd-items { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 4px 20px; }
+.bd-items .qs-item .mono { margin-right: 2px; }
+@media (max-width: 760px) {
+  .hand-note.m-note-wide { display: none; }
+  .hand-note.m-note-narrow { display: inline-flex; font-size: 24px; max-width: 180px; }
+  .method > li:first-child { align-items: flex-start; }
+  .method > li:first-child .m-n, .method > li:first-child .m-title { line-height: var(--ring); }
+  .bd-switch { margin-top: 40px; }
+  .bd-switch .qs-label { flex-basis: 100%; }
+}
+
+/* the library's three doors: the calls to action share one baseline */
+@media (min-width: 900px) { .big-card:not(.focal) { padding-bottom: 33px; } }
+
+/* the track's note hangs from the rail itself (absolute, so the label's width never moves it); the wrap keeps room
+   for it where it is shown */
+.st-rail { position: relative; flex: 1 1 auto; min-width: 0; display: block; }
+.st-rail > .st-track { width: 100%; }
+.st-note { position: absolute; left: 0; right: 0; top: 100%; height: 72px; display: block; }
+/* the up arrow's tip sits 25px into the note; pull the note back by that, and up so the tip meets the ring's halo */
+.st-note > span { position: absolute; top: -4px; transform: translateX(-25px); white-space: nowrap; }
+.step-wrap.noted { padding-bottom: 72px; }
+@media (max-width: 760px) { .step-wrap.noted { padding-bottom: 0; } .st-note { display: none; } }
+
+/* a beside-note takes one line when there is room and wraps (balanced) only when the row is too narrow; the term it
+   hangs on never shrinks */
+.beside > :first-child { flex: none; }
+.beside-note { flex: 0 1 auto; min-width: 150px; }
+.beside-note .hand-note { max-width: none; }
+/* the revealed flashcard keeps "Did you have it?" inside 1440x900: 8px between the definition's parts */
+.flashcard .reveal { padding-top: 8px; }
+.flashcard .term-part { margin-top: 8px; }
+.flashcard .rate { margin-top: 8px; }
+/* the breakdown's note is one line, overflowing its column to the right */
+.hand-note.m-note-wide .hand-note-text { white-space: nowrap; text-wrap: nowrap; }
+/* phones: the rating prompt takes its own line so both buttons share the next one */
+@media (max-width: 760px) { .rate-ask { flex-basis: 100%; } }
+
+/* ==================================================================== piece D round 8 */
+/* A: the quizzed definition wraps on a phone. (The side-by-side wrapper's first child had flex: none, so on a phone
+   it kept its max-content width and ran out of the card.) */
+.beside > :first-child { min-width: 0; }
+@media (max-width: 760px) {
+  .beside > :first-child, .quiz-def .term-plain { flex: 1 1 100%; max-width: none; min-width: 0; }
+  .beside-note { min-width: 0; }
+}
+
+/* C: an option's marker is the system's chip (pill, 1px ink border, Geist Mono 13px uppercase), trailing the option's
+   label in the same place on every option list: the vocab quiz, the checks, the breakdown's tool step and the opened
+   explanations. The verdict row stays the eyebrow plus one ink sentence. */
+.status-note, .chip.status-note {
+  display: inline-flex; align-items: center; gap: 5px; vertical-align: middle;
+  font: 500 13.5px/18px var(--mono); text-transform: uppercase; letter-spacing: 0.02em;
+  padding: 1px 10px; border: 1px solid var(--ink); border-radius: var(--r-pill); color: var(--ink);
+  margin: 0 0 0 10px; white-space: nowrap;
+}
+.status-note > span[aria-hidden] { font-weight: 600; }
+.choice.is-right > span { font-weight: 600; }
+.choice.is-right > span .status-note { font-weight: 500; }
+.whys .why { display: block; padding: 8px 0; margin: 0; border-bottom: 1px solid var(--hair); color: var(--muted); }
+.whys .why:last-child { border-bottom: none; }
+.whys .why.is-right { color: var(--ink); }
+.why-option { display: block; color: var(--ink); }
+.why.is-right .why-option { font-weight: 600; }
+.why-text { display: block; }
+.why .citations { margin: 4px 0 0; }
+
+/* D1: a link button keeps its underline on hover (it thickens, like every link) */
+button.link:hover:not(:disabled) { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 3px; }
+
+/* B1: the tutorial step folds behind "Re-read the step" while its check is being answered */
+.step-card.folded { padding: 16px 24px; }
+.step-folded .eyebrow { margin: 0 0 4px; }
+.step-folded p:last-child { margin: 0; }
+
+/* E2: the breakdown's problem switch, in the vocabulary mode row's treatment: one row per group, a mono eyebrow in
+   front of each, the titles in full as text tabs, the open one underlined in ink */
+.bd-switch { margin-top: 48px; display: flex; flex-direction: column; align-items: stretch; gap: 12px; }
+.bd-group { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 24px; }
+.bd-eyebrow { margin: 0; flex: 0 0 auto; min-width: 128px; }
+.bd-switch + .bd-problem { margin-top: 24px; }
+@media (max-width: 760px) {
+  .bd-switch { margin-top: 40px; gap: 16px; }
+  .bd-eyebrow { flex-basis: 100%; min-width: 0; }
+  .bd-group { gap: 6px 20px; }
+}
+
+/* E3: rails in the journey map's language: neighbouring rings sit at alternating heights (or sides, on a vertical
+   rail) and each pair is joined by a 1px muted S-curve; only the curve into the current ring is orange */
+:root { --wave: 8px; --wave-x: 12px; --rail-pad: 10px; }
+@media (max-width: 760px) { :root { --wave: 5px; --wave-x: 10px; } }
+svg.arc path { stroke: var(--muted); stroke-width: 1; }
+svg.arc.done path { stroke: var(--muted); }
+svg.arc.route path { stroke: var(--orange); stroke-width: 1.5; }
+svg.arc.h { height: calc(2 * var(--wave)); }
+svg.arc.v { width: var(--wave-x); }
+.st-track .ring-node.hi, .m-rail .ring-node.hi { transform: translateY(calc(-1 * var(--wave))); }
+.st-track .ring-node.lo, .m-rail .ring-node.lo { transform: translateY(var(--wave)); }
+.st-track { height: calc(var(--ring) + 20px + 2 * var(--wave)); padding: 0 var(--rail-pad); }
+.m-rail { height: calc(var(--ring) + 20px + 2 * var(--wave)); }
+.st-note > span { top: -4px; }
+.st-note > span.pin-hi { top: calc(-4px - 2 * var(--wave)); }
+.topic-path .tp-step.shift .tp-node.ring-node { left: calc(8px + var(--wave-x)); }
+svg.arc.tp-curve { left: calc(8px + var(--ring) / 2); width: var(--wave-x); }
+@media (max-width: 760px) {
+  .st-rail.long { --ring: 14px; --rail-pad: 6px; --wave: 4px; }
+  .st-track.long { padding: 0 var(--rail-pad); }
+  .m-rail { height: auto; }
+  .method > li.shift .m-rail > .ring-node { left: var(--wave-x); }
+  .m-rail > svg.arc.m-v { left: calc(var(--ring) / 2); width: var(--wave-x); }
+  .m-rail .ring-node.hi, .m-rail .ring-node.lo { transform: none; }
+}
+
+/* E1: on a phone every screen keeps one hand note, hung under its target with an up arrow: the track's note (vocab
+   lesson, tutorial), the glossary's search note and the library's "start with these" */
+.g-note { display: inline-flex; margin-bottom: 8px; }
+.g-note .hand-note { font-size: 30px; max-width: 300px; color: var(--ink); }
+@media (max-width: 760px) {
+  .step-wrap.noted { padding-bottom: 0; }
+  .st-note { display: block; position: relative; top: auto; left: 0; right: 0; height: 60px; }
+  .st-note .hand-note { font-size: 26px; }
+  .glossary-search .g-note { flex-basis: 100%; margin: 0 0 8px 8px; }
+  .card-go-row { flex-wrap: wrap; }
+  .hand-note.library-note-narrow { flex-basis: 100%; font-size: 26px; margin: 4px 0 0 4px; }
+}
+
+/* ==================================================================== piece D round 9 */
+/* C3: tracks, settled. Every node of a rail sits on one straight baseline; each segment between two nodes is one
+   shallow 1px muted arc with the same bow every time (up on a horizontal rail, out to the left on a vertical one);
+   orange only on the arc into the current node and that node; 24px of air above and below a track, so it reads as a
+   diagram on the canvas. */
+:root { --bow: 8px; --bow-x: 8px; --rail-pad: 10px; }
+@media (max-width: 760px) { :root { --bow: 5px; --bow-x: 6px; } }
+svg.arc.h { height: calc(2 * var(--bow)); }
+svg.arc.v { width: calc(2 * var(--bow-x)); }
+.st-track .ring-node, .m-rail .ring-node { transform: none; }
+.st-track { height: calc(var(--ring) + 16px); padding: 0 var(--rail-pad); }
+.m-rail { height: calc(var(--ring) + 16px); }
+.step-wrap { margin: 0; padding: 24px 0; }
+.step-wrap.noted { padding-bottom: calc(24px + 72px); }
+.st-note > span { top: -4px; }
+.step-wrap + .panel { margin-top: 0; }
+.method-wrap { padding: 24px 0 0; }
+.topic-path .tp-step .tp-node.ring-node { left: 8px; }
+svg.arc.tp-curve { left: calc(8px + var(--ring) / 2 - var(--bow-x)); width: calc(2 * var(--bow-x)); }
+@media (max-width: 760px) {
+  .st-rail.long { --ring: 14px; --rail-pad: 6px; --bow: 4px; }
+  .step-wrap.noted { padding-bottom: 24px; }
+  .method-wrap { padding: 24px 0; }
+  .method > li .m-rail > .ring-node { left: 0; }
+  .m-rail > svg.arc.m-v { left: calc(var(--ring) / 2 - var(--bow-x)); width: calc(2 * var(--bow-x)); }
+}
+
+/* C4: one element between the headline block and the card. The vocabulary's modes and the breakdown's problem
+   pickers are one mono line each, in the eyebrow's voice: `// LABEL` then the items separated by dots, the active
+   one in ink with the link underline, the rest muted. */
+.eyebrow-switch { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 12px; margin: 0; font: 500 13.5px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--muted); }
+.eyebrow-switch .es-label { flex: none; }
+.eyebrow-switch .es-items { display: inline-flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.eyebrow-switch .es-cell { display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.eyebrow-switch button.es-item { font: inherit; letter-spacing: inherit; text-transform: inherit; color: var(--muted); background: none; border: 0; border-radius: 0; padding: 0; cursor: pointer; display: inline; text-align: left; white-space: nowrap; }
+.eyebrow-switch button.es-item:hover:not(:disabled) { color: var(--ink); transform: none; box-shadow: none; }
+.eyebrow-switch button.es-item.on { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.eyebrow-switch .es-n { margin-right: 6px; }
+.eyebrow-switch .es-done { color: var(--muted); }
+.eyebrow-switch .es-sep { color: var(--faint); }
+.eyebrow-switch + .step-wrap { margin-top: 0; }
+.list-known { margin: 24px 0 0; }
+/* the breakdown: a full section gap between the track and the pickers, 16px between the pickers and their card */
+.bd-switch { margin-top: var(--section-gap); display: flex; flex-direction: column; align-items: stretch; gap: 8px; }
+.bd-switch + .bd-problem { margin-top: 16px; }
+.bd-switch .es-label { min-width: 128px; }
+@media (max-width: 760px) {
+  .bd-switch { gap: 12px; }
+  .bd-switch .es-label { min-width: 0; flex-basis: 100%; }
+}
+
+/* A1: the problem's lecture pages travel with the Tool step's model answer (a lecture's number names the tool) */
+.bd-sources-later { margin: 8px 0 0; }
+.bd-sources { margin: 16px 0 4px; }
+/* C2: a hand note on the tool step's model answer, beside its eyebrow on a wide screen, under the text on a phone */
+.tool-answer .beside { margin: 0 0 8px; align-items: center; gap: 0 16px; }
+.tool-answer .beside > .eyebrow { margin: 0; }
+.tool-answer .beside-note .hand-note { font-size: 30px; }
+.tool-answer .beside-note .hand-arrow.left { margin-top: 0; }
+.tool-note-narrow { display: none; }
+@media (max-width: 760px) {
+  .tool-answer .beside { margin: 0 0 8px; }
+  .tool-answer .beside-note { display: none; }
+  .tool-note-narrow { display: inline-flex; margin: 0 0 0 8px; }
+  .tool-note-narrow .hand-note { font-size: 26px; }
+}
+
+/* C2: a hand note on the verdict row of a marked check, pointing back at "Why" */
+.result-action { white-space: nowrap; }
+.result-note { display: inline-flex; vertical-align: middle; margin-left: 12px; }
+.result-note .hand-note { font-size: 26px; max-width: none; white-space: nowrap; align-items: center; gap: 6px; }
+.result-note .hand-note .hand-arrow.left { width: 40px; height: 22px; margin-top: 0; }
+@media (max-width: 760px) { .result-note .hand-note { font-size: 24px; } .result-note .hand-note .hand-arrow.left { width: 32px; height: 18px; } }
+
+/* A2: the way forward is explicit. "Next step" appears once the step's check is marked; before that the only forward
+   control is the text link, with one line under the row saying what skipping records. */
+.step-nav button.link.skip-check { font-weight: 400; }
+.skip-note { margin: 8px 0 0; }
+.check-skipped { margin: -8px 0 16px; }
+
+/* C1: every count in a sentence is Geist Mono, set bold so it never reads as the sans; group headings on the checks
+   page carry their numerals in mono at the heading size ("Step 01 of 04") */
+.checks > h2 b.mono, .result b.mono, .check-later b.mono { font-weight: 600; }
+.check-later b.mono, .result b.mono, .status b.mono, .skip-note b.mono, .muted b.mono { color: var(--ink); }
+
+/* B1: the glossary's known marker is the chip, set directly after the term's name, before its symbol; it is bound to
+   the name's last word, so it sits on the name's line for every row however long the name */
+.term-word { display: inline; }
+.term-word .term-last { white-space: nowrap; }
+.term-word .chip.g-known { margin-left: 10px; font-weight: 500; }
+.g-row dt .term-name { align-items: baseline; }
+
+/* C5: the quiz card keeps its definition, three options and the result row under the headline at 1440x900 */
+.term-card .quiz-def { margin-bottom: 8px; }
+.quiz-options { margin: 0; }
+.quiz-options .choice { padding: 10px 0; }
+.term-card .result { margin: 12px 0 0; }
+.term-card .result + .citations { margin-top: 12px; }
+.term-card .citations + .row { margin-top: 12px; }
+/* the bow scales with the gap it spans (a quarter of its width, capped), so a long segment and a short one carry the
+   same gentle curve instead of a short one turning into a scallop */
+svg.arc.h { height: auto; aspect-ratio: 4 / 1; max-height: calc(2 * var(--bow)); }
+/* the mode line flows like text: `//` and the items wrap together at the dots, never leaving `//` alone on a line */
+.eyebrow-switch .es-items { display: contents; }
+/* phones: the folded step, its check and the skip link share one 844px viewport with the track's note */
+@media (max-width: 760px) {
+  .step-card.folded ~ .checks-zone .checks, .step-card.folded + .checks-zone .checks { margin-top: 24px; }
+  .step-nav { margin-top: 24px; }
+  .check-later { margin-top: 4px; }
+}
+/* the switch line is a two-column grid: the `//` label in a column of its own, the items flowing beside it and
+   wrapping under the first item (a hanging indent), so neither the label nor an item is ever orphaned */
+.eyebrow-switch { display: grid; grid-template-columns: max-content minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
+.eyebrow-switch .es-items { display: flex; flex-wrap: wrap; align-items: baseline; gap: 2px 10px; min-width: 0; }
+.bd-switch .eyebrow-switch { grid-template-columns: 128px minmax(0, 1fr); }
+.bd-switch .es-label { min-width: 0; }
+@media (max-width: 760px) {
+  .bd-switch .eyebrow-switch { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .bd-switch .es-label { flex-basis: auto; }
+  /* phones: the folded step, its check and the skip link fit one viewport with the track's note */
+  .checks > h2 { margin-bottom: 8px; }
+  .check { padding-top: 16px; }
+}
+@media (max-width: 760px) { .checks-zone + .step-nav { margin-top: 16px; } .check-later { margin-top: 0; } }
+
+/* ==================================================================== piece D round 10 */
+/* A3: one underline weight app-wide. The nav's active item (and Settings when it is the page) is 1px, like every
+   link and the switch row's open item. */
+.main-nav a.active, .settings-link.active { text-decoration-thickness: 1px; }
+
+/* A2: every mono count shows Geist Mono's slashed zero: the checks' group headings ("Step 01 of 04", mono at the
+   heading size), eyebrows, chips, the rails' numerals, the switch rows' numbers */
+.checks > h2 b.mono { font-family: var(--mono); font-weight: 600; letter-spacing: 0; font-variant-numeric: tabular-nums slashed-zero; }
+.eyebrow, .eyebrow-switch, .chip, .tag, .st-count, .m-n, .check-n, .sl-n, .es-n, .stats span, .card-go { font-variant-numeric: tabular-nums slashed-zero; }
+
+/* B2: the vocabulary mid-band is one rhythm: 16px from the switch row to the track's rings, 24px from the rings to
+   the card (the track box carries 8px of air around its rings). The flashcard and quiz tracks carry no counter at
+   their end (the card's eyebrow states the position); the lesson keeps its "6 of 10 known" label. */
+.eyebrow-switch + .step-wrap { padding-top: 8px; }
+.eyebrow-switch + .step-wrap:not(.noted) { padding-bottom: 16px; }
+
+/* B3: a verdict is the eyebrow and one sentence. The quiz card's button follows the verdict directly; a check's
+   settling page is cited at the end of its "Why" disclosure, or with an explain item's reference answer. */
+.term-card .result + .row { margin-top: 12px; }
+.whys-wrap { margin: 0 0 8px; }
+.why-source { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; padding: 8px 0 0; border-top: 1px solid var(--hair); }
+.why-source > p { margin: 0; }
+.why-source .citations { margin: 0; }
+.reference-source { margin: 8px 0 0; }
+.reference-source .citations { margin: 0; }
+
+/* B4: the switch row's separators belong to the item that follows them: a dot drawn at the start of every item but
+   the first, inside the item's no-wrap box, so a wrapped line never ends on a dot. The breakdown note's arrow runs
+   its full length into the "Asked" label. */
+.eyebrow-switch .es-cell { white-space: nowrap; }
+.eyebrow-switch .es-cell + .es-cell::before { content: "·"; color: var(--faint); }
+.hand-note.m-note-wide { margin: -16px 0 0; }
+.hand-note.m-note-wide .hand-arrow.up { width: 44px; height: 64px; margin-left: 14px; }
+/* B3: with the citation gone from the verdict row, "Try it again" keeps its place at the row's right edge */
+.check-foot { justify-content: flex-end; }
+
+/* ==================================================================== piece D round 11 */
+/* A2: one locked treatment once an option list is marked or revealed (the vocab quiz, the checks, the breakdown's
+   tool step): the picked radio keeps its full ink ring and dot, the unpicked radios drop to the muted ring, and the
+   chips are unchanged */
+fieldset:disabled .choice { cursor: default; }
+fieldset:disabled .choice > input[type="radio"] { opacity: 1; cursor: default; border-color: var(--muted); }
+fieldset:disabled .choice > input[type="radio"]:checked { border-color: var(--ink); background: var(--ink); box-shadow: inset 0 0 0 4px var(--surface); }
+
+/* A3: no native resize grip anywhere; a try box starts at its rows' height and grows with what is typed in it */
+textarea { resize: none; }
+.bd-part textarea, .check textarea, .example textarea { field-sizing: content; }
+textarea[rows="2"] { min-height: 64px; }
+textarea[rows="4"] { min-height: 112px; }
+
+/* A4: an inline formula and the punctuation after it never part (Math.tsx and PageView.tsx bind them) */
+.math-bound { white-space: nowrap; }
+
+/* B3: a marked question folded under an open one keeps its stem and verdict row; the options wait behind "Show the
+   options" inside its "Why" */
+.why-options { margin: 0 0 8px; }
+
+/* C2: the quiz card's question at the card-title size (the flashcard's and the lesson card's h2), and the note's
+   arrow tip at the definition column's edge */
+.term-card h2.quiz-ask { margin: 0 0 8px; }
+.quiz-def { gap: 8px 0; }
+.quiz-def .beside-note .hand-note .hand-arrow.left { margin-left: -6px; }
+
+/* C3: the breakdown's orientation block closes up. The note's text sits 12px under the track's labels and its arrow
+   rises past "Asked" to touch the current node's halo; then one section gap to the switch rows, 12px between the
+   two rows (each eyebrow its own line), and 16px from the rows to the card. */
+@media (min-width: 761px) {
+  .hand-note.m-note-wide { position: relative; display: block; margin: 12px 0 0; }
+  .hand-note.m-note-wide .hand-arrow.up { position: absolute; left: 32px; top: -78px; width: 44px; height: 64px; margin: 0; }
+}
+.bd-switch { gap: 12px; }
+
+/* ==================================================================== piece D round 12 */
+/* A1: the mono voice inside sans copy (Math.tsx `Mono`, PageView `rehypeMonoRuns`): a course reference written as
+   ‹L07› or ‹L01 · P3› is the citation chip, and a bare numeral (‹1.4›) is a bold mono count, like every count in a
+   sentence; both bind the punctuation after them */
+.chip.ref-chip { margin: 0 1px; }
+.why b.mono, .page-view b.mono, .prompt b.mono, .term-plain b.mono, li b.mono { font-weight: 600; color: var(--ink); }
+
+/* C: one locked option list everywhere. A marked check's reasons open inside its own list, under each option (the
+   list a question folded under a later one shows behind "Show the options" is that same list) */
+.choice-wrap .why { padding: 0 0 12px 30px; margin: -4px 0 0; color: var(--muted); }
+.choice-wrap.is-right .why { color: var(--ink); }
+.choice-wrap .why .citations { margin: 4px 0 0; }
+
+/* D2: the problem selector is the card's header control: two short lines, each a mono eyebrow then the titles as
+   sans text tabs (the open one in ink with the 1px underline, the others muted), a hairline between the header and
+   the problem. The band under the track holds only the hand note, then one section gap to the card. */
+.method-wrap + .bd-problem { margin-top: var(--section-gap); }
+.bd-head { display: flex; flex-direction: column; gap: 4px; margin: 0 0 16px; padding: 0 0 16px; border-bottom: 1px solid var(--hair); }
+.bd-pick { display: grid; grid-template-columns: 128px minmax(0, 1fr); column-gap: 12px; align-items: baseline; }
+.bd-pick > .eyebrow { margin: 0; }
+.bd-pick-list { display: flex; flex-wrap: wrap; align-items: baseline; gap: 0 10px; min-width: 0; }
+.bd-pick-cell { display: inline-flex; align-items: baseline; gap: 10px; white-space: nowrap; }
+.bd-pick-cell + .bd-pick-cell::before { content: "·"; color: var(--faint); }
+button.bd-pick-item { font: 400 16px/24px var(--sans); letter-spacing: 0; color: var(--muted); background: none; border: 0; border-radius: 0; padding: 0; cursor: pointer; display: inline; text-align: left; white-space: nowrap; }
+button.bd-pick-item:hover:not(:disabled) { color: var(--ink); transform: none; box-shadow: none; }
+button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.bd-pick-item .bd-done { color: var(--muted); }
+@media (max-width: 760px) {
+  .bd-pick { grid-template-columns: minmax(0, 1fr); row-gap: 2px; }
+  .bd-head { gap: 8px; }
+}
+
+/* D1: the note sits in the flow under node 01's labels (8px below the title line), and its arrow is drawn from the
+   top of the note's text, past "Asked", onto the current node's halo: the note and arrow read as one annotation */
+@media (min-width: 761px) {
+  .method-note { display: block; position: static; margin: 8px 0 0; }
+  .hand-note.m-note-wide { position: static; display: inline-flex; margin: 0; }
+  .m-note-arrow { position: absolute; left: 29px; top: 40px; width: 44px; height: 80px; color: var(--ink); }
+}
+@media (max-width: 760px) { .m-note-arrow { display: none; } }

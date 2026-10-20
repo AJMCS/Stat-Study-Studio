@@ -293,19 +293,232 @@ await step("topic page", async () => {
   await shot("topic");
 });
 
-await step("tutorial: math renders and a worked example shows its solution only on request", async () => {
+const learningState = async () => (await apiGet("state")).state.learning;
+
+await step("tutorial: math renders, a worked example shows its solution only on request, and moving on past an unanswered check is an explicit skip", async () => {
   await go(`/topic/${T}/tutorial`);
   await page.waitForSelector(".katex");
   await shot("tutorial");
-  await page.click("button:has-text('Next')");
-  await page.click("button:has-text('Next')");
-  await page.waitForSelector("text=Worked example 1: try it first");
+  // the step's check is unanswered, so there is no "Next step": the only way forward is the text link
+  if (await page.locator(".step-nav button:has-text('Next step')").count()) throw new Error("'Next step' is offered before the step's check is marked");
+  await page.waitForSelector(".step-nav button.link:has-text('Skip the check for now')");
+  await page.click(".step-nav button.link:has-text('Skip the check for now')");
+  await page.waitForSelector("text=Tutorial · step 02 of 04");
+  await page.click(".step-nav button.link:has-text('Skip the check for now')");
+  await page.waitForSelector("text=Worked example");
   if (await page.locator("[aria-label='Solution to worked example 1']").count()) throw new Error("solution visible before it was asked for");
   await page.click("button:has-text('Show the solution') >> nth=0");
   await page.waitForSelector("[aria-label='Solution to worked example 1'] .katex");
   await shot("tutorial-example");
-  while (await page.locator("button:has-text('Next')").count()) await page.click("button:has-text('Next')");
-  await page.waitForSelector("text=Take the quiz");
+  await page.click(".step-nav button.link:has-text('Skip the check for now')");
+  await page.waitForSelector("text=Tutorial · step 04 of 04");
+  // on the last step the skip leads to the checks page, where every skipped step is listed as not answered, to review
+  await page.click(".step-nav button.link:has-text('Skip the check for now')");
+  await page.waitForSelector("h1:has-text('Comprehension')");
+  await page.waitForSelector(".check-summary .result p.bad-text:has-text('(not answered)')");
+  if ((await page.locator(".step-list li.review .status:text-is('Not answered')").count()) !== 4) throw new Error("skipped steps are not listed as not answered");
+  if ((await page.locator(".step-list li.review a:has-text('Review the step')").count()) !== 4) throw new Error("skipped steps are not among the steps to review");
+  await page.waitForTimeout(800);
+  const c = (await learningState()).checks[T];
+  if (!c || Object.values(c).some((a) => !a.skipped || a.credit !== 0)) throw new Error("skipped checks were not recorded: " + JSON.stringify(c));
+  await page.waitForSelector("a:has-text('Next: break down a question')");
+  await go(`/topic/${T}`);
+  await page.waitForSelector(".tp-step .status:has-text('(not answered)')"); // the topic page names the skipped steps too
+});
+
+await step("topic page: the path runs vocabulary, tutorial with checks, breakdown, practice", async () => {
+  await go(`/topic/${T}`);
+  const titles = await page.locator(".topic-path .tp-body h3").allInnerTexts();
+  if (titles.join("|") !== "Vocabulary|Tutorial, with checks|Break down a question|Practice: quiz and exam") throw new Error("unexpected path: " + titles.join("|"));
+  await page.waitForSelector(".tp-step.current .card.focal a.button:has-text('Start the vocabulary')");
+  if ((await page.locator(".panel.focal, .card.focal").count()) !== 1) throw new Error("more than one raised element on the topic page");
+});
+
+await step("vocabulary: a lesson, then a flashcard rated 'got it' is saved and shows as known", async () => {
+  await go(`/topic/${T}/vocab`);
+  await page.waitForSelector("h1:has-text('Know the words')");
+  await page.waitForSelector(".term-card .citations .cite");
+  await page.click("button:has-text('Next term')");
+  await page.waitForSelector("text=Term 02 of 10");
+  await shot("vocab-lesson");
+  await page.click(".eyebrow-switch button:has-text('Flashcards')");
+  await page.waitForSelector(".flashcard button:has-text('Reveal the definition')");
+  if (await page.locator("[aria-label='Definition']").count()) throw new Error("definition visible before it was revealed");
+  await page.click("button:has-text('Reveal the definition')");
+  await page.waitForSelector("[aria-label='Definition'] .term-plain");
+  await shot("vocab-card-revealed");
+  await page.click("button:text-is('Got it')");
+  await page.waitForSelector("[role=status]:has-text('Saved: got it')");
+  await page.click("button:has-text('Reveal the definition')");
+  await page.click("button:text-is('Not yet')");
+  await page.waitForTimeout(800);
+  const v = (await learningState()).vocab[T];
+  if (v?.known?.length !== 1 || v?.notYet?.length !== 1) throw new Error("flashcard ratings were not saved: " + JSON.stringify(v));
+  await page.click(".eyebrow-switch button:has-text('Glossary')");
+  await page.waitForSelector(".g-row .term-word .chip.g-known:has-text('known')"); // the known marker is a chip right after the name
+  // in Flashcards and Quiz me nothing above the card names a term (the next unknown term is the answer)
+  const names = (await page.locator(".g-row .term-name > span:first-child").allInnerTexts()).map((t) => t.trim()).filter(Boolean);
+  if (names.length < 6) throw new Error("could not read the topic's term names from the glossary");
+  for (const mode of ["cards", "quiz"]) {
+    await go(`/topic/${T}/vocab?mode=${mode}`);
+    await page.waitForSelector(".term-card");
+    const above = await page.evaluate(() => {
+      const card = document.querySelector(".term-card");
+      let t = "";
+      for (const el of document.querySelector("main").children) {
+        if (el === card || el.contains(card)) break;
+        t += " " + el.textContent;
+      }
+      return t;
+    });
+    const leaked = names.filter((n) => new RegExp(`(^|[^a-z])${n.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")}([^a-z]|$)`, "i").test(above));
+    if (leaked.length) throw new Error(`${mode}: a term's name sits above the card: ${leaked.join(", ")}`);
+  }
+  await go(`/topic/${T}`);
+  await page.waitForSelector(".tp-step:first-child .status:has-text('1 of 10 known')");
+  // "Quiz me": which term matches this definition? Marked at once, and it updates known terms
+  await go(`/topic/${T}/vocab?mode=quiz`);
+  await page.waitForSelector(".term-card h2.quiz-ask:has-text('Which term matches this definition?')"); // the card's title size
+  if ((await page.locator(".quiz-options input[type=radio]").count()) !== 3) throw new Error("the quiz should offer three terms");
+  // the track shows the session's own sequence (definition 1 of 10 lights node 1), not which terms are known; it
+  // carries no counter of its own (the card's eyebrow states the position)
+  await page.waitForSelector(".step-track[aria-label='Quiz progress'][aria-valuenow='1'][aria-valuemax='10']");
+  if (await page.locator(".step-track[aria-label='Quiz progress'] .st-count").count()) throw new Error("the quiz track should not repeat the card's position counter");
+  if ((await page.locator(".step-track .ring-node.current").count()) !== 1 || !(await page.locator(".st-track > .ring-node:first-child.current").count()))
+    throw new Error("the quiz track should light node 1 for definition 1");
+  await page.locator(".quiz-options input[type=radio]").first().check();
+  await page.click(".term-card button:has-text('Check my answer')");
+  await page.waitForSelector(".term-card .result p:is(.ok-text, .bad-text)");
+  if (await page.locator(".quiz-options .term-symbol").count()) throw new Error("the quiz shows a term's symbol, which gives the match away");
+  // the markers are chips: ✓ THE MATCH on the matching term, ! YOUR PICK on a wrong pick
+  await page.waitForSelector(".quiz-options .is-right .chip.status-note:has-text('✓'):has-text('the match')");
+  if ((await page.locator(".quiz-options .is-picked.is-wrong").count()) && !(await page.locator(".quiz-options .is-picked.is-wrong .chip.status-note:has-text('!'):has-text('your pick')").count()))
+    throw new Error("the wrong pick in the quiz is not marked with its ! chip");
+  await shot("vocab-quiz");
+  const gotIt = (await page.locator(".term-card .result p.ok-text").count()) > 0;
+  const asked = await page.locator(".quiz-options .choice.is-right").getAttribute("data-term");
+  await page.waitForTimeout(800);
+  const after = (await learningState()).vocab[T];
+  if (!asked || after.known.includes(asked) !== gotIt || after.notYet.includes(asked) === gotIt) throw new Error("the quiz answer was not saved as progress: " + JSON.stringify(after));
+});
+
+await step("comprehension: an answer is marked, every option is explained, its citation opens, and the set is saved as uncounted practice", async () => {
+  await go("/");
+  await go(`/topic/${T}/tutorial`);
+  const first = page.locator(".check").first();
+  // the step is open to read; it folds while its check is being answered, reopens on request, and expands for good
+  // only once every question of the step's check is marked
+  await page.waitForSelector(".step-card:not(.folded) h2");
+  await page.waitForSelector(".checks .eyebrow:has-text('not answered')"); // skipped in the tutorial step above, so it says so
+  // a wrong option (the options are shuffled, so pick by text, not position)
+  await first.locator(".choice:not(:has-text('estimated from the flips alone'))").first().locator("input").check();
+  await page.waitForSelector(".step-card.folded button:has-text('Re-read the step')");
+  if (await page.locator(".step-card h2").count()) throw new Error("the step body is still visible while its check is being answered");
+  await page.click(".step-card.folded button:has-text('Re-read the step')");
+  await page.waitForSelector(".step-card:not(.folded) h2");
+  await first.locator("button:has-text('Check my answer')").click();
+  await page.waitForSelector(".check.marked [role=status]:has-text('Not quite')");
+  await page.waitForSelector(".step-card.folded"); // a second question is still open, so the step stays folded
+  if (await page.locator(".step-nav button:has-text('Next step')").count()) throw new Error("'Next step' is offered while a question of the check is still open");
+  // the reasons wait behind "Why" on the verdict row, so none sits above the next question, and the marked question
+  // folds to its stem and verdict while the next one is open: no option text of an earlier question above a later one
+  if (await page.locator(".check.marked .why").count()) throw new Error("option explanations are shown before 'Why' is opened");
+  if ((await page.locator(".check").count()) !== 2) throw new Error("the step's second question should appear once the first is marked");
+  if (!(await page.locator(".check.marked.folded").count()) || (await page.locator(".check.marked .choice").count())) throw new Error("the marked question's options are still shown above the next question");
+  await page.click(".check.marked .result button:has-text('Why')");
+  if (await page.locator(".check.marked .why").count()) throw new Error("a folded question's options are shown before 'Show the options'");
+  await page.click(".check.marked .whys-wrap button:has-text('Show the options')");
+  const options = await page.locator(".check.marked .why").count();
+  if (options !== 3) throw new Error(`not every option has an explanation: ${options} of 3`);
+  // the markers are the system's chips, the same in the opened explanations as in the option list (checked below)
+  await page.waitForSelector(".check.marked .choice-wrap.is-right .choice .chip.status-note:has-text('✓'):has-text('right')");
+  await page.waitForSelector(".check.marked .choice-wrap.is-picked .choice .chip.status-note:has-text('!'):has-text('your pick')");
+  await page.waitForSelector(".check.marked .result .eyebrow:has-text('Result')");
+  await shot("check-marked");
+  // the verdict is the eyebrow and one sentence; the page that settles the question is cited at the end of "Why"
+  if (await page.locator(".check.marked .result .cite, .check.marked .check-foot .cite").count()) throw new Error("a citation chip sits in the verdict block");
+  await page.click(".check.marked .why-source .cite");
+  await page.waitForSelector("dialog[open] .page-view mark");
+  await page.click("dialog button:has-text('Close')");
+  const second = page.locator(".check").nth(1);
+  await second.locator("textarea").fill("It picks the parameter value that makes the observed data most probable, with no prior.");
+  await second.locator("button:has-text('Compare with the reference')").click();
+  await second.locator("label:has-text('I got it') input").check();
+  await page.waitForSelector("[role=status]:has-text('Saved: I got it')");
+  await page.waitForSelector(".step-card:not(.folded) h2"); // the set is done: the step expands and "Next step" appears
+  await page.waitForSelector(".step-nav button:has-text('Next step')");
+  // ...and the first question unfolds (no later question is open), its options carrying the same chips
+  await page.waitForSelector(".check.marked:not(.folded) .choice.is-right .chip.status-note:has-text('✓'):has-text('right')");
+  await page.waitForSelector(".check.marked:not(.folded) .choice.is-picked.is-wrong .chip.status-note:has-text('!'):has-text('your pick')");
+  await page.waitForTimeout(800);
+  const st = (await apiGet("state")).state;
+  const c = st.learning.checks[T];
+  if (c?.["ml-c1"]?.credit !== 0 || c?.["ml-c2"]?.rating !== "got") throw new Error("check answers were not saved: " + JSON.stringify(c));
+  const att = st.attempts.filter((a) => a.note?.startsWith("Comprehension check")).at(-1);
+  if (!att || att.counted !== false || att.composite !== 50) throw new Error("the finished set was not saved as uncounted practice: " + JSON.stringify(att));
+  // "Try it again" is a learning tool, not a scoring one: the retry (the ✓ option, now known) is marked honestly and
+  // its pick saved, but the credit stays the first attempt's miss, no further practice attempt is recorded, and the
+  // step stays among the steps to review with the right count unchanged
+  await first.locator(".check-foot button:has-text('Try it again')").click();
+  await first.locator(".choice:has-text('estimated from the flips alone') input").check();
+  await first.locator("button:has-text('Check my answer')").click();
+  await first.locator(".result p.ok-text:has-text('Right on the retry. The first attempt is what counts.')").waitFor();
+  await page.waitForTimeout(800);
+  const st2 = (await apiGet("state")).state;
+  const r = st2.learning.checks[T]["ml-c1"];
+  if (r?.credit !== 0 || r?.retried !== true || r?.choice === c["ml-c1"].choice) throw new Error("the retry did not keep the first attempt's credit: " + JSON.stringify(r));
+  if (st2.attempts.length !== st.attempts.length) throw new Error("a retry was recorded as another practice attempt");
+  await go(`/topic/${T}/check`);
+  await page.waitForSelector(".step-list li.review:has-text('Review the step')");
+  if (!(await page.locator(".step-list li.review:has(.sl-n:text-is('01'))").count())) throw new Error("the retried step is no longer among the steps to review");
+  if ((await page.locator(".check-summary .stats b.lead").textContent())?.trim() !== "1") throw new Error("the retry changed the right count"); // ml-c2 only
+  await page.waitForSelector(".check-summary .result p.bad-text:has-text('another look')"); // this step and the skipped ones
+  await shot("checks-summary");
+});
+
+await step("breakdown: try a part, reveal it, go through all five, then the worked solution; completion is saved", async () => {
+  await go("/");
+  await go(`/topic/${T}/breakdown`);
+  await page.waitForSelector("h1:has-text('Break down a')");
+  if (await page.locator(".bd-part.revealed").count()) throw new Error("a model answer is visible before any try");
+  await page.locator(".bd-part textarea").fill("The MLE of theta, a number");
+  await page.click("button:has-text('Reveal the model answer')");
+  await page.waitForSelector(".bd-part.revealed .model-answer .katex");
+  await page.waitForSelector(".bd-part.revealed .your-answer:has-text('The MLE of theta')");
+  for (let k = 1; k < 5; k++) {
+    const open = page.locator(".bd-part:not(.revealed)");
+    if (await open.locator("input[type=radio]").count()) await open.locator("input[type=radio]").first().check();
+    else await open.locator("textarea").fill("my try");
+    if (k === 2) await shot("breakdown-part");
+    await open.locator("button:has-text('Reveal the model answer')").click();
+    await page.waitForFunction((n) => document.querySelectorAll(".bd-part.revealed").length === n, k + 1);
+  }
+  await page.click("button:has-text('Show the full worked solution')");
+  await page.waitForSelector("[aria-label='Worked solution'] .katex");
+  await shot("breakdown-done");
+  await page.waitForTimeout(800);
+  const b = (await learningState()).breakdowns[T]?.["ml-b1"];
+  if (!b?.done || b.revealed.length !== 5) throw new Error("breakdown progress not saved: " + JSON.stringify(b));
+  await page.click("button:has-text('Next problem')");
+  await page.waitForSelector("text=Problem 2 of 3");
+  // the mixed set: the tool is the question
+  await page.click(".bd-head button[aria-label^='Which tool? 1']");
+  await page.waitForSelector(".bd-problem h2:has-text('Website clicks')");
+});
+
+await step("glossary: every term, searchable, linked from Learn and the Library", async () => {
+  await go("/learn");
+  await page.click("a:has-text('The glossary')");
+  await page.waitForSelector("h1:has-text('glossary')");
+  const all = await page.locator(".g-row").count();
+  if (all < 60) throw new Error(`only ${all} glossary terms`);
+  await page.fill("input[aria-label='Search the glossary']", "conjugate");
+  await page.waitForSelector(".g-row:has-text('Conjugate prior')");
+  if ((await page.locator(".g-row").count()) >= all) throw new Error("search did not filter");
+  await page.fill("input[aria-label='Search the glossary']", "θ");
+  await page.waitForSelector(".g-row:has-text('Parameter')");
+  await go("/library");
+  await page.waitForSelector("a.card[href$='/glossary']");
 });
 
 await step("tutor: says it needs an AI service and points to what works without one", async () => {
@@ -647,12 +860,108 @@ await step("settings export + delete", async () => {
 
 await step("mobile layout no horizontal overflow", async () => {
   await page.setViewportSize({ width: 380, height: 800 });
-  for (const p of ["/", "/learn", "/practice", "/library", `/topic/${T}`, "/progress", `/topic/${T}/quiz`, "/materials", "/settings"]) {
+  for (const p of ["/", "/learn", "/practice", "/library", `/topic/${T}`, "/progress", `/topic/${T}/quiz`, "/materials", "/settings", `/topic/${T}/vocab`, `/topic/${T}/tutorial`, `/topic/${T}/check`, `/topic/${T}/breakdown`, "/glossary"]) {
     await go(p);
     const over = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
     if (over > 4) throw new Error(`horizontal overflow ${over}px on ${p}`);
   }
   await shot("mobile");
+});
+
+await step("piece D at 390px: every route and state fits, and no text runs past its card", async () => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  /** The page's horizontal overflow, and every visible text node that ends past its card's (or the page's) right edge. */
+  const misfits = () =>
+    page.evaluate(() => {
+      const vw = window.innerWidth;
+      const out = [];
+      const over = document.documentElement.scrollWidth - vw;
+      if (over > 1) out.push(`page scrolls sideways by ${over}px`);
+      const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const text = node.textContent.trim();
+        const el = node.parentElement;
+        if (!text || !el || el.closest(".sr-only, script, style, option, textarea, svg, .katex-display, .katex-mathml")) continue;
+        const cs = getComputedStyle(el);
+        if (cs.display === "none" || cs.visibility === "hidden") continue;
+        const range = document.createRange();
+        range.selectNodeContents(node);
+        const r = range.getBoundingClientRect();
+        if (!r.width) continue;
+        const card = el.closest(".panel, .card, main");
+        const limit = Math.min(vw, card ? card.getBoundingClientRect().right : vw) + 1;
+        if (r.right > limit) out.push(`"${text.slice(0, 40)}" ends at ${Math.round(r.right)}px, past ${Math.round(limit)}px`);
+      }
+      return out;
+    });
+  const fits = async (what) => {
+    await page.evaluate(() => document.fonts.ready);
+    await page.waitForTimeout(300);
+    const bad = await misfits();
+    if (bad.length) throw new Error(`${what}: ${bad.slice(0, 3).join("; ")}`);
+  };
+  await putSlice("learning", { vocab: {}, checks: {}, breakdowns: {} });
+  await go(`/topic/${T}/vocab`);
+  await page.waitForSelector(".term-card");
+  await fits("vocab lesson");
+  await page.click("button:has-text('Next term')");
+  await fits("vocab lesson, term 2");
+  await go(`/topic/${T}/vocab?mode=cards`);
+  await page.click("button:has-text('Reveal the definition')");
+  await page.waitForSelector("[aria-label='Definition']");
+  await fits("flashcard revealed");
+  await go(`/topic/${T}/vocab?mode=quiz`);
+  await page.waitForSelector(".quiz-options");
+  await fits("quiz definition");
+  await page.locator(".quiz-options input[type=radio]").nth(1).check();
+  await page.click(".term-card button:has-text('Check my answer')");
+  await page.waitForSelector(".term-card .result");
+  await fits("quiz marked");
+  await go(`/topic/${T}/vocab?mode=list`);
+  await page.waitForSelector(".g-row");
+  await fits("topic glossary");
+  await go(`/topic/${T}/tutorial?step=2`);
+  await page.waitForSelector(".step-card");
+  await fits("tutorial step");
+  const q = page.locator(".check").first();
+  await q.locator(".choice:has-text('has the same maximum value') input").check();
+  await page.waitForSelector(".step-card.folded");
+  await fits("tutorial step folded");
+  await q.locator("button:has-text('Check my answer')").click();
+  await page.waitForSelector(".check.marked .result");
+  await fits("check marked");
+  await page.click(".check.marked .result button:has-text('Why')");
+  await page.click(".check.marked .whys-wrap button:has-text('Show the options')");
+  await page.waitForSelector(".check.marked .why");
+  await fits("check why");
+  await go(`/topic/${T}/check`);
+  await page.waitForSelector(".check-summary");
+  await fits("checks summary");
+  await go(`/topic/${T}/breakdown`);
+  await page.waitForSelector(".bd-problem");
+  await fits("breakdown");
+  for (let k = 0; k < 5; k++) {
+    const open = page.locator(".bd-part:not(.revealed)").first();
+    if (await open.locator("input[type=radio]").count()) await open.locator("input[type=radio]").first().check();
+    else await open.locator("textarea").fill("a try");
+    await open.locator("button:has-text('Reveal the model answer')").click();
+    await page.waitForFunction((n) => document.querySelectorAll(".bd-part.revealed").length === n, k + 1);
+    await fits(`breakdown part ${k + 1} revealed`);
+  }
+  await page.click("button:has-text('Show the full worked solution')");
+  await page.waitForSelector("[aria-label='Worked solution']");
+  await fits("breakdown worked solution");
+  await go(`/topic/${T}/breakdown?q=4`);
+  await page.waitForSelector(".bd-problem h2:has-text('Website clicks')");
+  await fits("which tool? problem");
+  await go("/glossary");
+  await page.waitForSelector(".g-row");
+  await fits("glossary");
+  await go("/library");
+  await page.waitForSelector(".library-grid");
+  await fits("library");
+  await putSlice("learning", { vocab: {}, checks: {}, breakdowns: {} });
 });
 
 // ---------------------------------------------------------------------------------------------- AI service (fake Gemini)

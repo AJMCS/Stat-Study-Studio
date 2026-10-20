@@ -74,6 +74,7 @@ def test_every_slice_roundtrips(client):
         "hostedDisclosureAck": True,
         "chats": {"t1": [{"role": "tutor", "text": "hi"}]},
         "onboarding": {"done": True, "completedAt": "2026-10-19T12:00:00Z"},
+        "learning": LEARNING,
     }
     for name, value in state.items():
         assert put(client, name, value).status_code == 200, name
@@ -169,6 +170,59 @@ def test_onboarding_is_exported_imported_and_wiped(client):
     older = {k: v for k, v in restored.items() if k != "onboarding"}
     assert client.post("/api/import?overwrite=true", json=older, headers=ORIGIN).status_code == 200
     assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
+
+
+LEARNING = {
+    "vocab": {"t1": {"known": ["t1-prior", "t1-posterior"], "notYet": ["t1-conjugate"]}},
+    "checks": {"t1": {"c1": {"credit": 1, "choice": 2, "at": "x"}, "c2": {"credit": 0.5, "rating": "partly", "at": "y"}}},
+    "breakdowns": {"t1": {"b1": {"revealed": ["ask", "given"], "done": False, "at": "z"}}},
+}
+
+
+def test_learning_defaults_to_empty_and_roundtrips(client):
+    assert client.get("/api/state").json()["state"]["learning"] == {"vocab": {}, "checks": {}, "breakdowns": {}}
+    assert put(client, "learning", LEARNING).status_code == 200
+    got = client.get("/api/state").json()
+    assert got["state"]["learning"] == LEARNING
+    # learner progress is study data, so it marks the service as holding the learner's state
+    assert got["initialized"] is True
+
+
+def test_learning_fills_missing_parts_and_rejects_bad_shapes(client):
+    assert put(client, "learning", {"vocab": {"t1": {"known": ["a"]}}}).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"] == {"vocab": {"t1": {"known": ["a"], "notYet": []}}, "checks": {}, "breakdowns": {}}
+    # a skipped check (the tutorial's "Skip the check for now") is kept as not answered
+    assert put(client, "learning", {"checks": {"t1": {"c1": {"credit": 0, "skipped": True, "at": "x"}}}}).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"]["checks"] == {"t1": {"c1": {"credit": 0, "skipped": True, "at": "x"}}}
+    # a retried check ("Try it again") keeps the first attempt's credit beside the retry's choice
+    assert put(client, "learning", {"checks": {"t1": {"c1": {"credit": 0, "choice": 2, "retried": True, "at": "x"}}}}).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"]["checks"] == {"t1": {"c1": {"credit": 0, "choice": 2, "retried": True, "at": "x"}}}
+    assert put(client, "learning", {"checks": {"t1": {"c1": {"credit": 2, "at": "x"}}}}).status_code == 422
+    assert put(client, "learning", {"checks": {"t1": {"c1": {"credit": 1, "rating": "great", "at": "x"}}}}).status_code == 422
+    assert put(client, "learning", {"breakdowns": {"t1": {"b1": {"revealed": ["guess"], "done": False, "at": "x"}}}}).status_code == 422
+    assert put(client, "learning", {"surprise": {}}).status_code == 422
+    assert put(client, "learning", []).status_code == 422
+
+
+def test_learning_is_exported_imported_and_wiped(client):
+    put(client, "learning", LEARNING)
+    body = json.loads(client.get("/api/export").content)
+    assert body["data"]["learning"] == LEARNING
+    assert client.delete("/api/data", headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"] == {"vocab": {}, "checks": {}, "breakdowns": {}}
+    restored = {k: v for k, v in body["data"].items() if k != "files"}
+    assert client.post("/api/import?overwrite=true", json=restored, headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"] == LEARNING
+    # an older export without the field imports with empty progress
+    older = {k: v for k, v in restored.items() if k != "learning"}
+    assert client.post("/api/import?overwrite=true", json=older, headers=ORIGIN).status_code == 200
+    assert client.get("/api/state").json()["state"]["learning"] == {"vocab": {}, "checks": {}, "breakdowns": {}}
+
+
+def test_session_accepts_the_learning_activities(client):
+    for activity in ("vocab", "breakdown", "check"):
+        assert put(client, "session", {"topicId": "t1", "activity": activity, "at": "x"}).status_code == 200
+    assert put(client, "session", {"topicId": "t1", "activity": "nap", "at": "x"}).status_code == 422
 
 
 def test_onboarding_survives_a_restart(tmp_path):

@@ -7,6 +7,10 @@ import { Library } from "./pages/Library";
 import { TopicPage } from "./pages/TopicPage";
 import { Tutor } from "./pages/Tutor";
 import { Tutorial } from "./pages/Tutorial";
+import { Vocab } from "./pages/Vocab";
+import { Checks } from "./pages/Checks";
+import { Breakdown } from "./pages/Breakdown";
+import { Glossary } from "./pages/Glossary";
 import { Quiz } from "./pages/Quiz";
 import { Exam } from "./pages/Exam";
 import { ExamHistory, ExamReview } from "./pages/ExamHistory";
@@ -85,7 +89,7 @@ function section(path: string): string {
   if (path.startsWith("/learn") || path.startsWith("/topic/")) return "learn";
   if (path.startsWith("/practice") || path.startsWith("/exams")) return "practice";
   if (path.startsWith("/progress")) return "progress";
-  if (path.startsWith("/library") || path.startsWith("/notes") || path.startsWith("/materials")) return "library";
+  if (path.startsWith("/library") || path.startsWith("/notes") || path.startsWith("/materials") || path.startsWith("/glossary")) return "library";
   if (path.startsWith("/settings")) return "settings";
   return "";
 }
@@ -162,10 +166,14 @@ export function App() {
           <Route path="/topic/:id" element={<PerTopic><TopicPage /></PerTopic>} />
           <Route path="/topic/:id/tutor" element={<PerTopic><Tutor /></PerTopic>} />
           <Route path="/topic/:id/tutorial" element={<PerTopic><Tutorial /></PerTopic>} />
+          <Route path="/topic/:id/vocab" element={<PerTopic><Vocab /></PerTopic>} />
+          <Route path="/topic/:id/check" element={<PerTopic><Checks /></PerTopic>} />
+          <Route path="/topic/:id/breakdown" element={<PerTopic><Breakdown /></PerTopic>} />
           <Route path="/topic/:id/quiz" element={<PerTopic><Quiz /></PerTopic>} />
           <Route path="/topic/:id/exam" element={<PerTopic><Exam /></PerTopic>} />
           <Route path="/exams" element={<ExamHistory />} />
           <Route path="/exams/:examId" element={<ExamReview />} />
+          <Route path="/glossary" element={<Glossary />} />
           <Route path="/progress" element={<Progress />} />
           <Route path="/materials" element={<Materials />} />
           <Route path="/notes" element={<Notes />} />

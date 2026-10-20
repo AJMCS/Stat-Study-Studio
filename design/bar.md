@@ -15,7 +15,10 @@ References: `reference/timescale-*.png` (overall structure and hard-edged system
    screen, so the two lines contradicted each other.)*
 3. **Three voices, never mixed.** Hand lettering appears on every main screen (a display word, a margin note, or a
    diagram label) but never in body text, buttons or form labels; every data number (score, page, count, time) is
-   monospace; everything else is the clean sans.
+   monospace; everything else is the clean sans. *(Clarified in piece D: the design system's `// EYEBROW` labels and the
+   13px uppercase label under a stat block are also monospace by rule, and are not a violation; other status words are. Extended in
+   piece D round 9: the design system's chips (§7, pill + mono uppercase), including the ✓/! option-marker chips, are monospace by the
+   same rule.)*
 4. **Hard edges.** Elevated things (cards, dialogs) have a 1px border and a solid, unblurred offset shadow; there are
    no gradients, blurs or glows anywhere, and corner radii come only from {4px, 12px, pill}.
 5. **Graph paper, generous air.** The canvas shows a faint, regular grid texture; above the fold of the home screen at
@@ -26,3 +29,7 @@ References: `reference/timescale-*.png` (overall structure and hard-edged system
 7. **Motion draws, then rests.** In the intro, lines draw on from one end and every movement resolves in a single
    direction (toward Studio, rightward); no element moves for less than 400ms; the sequence finishes in under 7 seconds
    on a still θ mark plus two buttons, and frames sampled in dark and light mode use each mode's own ink and canvas.
+
+**Scope (owner, 2026-10-19, during piece D round 10):** the app targets desktop/laptop only for now; a phone layout is a later
+version. Critics judge the desktop captures (1440x900 and full-page) only; the 390px captures are rendered but not judged, and a
+mobile-only flaw never fails a round.

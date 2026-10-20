@@ -30,7 +30,7 @@ function downloadPdf(e: ExamRecord, title: string) {
   if (e.focus) line(`Focus: ${e.focus}`);
   y += 3;
   e.items.forEach((it, n) => {
-    line(`Q${n + 1}. ${it.prompt}`, 12, true);
+    line(`Q${n + 1}. ${it.prompt.replace(/‹([^›]*)›/g, "$1")}`, 12, true); // a ‹mono› run is plain text in the export
     line(`Your answer: ${it.answer || "(unanswered)"}`);
     line(`Feedback: ${it.feedback}`);
     it.aiFeedback?.forEach((f) => line(`${CRITERION_LABELS[f.criterion]} ${f.score}: ${f.comment} Try: ${f.suggestion}`));
@@ -114,7 +114,7 @@ export function ExamReview() {
               <ul className="ticks" aria-label="Key points">
                 {it.keyPoints.map((k, n) => (
                   <li key={n} className={k.got ? "got" : "missed"}>
-                    <span aria-hidden>{k.got ? "✓" : "○"}</span> <span className="sr-only">{k.got ? "Covered: " : "Not covered: "}</span>
+                    <span aria-hidden>{k.got ? "✓" : "!"}</span> <span className="sr-only">{k.got ? "Covered: " : "Not covered: "}</span>
                     <RichText text={k.text} />
                   </li>
                 ))}

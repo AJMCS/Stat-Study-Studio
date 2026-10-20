@@ -1,5 +1,6 @@
 import type { Topic, SourceRef, QuizQuestion, TutorialStep, ExamQuestion } from "../types";
 import { EXAMPLES, RECALL, SOLUTIONS } from "./learning";
+import { HW1, HW2, LEC, QUIZ2, QUIZ3, src } from "./cite";
 
 /**
  * STAT 132 topics, one per lecture, grounded in course-library/ (see course-library/manifest.json).
@@ -10,29 +11,6 @@ import { EXAMPLES, RECALL, SOLUTIONS } from "./learning";
 
 const m = String.raw;
 
-const LEC = {
-  1: "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf",
-  2: "lecture-notes/lecture-02-frequentist-vs-bayesian-inference.pdf",
-  3: "lecture-notes/lecture-03-the-posterior-distribution.pdf",
-  4: "lecture-notes/lecture-04-loss-functions-and-bayes-estimators.pdf",
-  5: "lecture-notes/lecture-05-maximum-likelihood-estimation.pdf",
-  6: "lecture-notes/lecture-06-maximum-likelihood-properties.pdf",
-  7: "lecture-notes/lecture-07-sampling-distributions.pdf",
-} as const;
-const QUIZ2 = "quizzes/quiz-02-bayesian-estimation.pdf";
-const QUIZ3 = "quizzes/quiz-03-mle-and-sampling-distributions.pdf";
-const HW1 = "homework/homework-01.pdf";
-const HW2 = "homework/homework-02.pdf";
-
-/** A citation into the shared library. `highlight` is verbatim text on that page (checked by topics.test.ts). */
-const src = (id: string, title: string, filename: string, page: number, highlight?: string): SourceRef => ({
-  id,
-  kind: "Shared",
-  title,
-  filename,
-  page,
-  highlight,
-});
 
 const open = (
   id: string,
@@ -150,7 +128,7 @@ const RAW_TOPICS: RawTopic[] = [
     tutorial: [
       {
         heading: "Two directions: probability and inference",
-        body: "In probability, the parameters are known and we compute the chance of data. In inference, we have observed the data and want to learn the unknown parameters. For a fair coin the first question is how likely 6 heads in 10 tosses is. The second question is what 8 heads in 10 tosses tells us about the coin.",
+        body: "In probability, the parameters are known and we compute the chance of data. In inference, we have observed the data and want to learn the unknown parameters. For a fair coin the first question is how likely $6$ heads in $10$ tosses is. The second question is what $8$ heads in $10$ tosses tells us about the coin.",
         formula: m`P(X = 6 \mid p = 0.5) \quad\text{vs.}\quad \text{what is } p \text{ given } x = 8\,?`,
         sourceId: "l1-prob-vs-inf",
       },
@@ -168,7 +146,7 @@ const RAW_TOPICS: RawTopic[] = [
       },
       {
         heading: "What we do with statistics",
-        body: "Point estimation gives a single best guess of a parameter, interval estimation gives a range with a stated confidence, prediction forecasts future observations, and hypothesis testing checks a claim such as whether a mean equals 100.",
+        body: "Point estimation gives a single best guess of a parameter, interval estimation gives a range with a stated confidence, prediction forecasts future observations, and hypothesis testing checks a claim such as whether a mean equals $100$.",
         formula: m`H_0:\ \mu = 100 \quad\text{vs.}\quad H_1:\ \mu \neq 100`,
         sourceId: "l1-estimation",
       },
@@ -197,7 +175,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "pr-e1",
         prompt:
-          "A coin is tossed 10 times. (a) If the coin is fair, find the probability of exactly 6 heads. (b) You instead observe 8 heads and do not know whether the coin is fair. Explain why (b) is an inference problem and propose a reasonable point estimate of $p$, justifying it.",
+          "A coin is tossed $10$ times. (a) If the coin is fair, find the probability of exactly $6$ heads. (b) You instead observe $8$ heads and do not know whether the coin is fair. Explain why (b) is an inference problem and propose a reasonable point estimate of $p$, justifying it.",
         hint: "Part (a) uses a known p. Part (b) starts from the observed data and asks what p is.",
         concept: "Probability vs. inference",
         sourceIds: ["l1-prob-vs-inf", "l1-estimation"],
@@ -230,7 +208,7 @@ const RAW_TOPICS: RawTopic[] = [
     tutorial: [
       {
         heading: "Population, sample, parameter",
-        body: "A population is the full set of units we care about, a sample is the subset we measure, and a parameter is a number describing the population. A distribution we choose to model the population may have parameters that are not the quantity we actually want, such as the probability that an IQ exceeds 140.",
+        body: "A population is the full set of units we care about, a sample is the subset we measure, and a parameter is a number describing the population. A distribution we choose to model the population may have parameters that are not the quantity we actually want, such as the probability that an IQ exceeds $140$.",
         sourceId: "l2-freq",
       },
       {
@@ -240,13 +218,13 @@ const RAW_TOPICS: RawTopic[] = [
       },
       {
         heading: "The likelihood",
-        body: "For a random sample from f(x | θ), the likelihood has the same formula as the joint density but is viewed as a function of θ because the data are now observed. It is not a probability distribution and does not integrate to one. For 8 heads in 10 independent flips, the likelihood of p is below (the binomial coefficient is a constant in p).",
+        body: m`For a random sample from $f(x\mid\theta)$, the likelihood has the same formula as the joint density but is viewed as a function of $\theta$ because the data are now observed. It is not a probability distribution and does not integrate to one. For $8$ heads in $10$ independent flips, the likelihood of $p$ is below (the binomial coefficient is a constant in $p$).`,
         formula: m`L(\theta) = \prod_{i=1}^{n} f(X_i \mid \theta), \qquad L(p) \propto p^{8}(1-p)^{2}`,
         sourceId: "l2-likelihood",
       },
       {
         heading: "Choosing a prior",
-        body: "The prior π(θ) is the distribution we assign to the parameter before seeing data. With no information about a proportion, a uniform prior on [0, 1] is natural. With past experience, a prior with a small standard deviation expresses low uncertainty. For a Gamma(α, β) prior with mean 0.0002 and standard deviation 0.0001, matching moments gives α = 4 and β = 20000.",
+        body: m`The prior $\pi(\theta)$ is the distribution we assign to the parameter before seeing data. With no information about a proportion, a uniform prior on $[0, 1]$ is natural. With past experience, a prior with a small standard deviation expresses low uncertainty. For a $\mathrm{Gamma}(\alpha,\beta)$ prior with mean $0.0002$ and standard deviation $0.0001$, matching moments gives $\alpha = 4$ and $\beta = 20000$.`,
         formula: m`\pi(\theta) = \frac{\beta^{\alpha}}{\Gamma(\alpha)}\theta^{\alpha-1}e^{-\beta\theta}`,
         sourceId: "l2-prior",
       },
@@ -275,7 +253,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "fb-e1",
         prompt:
-          "The lifetime of a lamp is exponential with unknown rate $\\theta$. Prior experience suggests a Gamma($\\alpha,\\beta$) prior for $\\theta$ with mean 0.0002 and standard deviation 0.0001. (a) Solve for $\\alpha$ and $\\beta$. (b) Write $\\pi(\\theta)$ and explain what the prior represents.",
+          "The lifetime of a lamp is exponential with unknown rate $\\theta$. Prior experience suggests a $\\mathrm{Gamma}(\\alpha,\\beta)$ prior for $\\theta$ with mean $0.0002$ and standard deviation $0.0001$. (a) Solve for $\\alpha$ and $\\beta$. (b) Write $\\pi(\\theta)$ and explain what the prior represents.",
         hint: "The Gamma mean is α/β and the variance is α/β². Use both to solve for α and β.",
         concept: "Choosing a prior",
         sourceIds: ["l2-prior"],
@@ -284,7 +262,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "fb-e2",
         prompt:
-          "Scores are $N(\\mu,10^2)$ with $\\mu$ unknown. You observe 45, 55 and 50. Write the likelihood of $\\mu$, state what value of $\\mu$ makes it largest (and why), and explain how this likelihood is used differently by a frequentist and a Bayesian.",
+          "Scores are $N(\\mu,10^2)$ with $\\mu$ unknown. You observe $45$, $55$ and $50$. Write the likelihood of $\\mu$, state what value of $\\mu$ makes it largest (and why), and explain how this likelihood is used differently by a frequentist and a Bayesian.",
         hint: "The exponent is a sum of squares; where is it smallest?",
         concept: "Likelihood",
         sourceIds: ["l2-likelihood", "l2-freq", "l2-bayes"],
@@ -293,7 +271,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "fb-e3",
         prompt:
-          "(Adapted from Homework 1.) (a) A gamma prior for $\\theta$ has mean 5 and variance 2. Determine the prior pdf. (b) A friend suggests a normal prior with mean 1 and variance 10 for a Poisson mean $\\lambda$. Is this reasonable? Explain.",
+          "(Adapted from ‹HW01›.) (a) A gamma prior for $\\theta$ has mean 5 and variance 2. Determine the prior pdf. (b) A friend suggests a normal prior with mean 1 and variance 10 for a Poisson mean $\\lambda$. Is this reasonable? Explain.",
         hint: "For a Gamma(α, β) the mean is α/β and the variance is α/β². What values can a Poisson mean take?",
         concept: "Priors from moments",
         sourceIds: ["hw1-priors", "l2-prior"],
@@ -302,7 +280,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "fb-e4",
         prompt:
-          "(Adapted from Homework 1.) You flip a possibly weighted coin 100 times and observe 60 heads. (a) Write the likelihood function of $p$. (b) Sketch it over $[0,1]$ and mark where it is largest. (c) For a Poisson mean $\\lambda$ and household sizes $x_1,\\dots,x_{10}$, write the likelihood of $\\lambda$.",
+          "(Adapted from ‹HW01›.) You flip a possibly weighted coin 100 times and observe 60 heads. (a) Write the likelihood function of $p$. (b) Sketch it over $[0,1]$ and mark where it is largest. (c) For a Poisson mean $\\lambda$ and household sizes $x_1,\\dots,x_{10}$, write the likelihood of $\\lambda$.",
         hint: "Treat the data as fixed and write the density as a function of the parameter.",
         concept: "Writing likelihoods",
         sourceIds: ["hw1-likelihood", "l2-likelihood"],
@@ -326,7 +304,7 @@ const RAW_TOPICS: RawTopic[] = [
     tutorial: [
       {
         heading: "The posterior and Bayes' theorem",
-        body: "The posterior π(θ | x) is the distribution of θ given the observed data. By Bayes' theorem it equals likelihood times prior divided by the marginal of the data. The marginal does not depend on θ, so we usually drop it and write a proportionality.",
+        body: m`The posterior $\pi(\theta\mid x)$ is the distribution of $\theta$ given the observed data. By Bayes' theorem it equals likelihood times prior divided by the marginal of the data. The marginal does not depend on $\theta$, so we usually drop it and write a proportionality.`,
         formula: m`\pi(\theta \mid x) = \frac{f(x \mid \theta)\,\pi(\theta)}{m_n(x)} \;\propto\; f(x \mid \theta)\,\pi(\theta)`,
         sourceId: "l3-bayes",
       },
@@ -337,19 +315,19 @@ const RAW_TOPICS: RawTopic[] = [
       },
       {
         heading: "Beta-Bernoulli and Gamma-Poisson",
-        body: "For Bernoulli data with a Beta(α, β) prior, add the successes to α and the failures to β. For Poisson data with a Gamma(α, β) prior, add the total count to α and the number of observations to β. Example: 8 heads in 10 flips with a Beta(1, 1) prior gives Beta(9, 3), with posterior mean 3/4.",
+        body: m`For Bernoulli data with a $\mathrm{Beta}(\alpha,\beta)$ prior, add the successes to $\alpha$ and the failures to $\beta$. For Poisson data with a $\mathrm{Gamma}(\alpha,\beta)$ prior, add the total count to $\alpha$ and the number of observations to $\beta$. Example: $8$ heads in $10$ flips with a $\mathrm{Beta}(1,\,1)$ prior gives $\mathrm{Beta}(9,\,3)$, with posterior mean $3/4$.`,
         formula: m`p \mid x \sim \text{Beta}\!\left(\alpha+\sum x_i,\; \beta+n-\sum x_i\right), \qquad \lambda \mid x \sim \text{Gamma}\!\left(\alpha+\sum x_i,\; \beta+n\right)`,
         sourceId: "l3-beta",
       },
       {
         heading: "Normal data, known variance",
-        body: "With a Normal(μ0, σ0²) prior on the mean, the posterior mean is a weighted average of the prior mean and the sample mean. As n grows or the prior variance grows, the weight moves toward the data.",
+        body: m`With a $N(\mu_0,\sigma_0^2)$ prior on the mean, the posterior mean is a weighted average of the prior mean and the sample mean. As $n$ grows or the prior variance grows, the weight moves toward the data.`,
         formula: m`\mu_1 = \frac{\sigma^2\mu_0 + n\sigma_0^2\,\bar{x}_n}{\sigma^2 + n\sigma_0^2}, \qquad \sigma_1^2 = \frac{\sigma^2\sigma_0^2}{\sigma^2 + n\sigma_0^2}`,
         sourceId: "l3-normal",
       },
       {
         heading: "How much does the prior matter?",
-        body: "A small sample leaves the posterior mean near the prior mean, and a large sample pulls it toward the sample mean. A small prior variance makes the prior stronger. Posterior variance decreases as n increases.",
+        body: "A small sample leaves the posterior mean near the prior mean, and a large sample pulls it toward the sample mean. A small prior variance makes the prior stronger. Posterior variance decreases as $n$ increases.",
         sourceId: "l3-prior-effect",
       },
     ],
@@ -389,7 +367,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "po-e2",
         prompt:
-          "Let $X_1,\\dots,X_n$ be i.i.d. Bernoulli($p$) with a uniform prior on $p$. (a) Show that the posterior is Beta($1+\\sum x_i,\\;1+n-\\sum x_i$) starting from 'posterior is proportional to likelihood times prior'. (b) Explain why a Beta prior is called conjugate here.",
+          "Let $X_1,\\dots,X_n$ be i.i.d. $\\mathrm{Bernoulli}(p)$ with a uniform prior on $p$. (a) Show that the posterior is $\\mathrm{Beta}(1+\\sum x_i,\\;1+n-\\sum x_i)$ starting from 'posterior is proportional to likelihood times prior'. (b) Explain why a Beta prior is called conjugate here.",
         hint: "Multiply p^{Σx}(1−p)^{n−Σx} by the prior density and recognize the kernel.",
         concept: "Conjugate updating",
         sourceIds: ["l3-bayes", "l3-conjugate", "l3-beta"],
@@ -398,7 +376,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "po-e3",
         prompt:
-          "(Adapted from Homework 2.) A random sample of size $n$ comes from a Poisson distribution with unknown mean $\\theta$, and $\\theta$ has a Gamma($\\alpha,\\beta$) prior with mean $\\mu_0$. Show that the posterior mean is $\\gamma_n\\bar X_n+(1-\\gamma_n)\\mu_0$ and show $\\gamma_n\\to1$ as $n\\to\\infty$.",
+          "(Adapted from ‹HW02›.) A random sample of size $n$ comes from a Poisson distribution with unknown mean $\\theta$, and $\\theta$ has a $\\mathrm{Gamma}(\\alpha,\\beta)$ prior with mean $\\mu_0$. Show that the posterior mean is $\\gamma_n\\bar X_n+(1-\\gamma_n)\\mu_0$ and show $\\gamma_n\\to1$ as $n\\to\\infty$.",
         hint: "Find the posterior parameters first, then split the posterior mean into a part from the data and a part from the prior.",
         concept: "Posterior mean as a weighted average",
         sourceIds: ["hw2-weighted", "l3-gamma"],
@@ -407,7 +385,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "po-e4",
         prompt:
-          "(Adapted from Homework 2.) (a) Delivery times are $N(\\theta,1)$. With $n=22$ and $\\bar x=32$ the posterior of $\\theta$ is normal with mean 30 and variance $1/30$. Find the prior. (b) A Beta(2, 200) prior on a defect proportion is combined with 3 defectives in 100 chargers. Find the posterior.",
+          "(Adapted from ‹HW02›.) (a) Delivery times are $N(\\theta,1)$. With $n=22$ and $\\bar x=32$ the posterior of $\\theta$ is normal with mean 30 and variance $1/30$. Find the prior. (b) A $\\mathrm{Beta}(2,\\,200)$ prior on a defect proportion is combined with 3 defectives in 100 chargers. Find the posterior.",
         hint: "In (a), compare the precisions: posterior precision = prior precision + n/σ². Then solve for the prior mean.",
         concept: "Working backward from a posterior",
         sourceIds: ["hw2-posterior", "l3-normal", "l3-beta"],
@@ -423,7 +401,7 @@ const RAW_TOPICS: RawTopic[] = [
     intro:
       "A posterior is a whole distribution, but often we must report one number. A loss function says how costly each error is, and the Bayes estimator is the number that minimizes expected posterior loss. Squared error gives the posterior mean; absolute error gives the posterior median.",
     willStudy: [
-      "Point estimators, estimates and loss functions L(θ, a)",
+      m`Point estimators, estimates and loss functions $L(\theta, a)$`,
       "Bayes estimators as minimizers of expected posterior loss",
       "Why squared error leads to the mean and absolute error to the median",
     ],
@@ -431,19 +409,19 @@ const RAW_TOPICS: RawTopic[] = [
     tutorial: [
       {
         heading: "Why we need a loss function",
-        body: "A point estimator δ(X) is a function of the data, and δ(x) is the estimate once data are observed. We want it close to the true θ, so we need to say how bad an error is. The loss L(θ, a) is what we lose when the truth is θ and we report a.",
+        body: m`A point estimator $\delta(X)$ is a function of the data, and $\delta(x)$ is the estimate once data are observed. We want it close to the true $\theta$, so we need to say how bad an error is. The loss $L(\theta, a)$ is what we lose when the truth is $\theta$ and we report $a$.`,
         formula: m`L(\theta, a) \quad\text{e.g.}\quad (\theta - a)^2 \;\;\text{or}\;\; |\theta - a|`,
         sourceId: "l4-loss",
       },
       {
         heading: "The Bayes estimator",
-        body: "We never know θ, but under the posterior we can compute the expected loss of each candidate a. The Bayes estimator δ(x) is the a that minimizes this expected posterior loss.",
+        body: m`We never know $\theta$, but under the posterior we can compute the expected loss of each candidate $a$. The Bayes estimator $\delta(x)$ is the $a$ that minimizes this expected posterior loss.`,
         formula: m`\delta(x) = \arg\min_{a}\; E\!\left[L(\theta, a)\mid x\right] = \arg\min_{a}\int L(\theta, a)\,\pi(\theta\mid x)\,d\theta`,
         sourceId: "l4-bayes-est",
       },
       {
         heading: "Squared error gives the posterior mean",
-        body: "Under squared error loss, the Bayes estimator is the posterior mean. For Beta-Bernoulli with a uniform prior and 8 heads in 10 flips, the posterior is Beta(9, 3) and the estimate is 3/4. For the Gamma(3, 2) arrivals example after observing 3, the posterior is Gamma(6, 3) and the estimate is 2.",
+        body: m`Under squared error loss, the Bayes estimator is the posterior mean. For Beta-Bernoulli with a uniform prior and $8$ heads in $10$ flips, the posterior is $\mathrm{Beta}(9,\,3)$ and the estimate is $3/4$. For the $\mathrm{Gamma}(3,\,2)$ arrivals example after observing $3$, the posterior is $\mathrm{Gamma}(6,\,3)$ and the estimate is $2$.`,
         formula: m`\delta(X) = E(\theta \mid X)`,
         sourceId: "l4-squared",
       },
@@ -490,7 +468,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "lf-e2",
         prompt:
-          "A Bernoulli sample has $n=50$ and $\\sum x_i=7$. The prior on $p$ is Beta(2, 2). (a) Find the posterior. (b) Give the Bayes estimate under squared error loss. (c) Compare it with the sample proportion and say what the difference tells you about the prior.",
+          "A Bernoulli sample has $n=50$ and $\\sum x_i=7$. The prior on $p$ is $\\mathrm{Beta}(2,\\,2)$. (a) Find the posterior. (b) Give the Bayes estimate under squared error loss. (c) Compare it with the sample proportion and say what the difference tells you about the prior.",
         hint: "Add successes to the first Beta parameter and failures to the second.",
         concept: "Bayes estimate",
         sourceIds: ["l3-beta", "l4-squared", "q2-conjugacy"],
@@ -499,7 +477,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "lf-e3",
         prompt:
-          "(Adapted from Homework 2.) The time for a student to finish a homework is exponential with unknown rate $\\lambda$. Your gamma prior for $\\lambda$ has mean 0.2 and variance 1. The average time of 10 students is 3 hours. (a) Find the prior parameters. (b) Find the posterior of $\\lambda$. (c) Using squared error loss, what is the Bayes estimate?",
+          "(Adapted from ‹HW02›.) The time for a student to finish a homework is exponential with unknown rate $\\lambda$. Your gamma prior for $\\lambda$ has mean $0.2$ and variance $1$. The average time of $10$ students is $3$ hours. (a) Find the prior parameters. (b) Find the posterior of $\\lambda$. (c) Using squared error loss, what is the Bayes estimate?",
         hint: "Match the gamma mean α/β and variance α/β², then update with the exponential likelihood, which is proportional to λ^n e^{−λΣx}.",
         concept: "Bayes estimate (exponential data)",
         sourceIds: ["hw2-bayes-exp", "l4-squared", "l2-prior"],
@@ -518,7 +496,7 @@ const RAW_TOPICS: RawTopic[] = [
       "The definition of the MLE as arg max of the likelihood",
       "The four-step log-likelihood procedure",
       "MLEs for exponential, Bernoulli, normal and Poisson data",
-      "Edge cases such as the uniform distribution on [0, θ]",
+      m`Edge cases such as the uniform distribution on $[0, \theta]$`,
     ],
     sources: l5,
     tutorial: [
@@ -530,19 +508,19 @@ const RAW_TOPICS: RawTopic[] = [
       },
       {
         heading: "The procedure",
-        body: "Logs are increasing, so maximizing the log-likelihood is equivalent and easier. Step 1: write the log-likelihood. Step 2: differentiate and set to zero. Step 3: solve for the candidate. Step 4: check the second derivative is negative so it is a maximum.",
+        body: "Logs are increasing, so maximizing the log-likelihood is equivalent and easier. Step ‹1›: write the log-likelihood. Step ‹2›: differentiate and set to zero. Step ‹3›: solve for the candidate. Step ‹4›: check the second derivative is negative so it is a maximum.",
         formula: m`\ell(\theta\mid x)=\log L(\theta\mid x),\qquad \frac{d}{d\theta}\ell(\theta\mid x)=0,\qquad \frac{d^2}{d\theta^2}\ell(\theta\mid x)\Big|_{\hat\theta}<0`,
         sourceId: "l5-procedure",
       },
       {
         heading: "Worked patterns",
-        body: "For exponential data with parameter θ the MLE is n over the sum, so with data 3, 1.5 and 2.1 it is 3/6.6 = 5/11. For Bernoulli data it is the sample proportion, for a normal mean with known variance it is the sample mean, and for the Poisson data 3, 2, 4, 3, 5, 2, 3 it is 22/7.",
+        body: m`For exponential data with parameter $\theta$ the MLE is $n$ over the sum, so with data $3$, $1.5$ and $2.1$ it is $3/6.6 = 5/11$. For Bernoulli data it is the sample proportion, for a normal mean with known variance it is the sample mean, and for the Poisson data $3, 2, 4, 3, 5, 2, 3$ it is $22/7$.`,
         formula: m`\hat\theta_{\text{exp}}=\frac{n}{\sum x_i},\qquad \hat p=\bar{x},\qquad \hat\mu=\bar{x},\qquad \hat\lambda_{\text{Pois}}=\bar{x}`,
         sourceId: "l5-procedure",
       },
       {
         heading: "When calculus fails: edge cases",
-        body: "Sometimes the likelihood has no interior maximum, so setting the derivative to zero fails. For a sample from Uniform[0, θ], the likelihood is θ^(−n) for θ at least the sample maximum and zero otherwise, which is decreasing, so the MLE sits on the edge of the allowed region at the maximum.",
+        body: m`Sometimes the likelihood has no interior maximum, so setting the derivative to zero fails. For a sample from $\mathrm{Uniform}[0,\theta]$, the likelihood is $\theta^{-n}$ for $\theta$ at least the sample maximum and zero otherwise, which is decreasing, so the MLE sits on the edge of the allowed region at the maximum.`,
         formula: m`L(\theta)=\theta^{-n}\,\mathbf{1}\{\theta \ge \max_i x_i\}\;\Rightarrow\;\hat\theta=\max_i X_i`,
         sourceId: "l5-edge",
       },
@@ -592,7 +570,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "ml-e3",
         prompt:
-          "(Adapted from Homework 2.) (a) Decay times follow $f(x\\mid\\theta)=\\tfrac{1}{\\theta^2}xe^{-x/\\theta}$ for $x>0$. For observations 2, 3 and 4, find the MLE of $\\theta$. (b) A failure count has pmf $f(x\\mid\\theta)=(1-\\theta)^x\\theta$ with $0<\\theta<1$. For a sample $X_1,\\dots,X_n$, find the MLE of $\\theta$ and check it is a maximum.",
+          "(Adapted from ‹HW02›.) (a) Decay times follow $f(x\\mid\\theta)=\\tfrac{1}{\\theta^2}xe^{-x/\\theta}$ for $x>0$. For observations 2, 3 and 4, find the MLE of $\\theta$. (b) A failure count has pmf $f(x\\mid\\theta)=(1-\\theta)^x\\theta$ with $0<\\theta<1$. For a sample $X_1,\\dots,X_n$, find the MLE of $\\theta$ and check it is a maximum.",
         hint: "Write the log-likelihood, differentiate, set to zero, solve, then check the second derivative.",
         concept: "MLE procedure",
         sourceIds: ["hw2-mle", "l5-procedure"],
@@ -608,15 +586,15 @@ const RAW_TOPICS: RawTopic[] = [
     intro:
       "Why is the MLE worth using? It has three useful properties you can compute with: invariance, consistency and (asymptotic) unbiasedness. This topic shows what each means and where the MLE falls short in small samples.",
     willStudy: [
-      "Invariance: the MLE of g(θ) is g(θ̂)",
-      "Consistency: the MLE converges to the truth as n grows",
+      m`Invariance: the MLE of $g(\theta)$ is $g(\hat\theta)$`,
+      m`Consistency: the MLE converges to the truth as $n$ grows`,
       "Bias, and why the MLE is not always unbiased",
     ],
     sources: l6,
     tutorial: [
       {
         heading: "Invariance: functions come for free",
-        body: "If θ̂ is the MLE of θ, then for any function g, the MLE of g(θ) is g(θ̂). For exponential waiting times with rate λ, the MLE of the mean 1/λ is 1/λ̂ = x̄, and the MLE of the variance 1/λ² is x̄². For Uniform[0, θ], the median θ/2 has MLE max(Xi)/2.",
+        body: m`If $\hat\theta$ is the MLE of $\theta$, then for any function $g$, the MLE of $g(\theta)$ is $g(\hat\theta)$. For exponential waiting times with rate $\lambda$, the MLE of the mean $1/\lambda$ is $1/\hat\lambda = \bar x$, and the MLE of the variance $1/\lambda^2$ is $\bar x^2$. For $\mathrm{Uniform}[0,\theta]$, the median $\theta/2$ has MLE $\max_i X_i/2$.`,
         formula: m`\widehat{g(\theta)} = g(\hat\theta)`,
         sourceId: "l6-invariance",
       },
@@ -628,7 +606,7 @@ const RAW_TOPICS: RawTopic[] = [
       },
       {
         heading: "Bias and the MLE",
-        body: "The bias is the expected value of the estimator minus the truth. The MLE is not always unbiased in small samples. For Uniform[0, θ], the MLE is the sample maximum, which can never exceed θ, so its expectation is nθ/(n+1) and it is biased low. The bias shrinks as n grows, which fits with consistency.",
+        body: m`The bias is the expected value of the estimator minus the truth. The MLE is not always unbiased in small samples. For $\mathrm{Uniform}[0,\theta]$, the MLE is the sample maximum, which can never exceed $\theta$, so its expectation is $n\theta/(n+1)$ and it is biased low. The bias shrinks as $n$ grows, which fits with consistency.`,
         formula: m`\text{Bias}(\hat\theta)=E[\hat\theta]-\theta, \qquad E[\max_i X_i] = \frac{n}{n+1}\,\theta`,
         sourceId: "l6-bias",
       },
@@ -659,7 +637,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "mp-e1",
         prompt:
-          "Let $X_1,\\dots,X_n$ be i.i.d. Uniform$(0,\\theta)$ with MLE $\\hat\\theta=\\max_i X_i$. (a) Derive the density of $\\hat\\theta$. (b) Compute $E[\\hat\\theta]$ and the bias. (c) Show the bias goes to zero. (d) Give an unbiased version and state the MLE of the median.",
+          "Let $X_1,\\dots,X_n$ be i.i.d. $\\mathrm{Uniform}(0,\\theta)$ with MLE $\\hat\\theta=\\max_i X_i$. (a) Derive the density of $\\hat\\theta$. (b) Compute $E[\\hat\\theta]$ and the bias. (c) Show the bias goes to zero. (d) Give an unbiased version and state the MLE of the median.",
         hint: "Start from P(max ≤ m) = (m/θ)^n and differentiate.",
         concept: "Bias of the MLE",
         sourceIds: ["l6-bias", "l6-invariance", "l5-edge"],
@@ -692,25 +670,25 @@ const RAW_TOPICS: RawTopic[] = [
     tutorial: [
       {
         heading: "A statistic is random, so it has a distribution",
-        body: "Before observing data, the sample is random, so any statistic T = t(X1, …, Xn) is random too. The probability distribution of T is its sampling distribution. The statistic does not depend on the parameter, but its sampling distribution may.",
+        body: m`Before observing data, the sample is random, so any statistic $T = t(X_1,\dots,X_n)$ is random too. The probability distribution of $T$ is its sampling distribution. The statistic does not depend on the parameter, but its sampling distribution may.`,
         formula: m`T = t(X_1,\dots,X_n)\;\sim\;\text{sampling distribution of } T`,
         sourceId: "l7-def",
       },
       {
         heading: "Standard error",
-        body: "The standard deviation of the sampling distribution is the standard error. It measures how variable the statistic is from sample to sample. For the sample mean it is σ/√n, so larger samples are more precise.",
+        body: m`The standard deviation of the sampling distribution is the standard error. It measures how variable the statistic is from sample to sample. For the sample mean it is $\sigma/\sqrt n$, so larger samples are more precise.`,
         formula: m`\text{SE}(\bar X)=\sqrt{\text{Var}(\bar X)}=\frac{\sigma}{\sqrt{n}}`,
         sourceId: "l7-props",
       },
       {
         heading: "Sampling distributions of MLEs",
-        body: "For normal data with known variance the MLE of the mean is the sample mean, which is normal with variance σ²/n. For Bernoulli data the sample proportion has variance p(1−p)/n. For Uniform[0, θ], the maximum has density n m^(n−1)/θ^n, with mean nθ/(n+1).",
+        body: m`For normal data with known variance the MLE of the mean is the sample mean, which is normal with variance $\sigma^2/n$. For Bernoulli data the sample proportion has variance $p(1-p)/n$. For $\mathrm{Uniform}[0,\theta]$, the maximum has density $n\,m^{n-1}/\theta^n$, with mean $n\theta/(n+1)$.`,
         formula: m`\hat\mu=\bar X\sim N\!\left(\mu,\tfrac{\sigma^2}{n}\right),\quad \text{Var}(\hat p)=\frac{p(1-p)}{n},\quad f_{\hat\theta}(m)=\frac{n\,m^{n-1}}{\theta^{n}}`,
         sourceId: "l7-mle",
       },
       {
         heading: "Seeing it: shape and spread",
-        body: "As n increases, the sampling distribution has lower variance and becomes closer to normal (Central Limit Theorem). For a proportion near 0 or 1 it is skewed and approaches normality more slowly.",
+        body: "As $n$ increases, the sampling distribution has lower variance and becomes closer to normal (Central Limit Theorem). For a proportion near $0$ or $1$ it is skewed and approaches normality more slowly.",
         sourceId: "l7-visual",
       },
     ],
@@ -750,7 +728,7 @@ const RAW_TOPICS: RawTopic[] = [
       {
         id: "sd-e2",
         prompt:
-          "Let $X_1,\\dots,X_n$ be i.i.d. Bernoulli($p$) and $T=\\frac1n\\sum X_i$. (a) Find $E[T]$, $\\text{Var}(T)$ and the standard error. (b) Describe how the shape and spread of the sampling distribution change with $n$ and with $p$ (e.g. $p=0.1$ vs $0.5$). (c) How large must $n$ be for the standard error to be at most 0.05 when $p=0.5$?",
+          "Let $X_1,\\dots,X_n$ be i.i.d. $\\mathrm{Bernoulli}(p)$ and $T=\\frac1n\\sum X_i$. (a) Find $E[T]$, $\\text{Var}(T)$ and the standard error. (b) Describe how the shape and spread of the sampling distribution change with $n$ and with $p$ (e.g. $p=0.1$ vs $0.5$). (c) How large must $n$ be for the standard error to be at most $0.05$ when $p=0.5$?",
         hint: "Use independence to get Var(T) = p(1−p)/n, then solve SE ≤ 0.05.",
         concept: "Sampling distribution of a proportion",
         sourceIds: ["l7-mle", "l7-visual", "l7-props"],

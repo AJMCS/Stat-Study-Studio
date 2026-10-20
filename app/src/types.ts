@@ -207,7 +207,7 @@ export interface TopicState {
 
 export interface SessionInfo {
   topicId: string;
-  activity: "tutor" | "tutorial" | "quiz" | "exam";
+  activity: "tutor" | "tutorial" | "quiz" | "exam" | "vocab" | "breakdown" | "check";
   at: string;
 }
 
@@ -244,6 +244,104 @@ export interface OnboardingState {
   completedAt?: string;
 }
 
+/* ------------------------------------------------------------------ learning activities (vocabulary, checks, breakdowns) */
+
+/** One term of a topic's vocabulary, written from the lecture notes and cited to the page it comes from. */
+export interface VocabTerm {
+  id: string;
+  term: string;
+  /** The notation, as inline LaTeX (no dollar signs). */
+  symbol?: string;
+  /** A plain-words definition. May contain $inline$ LaTeX. */
+  plain: string;
+  /** The notes' formal definition or notation, Markdown with LaTeX. Only where the notes give one. */
+  formal?: string;
+  /** "You'll see it as…": a tiny example of the term in use. Markdown with LaTeX. */
+  seeIt: string;
+  source: SourceRef;
+}
+
+export interface CheckChoice {
+  text: string;
+  correct?: boolean;
+  /** Why this option is right or wrong. */
+  why: string;
+  /** The page that settles it, when it is not the question's own source. */
+  source?: SourceRef;
+}
+
+/** A comprehension check placed after a tutorial step: about the idea, not computation. */
+export interface CheckQuestion {
+  id: string;
+  /** The tutorial step it follows (0-based). */
+  step: number;
+  kind: "mc" | "explain";
+  prompt: string;
+  /** Multiple choice: exactly one is correct. */
+  choices?: CheckChoice[];
+  /** Explain-in-a-sentence: the reference the learner compares with. May contain $inline$ LaTeX. */
+  reference?: string;
+  source: SourceRef;
+}
+
+export const BREAKDOWN_PARTS = ["ask", "given", "tool", "plan", "pitfalls"] as const;
+export type BreakdownPartKey = (typeof BREAKDOWN_PARTS)[number];
+
+export interface BreakdownPart {
+  /** When present the learner picks one of these before revealing; otherwise they write a short answer. */
+  options?: string[];
+  answer?: number;
+  /** The model answer for this part. Markdown with LaTeX. */
+  model: string;
+}
+
+/** An exam-style problem taken apart into the same five parts every time. */
+export interface Breakdown {
+  id: string;
+  title: string;
+  prompt: string;
+  /** The exam-bank question it is adapted from, if any. */
+  examId?: string;
+  /** The full worked solution. Markdown with LaTeX. */
+  solution: string;
+  parts: Record<BreakdownPartKey, BreakdownPart>;
+  sources: SourceRef[];
+}
+
+export type SelfRating = "got" | "partly" | "missed";
+
+/** The latest answer to one comprehension check. */
+export interface CheckAnswer {
+  /** 1 right, 0 wrong; self-rated explanations give 1, 0.5 or 0. */
+  credit: number;
+  choice?: number;
+  rating?: SelfRating;
+  /** The learner moved on without answering (the tutorial's "Skip the check for now"): recorded as not answered. */
+  skipped?: boolean;
+  /**
+   * Answered again after "Try it again". The choice or rating is the retry's, but `credit` stays the first attempt's:
+   * a retry is a learning tool, not a scoring one, so a miss cannot be converted into a right by re-picking the ✓.
+   */
+  retried?: boolean;
+  at: string;
+}
+
+export interface BreakdownProgress {
+  revealed: BreakdownPartKey[];
+  done: boolean;
+  at: string;
+}
+
+/** Progress in the learning activities. Kept by the service. These never feed scores or mastery. */
+export interface LearningState {
+  /** Flashcard self-ratings per topic: term ids rated "got it" and "not yet". */
+  vocab: Record<string, { known: string[]; notYet: string[] }>;
+  /** Comprehension checks per topic, by check id. */
+  checks: Record<string, Record<string, CheckAnswer>>;
+  /** Question breakdowns per topic, by breakdown id. */
+  breakdowns: Record<string, Record<string, BreakdownProgress>>;
+}
+
 export interface AppData {
   attempts: Attempt[];
   quizzes: QuizResult[];
@@ -256,4 +354,5 @@ export interface AppData {
   hostedDisclosureAck: boolean;
   chats: Record<string, ChatMessage[]>;
   onboarding: OnboardingState;
+  learning: LearningState;
 }

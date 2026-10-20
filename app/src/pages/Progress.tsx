@@ -140,7 +140,7 @@ export function Progress() {
                             <td className="mono">{new Date(a.at).toLocaleDateString()}</td>
                             <td>{a.note ?? a.kind}</td>
                             <td><span className="mono">{a.composite}</span>{a.selfScored && <span className="chip">Self-scored</span>}</td>
-                            <td>{a.counted ? "Yes" : "Retry (not counted)"}</td>
+                            <td>{a.counted ? "Yes" : a.note?.startsWith("Comprehension check") ? "Practice (not counted)" : "Retry (not counted)"}</td>
                             <td>
                               <button className="ghost btn-sm" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && deleteAttempt(a.id)}>
                                 Delete
