@@ -580,9 +580,12 @@ await step("quiz practice mode locks the first response; a retry is saved separa
   const disabled = await page.locator("input[type=radio]").first().isDisabled();
   if (!disabled) throw new Error("choices not locked after feedback");
   await page.click("button:has-text('Try again')");
-  await page.click("input[type=radio] >> nth=1");
+  await page.click("input[type=radio] >> nth=1"); // the right option for this question
   await page.click("button:has-text('Check retry')");
-  await page.waitForSelector("text=does not change your first-attempt score");
+  // the retry's own verdict leads; the locked first response is the footnote (a correct retry must not look like the old miss)
+  await page.waitForSelector(".feedback .ok-text:has-text('Correct on the retry')");
+  await page.waitForSelector(".feedback .muted:has-text('First response: needs work')");
+  if (await page.locator(".feedback .bad-text").count()) throw new Error("the first miss still leads the feedback after a correct retry");
   await shot("quiz-practice");
 });
 

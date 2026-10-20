@@ -413,15 +413,33 @@ export function Quiz() {
 
         {f && !rate && (
           <div className="feedback" role="status">
-            <p className={f.correct ? "ok-text" : "bad-text"}>
-              {f.correct ? "Correct" : f.credit > 0 ? "Partly" : "Needs work"} (first response, now locked)
-              {f.selfScored && <span className="chip">Self-scored</span>}
-              {f.ai && <span className="chip">AI-scored</span>}
-            </p>
-            {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} />}
-            <p><RichText text={f.feedback} /></p>
+            {/* The latest attempt leads: after a retry its own verdict and explanation show, and the locked first
+                response (the one that counts) drops to a footnote, so a correct retry never looks like the old miss. */}
+            {rf && !retrying[q.id] ? (
+              <>
+                <p className={rf.correct ? "ok-text" : "bad-text"}>
+                  {rf.correct ? "Correct on the retry" : rf.credit > 0 ? "Partly right on the retry" : "Not yet, on the retry"}
+                  {rf.selfScored && <span className="chip">Self-scored</span>}
+                  {rf.ai && <span className="chip">AI-scored</span>}
+                </p>
+                {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} />}
+                <p><RichText text={rf.feedback} /></p>
+                <p className="muted">
+                  First response: {f.correct ? "correct" : f.credit > 0 ? "partly right" : "needs work"}. It is locked and is what counts; a retry does not change your first-attempt score.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className={f.correct ? "ok-text" : "bad-text"}>
+                  {f.correct ? "Correct" : f.credit > 0 ? "Partly" : "Needs work"} (first response, now locked)
+                  {f.selfScored && <span className="chip">Self-scored</span>}
+                  {f.ai && <span className="chip">AI-scored</span>}
+                </p>
+                {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} />}
+                <p><RichText text={f.feedback} /></p>
+              </>
+            )}
             {!retrying[q.id] && <button className="ghost" onClick={() => setRetrying((m) => ({ ...m, [q.id]: true }))}>Try again (saved separately)</button>}
-            {rf && !retrying[q.id] && <p className="muted">Retry: {rf.correct ? "correct" : rf.credit > 0 ? "partly" : "not yet"}. This does not change your first-attempt score.</p>}
           </div>
         )}
       </section>
