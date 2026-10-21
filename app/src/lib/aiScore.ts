@@ -6,6 +6,8 @@ export interface AiScored {
   criteria: CriterionScores;
   feedback: CriterionFeedback[];
   composite: number;
+  /** What a tutor would say first, in plain sentences; the criteria are the score sheet beneath it. */
+  note: string;
 }
 
 /** Ask the connected AI service to score one written answer on the four criteria. */
@@ -16,6 +18,7 @@ export async function aiScore(req: AiScoreRequest, cfg: ScoringConfig): Promise<
     criteria,
     composite: composite(criteria, cfg),
     feedback: res.feedback.map((f) => ({ criterion: f.criterion, score: f.score, why: CRITERION_WHY[f.criterion], comment: f.feedback, suggestion: f.suggestion })),
+    note: res.note ?? "",
   };
 }
 

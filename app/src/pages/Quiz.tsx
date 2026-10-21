@@ -422,7 +422,7 @@ export function Quiz() {
                   {rf.selfScored && <span className="chip">Self-scored</span>}
                   {rf.ai && <span className="chip">AI-scored</span>}
                 </p>
-                {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} />}
+                {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} note={rf.ai.note} />}
                 <p><RichText text={rf.feedback} /></p>
                 <p className="muted">
                   First response: {f.correct ? "correct" : f.credit > 0 ? "partly right" : "needs work"}. It is locked and is what counts; a retry does not change your first-attempt score.
@@ -435,7 +435,7 @@ export function Quiz() {
                   {f.selfScored && <span className="chip">Self-scored</span>}
                   {f.ai && <span className="chip">AI-scored</span>}
                 </p>
-                {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} />}
+                {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} note={f.ai.note} />}
                 <p><RichText text={f.feedback} /></p>
               </>
             )}

@@ -5,6 +5,7 @@ import { createServer } from "node:http";
 export const GOOD_KEY = "good-key-123";
 
 const rubric = () => ({
+  note: "You have the heart of it: the likelihood is the data seen as a function of the parameter, and the MLE is where it peaks. Next time, say in one sentence why that peak is a sensible estimate.",
   core: { score: 90, feedback: "You named the central idea clearly.", suggestion: "Say what is being maximized in the first sentence." },
   depth: { score: 85, feedback: "You gave a reason, not only a definition.", suggestion: "Add one more because-step." },
   relevance: { score: 82, feedback: "You said why it matters.", suggestion: "Connect it to a decision." },

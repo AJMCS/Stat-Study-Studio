@@ -584,3 +584,25 @@ def test_a_rejected_claude_request_quotes_the_reason_instead_of_asking_for_a_ret
     assert r.status_code == 502 and r.json()["kind"] == "rejected"
     assert "does not support non-default values" in r.json()["detail"]
     assert "Retrying" not in r.json()["detail"]
+
+
+def test_scoring_passes_the_tutor_note_through_and_tolerates_its_absence(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({**GOOD, "note": "You have the main idea: the prior and the likelihood combine. Say how they combine next time."})]
+    r = client.post("/api/ai/score", json=SCORE_BODY).json()
+    assert r["note"].startswith("You have the main idea") and r["criteria"]["core"] == 90
+    fake.replies = [json.dumps(GOOD)]  # an older or smaller model that gives no note
+    r = client.post("/api/ai/score", json=SCORE_BODY).json()
+    assert r["note"] == "" and r["criteria"]["core"] == 90
+
+
+def test_a_tutor_reply_shaped_like_a_score_sheet_is_sent_back_for_a_rewrite(client, fake):
+    connect(client)
+    sheet = "## Assessment\n- Core: 70/100\n- Depth: 50/100\n- Strengths: knows the definition\n- Gaps: why it matters"
+    fake.replies = [reply("diagnose", sheet), reply("diagnose", "Right, you have the definition. What would you say it is for?")]
+    r = tutor(client, OPEN)
+    assert r.status_code == 200 and r.json()["text"].startswith("Right, you have the definition")
+    assert len(fake.requests) == 2 and "score sheet" in json.dumps(fake.requests[-1])
+    # ordinary conversation, including a percentage inside statistics, is not mistaken for a score sheet
+    fake.replies = [reply("diagnose", "Good. If 95% of the intervals cover the parameter, what does that say about one interval?")]
+    assert tutor(client, OPEN).json()["text"].startswith("Good. If 95%")

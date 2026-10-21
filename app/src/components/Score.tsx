@@ -25,12 +25,15 @@ export function ScoreBreakdown({
   criteria,
   cfg,
   feedback,
+  note,
   selfScored = false,
   marked = false,
 }: {
   criteria: CriterionScores;
   cfg: ScoringConfig;
   feedback?: CriterionFeedback[];
+  /** What a tutor would say about the answer, shown first and in full sentences; the criteria below are the score sheet. */
+  note?: string;
   /** A self-score is one number from the learner, so no per-criterion breakdown is shown. */
   selfScored?: boolean;
   /** Marked automatically (multiple choice): one score, no per-criterion breakdown. */
@@ -68,6 +71,12 @@ export function ScoreBreakdown({
   }
   return (
     <div className="breakdown">
+      {note && (
+        <>
+          <p className="tutor-note">{note}</p>
+          <p className="eyebrow">{"// The score sheet"}</p>
+        </>
+      )}
       <div className="composite">
         <strong>{comp}</strong>
         <span>/ 100 composite</span>

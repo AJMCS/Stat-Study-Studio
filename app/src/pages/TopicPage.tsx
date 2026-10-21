@@ -204,7 +204,7 @@ export function TopicPage() {
           </>
         ) : aiResult ? (
           <>
-            <ScoreBreakdown criteria={aiResult.criteria} cfg={data.config} feedback={aiResult.feedback as CriterionFeedback[]} />
+            <ScoreBreakdown criteria={aiResult.criteria} cfg={data.config} feedback={aiResult.feedback as CriterionFeedback[]} note={aiResult.note} />
             <p className="muted">
               {aiResult.composite >= data.config.compositeCutoff
                 ? "Qualifying recall added to your streak."

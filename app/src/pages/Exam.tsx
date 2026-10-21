@@ -242,7 +242,7 @@ export function Exam() {
               <>
                 <h3>Your answer</h3>
                 <pre className="answer">{padToText(answers[q.id]) || "(drawing only)"}</pre>
-                <ScoreBreakdown criteria={aiRes[q.id].criteria} cfg={data.config} feedback={aiRes[q.id].feedback} />
+                <ScoreBreakdown criteria={aiRes[q.id].criteria} cfg={data.config} feedback={aiRes[q.id].feedback} note={aiRes[q.id].note} />
                 <button className="ghost" onClick={() => setAiRes((m) => { const { [q.id]: _gone, ...rest } = m; return rest; })}>Score this one myself instead</button>
               </>
             ) : written(answers[q.id]) ? (

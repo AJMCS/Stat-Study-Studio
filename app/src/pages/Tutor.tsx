@@ -31,6 +31,8 @@ function TutorChat() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [final, setFinal] = useState<CriterionScores | null>(null);
+  /** The tutor's short version at the end: what the learner showed and what to work on, above the score sheet. */
+  const [wrap, setWrap] = useState<{ strengths: string[]; gaps: string[] } | null>(null);
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
@@ -67,6 +69,7 @@ function TutorChat() {
         }));
         recordAttempt({ topicId: topic.id, kind: "tutor", counted: true, aiScored: true, criteria: a, note: "Tutor session" });
         setFinal(a);
+        setWrap({ strengths: turn.strengths.length ? turn.strengths : fallback(false), gaps: turn.gaps.length ? turn.gaps : fallback(true) });
       }
       setAdjust("");
     } catch (e) {
@@ -91,6 +94,7 @@ function TutorChat() {
     setStage("probe");
     setPlan(null);
     setFinal(null);
+    setWrap(null);
     setError("");
     setPad(emptyPad());
   };
@@ -139,6 +143,22 @@ function TutorChat() {
       {final && (
         <section className="panel">
           <h2>Session saved · {finalComposite}</h2>
+          {wrap && (
+            <div className="short-version">
+              <p className="eyebrow">{"// The short version"}</p>
+              <div className="grid two">
+                <div>
+                  <p className="sv-head">What you showed</p>
+                  <ul>{wrap.strengths.map((s) => <li key={s}>{s}</li>)}</ul>
+                </div>
+                <div>
+                  <p className="sv-head">What to work on</p>
+                  <ul>{wrap.gaps.map((g) => <li key={g}>{g}</li>)}</ul>
+                </div>
+              </div>
+              <p className="eyebrow">{"// The score sheet"}</p>
+            </div>
+          )}
           <ScoreBreakdown criteria={final} cfg={data.config} />
           <div className="row">
             <Link className="button" to={`/topic/${topic.id}/quiz`}>Take the quiz</Link>

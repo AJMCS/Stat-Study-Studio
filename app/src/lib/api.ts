@@ -260,6 +260,8 @@ export interface AiScoreRequest {
 export interface AiScoreResponse {
   criteria: Record<"core" | "depth" | "relevance" | "application", number>;
   feedback: { criterion: "core" | "depth" | "relevance" | "application"; score: number; feedback: string; suggestion: string }[];
+  /** What a tutor would say about this answer, in a few plain sentences; "" when the model gave none. */
+  note: string;
   model: string;
 }
 

@@ -1981,3 +1981,10 @@ button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-dec
 .ai-menu-check { width: 16px; flex: none; font-family: var(--mono); }
 .ai-menu-link { display: block; margin: 8px 8px 4px; }
 @media print { .ai-status { display: none; } }
+
+/* ---- what a tutor would say first; the four criteria are the score sheet beneath it ---- */
+.breakdown .tutor-note { margin: 0 0 16px; max-width: 64ch; }
+.breakdown > .eyebrow { margin: 0 0 8px; }
+.short-version .sv-head { font-weight: 600; margin: 0 0 4px; }
+.short-version ul { margin: 0 0 16px; padding-left: 20px; }
+.short-version > .eyebrow { margin: 0 0 8px; }

@@ -1049,6 +1049,11 @@ await step("ai: a recall is scored on four criteria, with comments, and saved as
   await page.fill("textarea", WRITTEN);
   await page.click("button:has-text('Score with AI')");
   await page.waitForSelector(".criteria li", { timeout: 15000 });
+  // the tutor's note comes first, as conversation; the four criteria are the score sheet beneath it
+  await page.waitForSelector(".breakdown .tutor-note:has-text('You have the heart of it')");
+  const noteTop = await page.locator(".breakdown .tutor-note").boundingBox();
+  const sheetTop = await page.locator(".breakdown .composite").boundingBox();
+  if (!noteTop || !sheetTop || noteTop.y > sheetTop.y) throw new Error("the tutor's note should come before the score sheet");
   await page.waitForSelector("text=You named the central idea clearly.");
   await page.waitForSelector("text=Qualifying recall added to your streak");
   if ((await page.locator(".chip:has-text('Self-scored')").count()) > 0) throw new Error("an AI-scored recall must not be labeled self-scored");

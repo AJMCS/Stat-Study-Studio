@@ -202,12 +202,15 @@ def create_app(
     def ai_score(body: ScoreBody) -> dict[str, Any]:
         """Score one written answer on the four criteria. Sends only the question, the answer and the reference text."""
         provider = ai().provider()
-        scores = tasks.score_answer(
+        scored = tasks.score_answer(
             provider, topic=body.topic, question=body.question, answer=body.answer, reference=body.reference, key_points=body.keyPoints, stage=body.stage
         )
+        scores = scored["criteria"]
         return {
             "criteria": {k: v["score"] for k, v in scores.items()},
             "feedback": [{"criterion": k, **v} for k, v in scores.items()],
+            # what a tutor would say first; the four criteria are the score sheet beneath it
+            "note": scored["note"],
             "model": getattr(provider, "model", ""),
         }
 
