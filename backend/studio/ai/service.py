@@ -65,6 +65,17 @@ def _version(name: str) -> tuple[int, ...]:
     return tuple(int(n) for n in re.findall(r"\d+", name) if len(n) < 6)  # skip date stamps like 20251001
 
 
+class WorkspaceChoice(Exception):
+    """Connecting needs the learner to choose: the Anthropic key may be used in several workspaces of the
+    organisation, and nothing is saved until they say which one the app should use."""
+
+    message = "This key can work in several workspaces. Which one should the app use?"
+
+    def __init__(self, workspaces: list[dict]):
+        self.workspaces = [{"id": w["id"], "name": w["name"]} for w in workspaces]
+        super().__init__(self.message)
+
+
 def pick_model(ids: list[str], patterns: tuple[str, ...]) -> str | None:
     """The newest model matching the first pattern that matches anything. Names change often, so we choose from the
     account's own list instead of hard-coding one."""
@@ -156,20 +167,31 @@ class AiService:
             "consentedAt": a.get("consentedAt"),
             "model": a.get("model") or DEFAULT_MODELS.get(shown, ""),
             "defaultModel": DEFAULT_MODELS.get(shown, ""),
+            # Anthropic only: the workspace a key made for the whole organisation was told to use (null for a key
+            # scoped to one workspace, and for every other service).
+            "workspace": (a.get("workspace") or None) if shown == "anthropic" else None,
+            "workspaceName": (a.get("workspaceName") or None) if shown == "anthropic" else None,
             "needsKey": shown in KEYED,
             "notice": NOTICE[shown],
             "noticeVersion": CONSENT_VERSION,
             "warm": warm,
         }
 
-    def connect(self, api_key: str, accept: bool, model: str | None = None, provider: str = "gemini") -> dict[str, Any]:
+    def connect(self, api_key: str, accept: bool, model: str | None = None, provider: str = "gemini", workspace: str | None = None) -> dict[str, Any]:
         """Check the connection with the provider, then save it and make it the active one. Nothing is saved if the
-        check fails, and the other saved services keep their keys."""
+        check fails, and the other saved services keep their keys.
+
+        `workspace` is for Anthropic only: a key made for every workspace of the organisation must say which one to
+        use. When the key needs one and none was given, the app looks the workspaces up: the only one there is gets
+        used without asking; several raise WorkspaceChoice for the learner to pick from; when the account may not
+        list them, AiError("workspace_needed") asks for the ID to be pasted."""
         if provider not in PROVIDER_NAMES:
             raise ValueError(f"Unknown AI service: {provider}")
         if not accept:
             raise AiError("no_consent")
         model = (model or "").strip() or None
+        workspace = ((workspace or "").strip() or None) if provider == "anthropic" else None
+        workspace_name: str | None = None
         if provider == "ollama":
             if not model:
                 raise ValueError("Choose which Ollama model to use.")
@@ -180,11 +202,25 @@ class AiService:
             api_key = api_key.strip()
             if not api_key:
                 raise AiError("invalid_key", "empty")
-            client = self._build(provider, api_key, model)
+            client = self._build(provider, api_key, model, workspace)
             if provider == "gemini":
                 client.check_key()
             else:
-                ids = client.models()  # also proves the key works
+                try:
+                    ids = client.models()  # also proves the key works
+                except AiError as e:
+                    if e.kind != "workspace_needed" or workspace or not isinstance(client, Claude):
+                        raise
+                    found = client.workspaces()
+                    if len(found) > 1:
+                        raise WorkspaceChoice(found) from e
+                    if not found:
+                        raise  # cannot list them: the learner pastes the ID
+                    workspace, workspace_name = found[0]["id"], found[0]["name"]
+                    client = self._build(provider, api_key, model, workspace)
+                    ids = client.models()
+                if isinstance(client, Claude) and workspace and workspace_name is None:
+                    workspace_name = _workspace_name(client, workspace)
                 if model and model not in ids:
                     raise AiError("model_missing", model)
                 if not model:
@@ -201,6 +237,8 @@ class AiService:
                 "consentVersion": CONSENT_VERSION,
                 "consentedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
             }
+            if provider == "anthropic":
+                s["accounts"][provider].update({"workspace": workspace, "workspaceName": workspace_name})
             s["provider"] = provider
             self._write(s)
         return self.status()
@@ -323,12 +361,20 @@ class AiService:
         key = self.stores[p].get() if p in self.stores else None
         if key is None:
             raise AiError("not_connected")
-        return self._build(p, key, a.get("model"))
+        return self._build(p, key, a.get("model"), a.get("workspace"))
 
     @staticmethod
-    def _build(provider: str, key: str, model: str | None) -> Provider:
+    def _build(provider: str, key: str, model: str | None, workspace: str | None = None) -> Provider:
         if provider == "anthropic":
-            return Claude(key, model or "")
+            return Claude(key, model or "", workspace or None)
         if provider == "openai":
             return OpenAI(key, model or "")
         return Gemini(key, model or DEFAULT_MODEL)
+
+
+def _workspace_name(client: Claude, workspace: str) -> str | None:
+    """The name of a workspace the learner pasted the ID of, when the account may list them; never an error."""
+    try:
+        return next((w["name"] for w in client.workspaces() if w["id"] == workspace), None)
+    except AiError:
+        return None

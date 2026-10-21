@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
-import { api, ServiceRejected, type AiInfo, type ProviderId } from "../lib/api";
+import { api, ServiceRejected, type AiInfo, type ProviderId, type Workspace } from "../lib/api";
 import { useAi } from "../lib/ai";
 import { Note } from "./Hand";
 
@@ -60,12 +60,26 @@ export function AiConnect({
   const [error, setError] = useState("");
   const [local, setLocal] = useState<{ running: boolean; models: string[] } | null>(null);
   const [localModel, setLocalModel] = useState("");
+  // Anthropic: a key made for every workspace of the organisation must say which one to use. After the first Connect
+  // the service either lists them (the learner picks one) or, when the account may not list them, asks for the ID to
+  // be pasted. The key stays in its field meanwhile; Connect sends it again with the workspace.
+  const [ask, setAsk] = useState<{ kind: "choose"; list: Workspace[] } | { kind: "paste" } | null>(null);
+  const [workspace, setWorkspace] = useState("");
+  const [workspaceError, setWorkspaceError] = useState("");
+  const clearAsk = () => {
+    setAsk(null);
+    setWorkspace("");
+    setWorkspaceError("");
+  };
 
   // The notice shown must be the one for the service being set up, so fetch it when the choice changes.
   useEffect(() => {
     if (!info) return;
     setAccept(false);
     setError("");
+    setAsk(null);
+    setWorkspace("");
+    setWorkspaceError("");
     if (provider === info.provider) {
       setPreview(info);
       return;
@@ -93,6 +107,7 @@ export function AiConnect({
   const keyField = useRef<HTMLInputElement>(null);
   const modelField = useRef<HTMLSelectElement>(null);
   const agreeBox = useRef<HTMLInputElement>(null);
+  const workspaceField = useRef<HTMLInputElement>(null);
   const [missing, setMissing] = useState(false);
 
   const connect = async (apiKey: string, model?: string) => {
@@ -102,7 +117,10 @@ export function AiConnect({
         provider === "ollama"
           ? !model && { msg: "Choose a model first.", el: modelField.current }
           : !apiKey.trim() && { msg: "Paste your key first.", el: keyField.current };
-      const why = lack || (!accept && { msg: "Tick the box to agree first.", el: agreeBox.current });
+      const why =
+        lack ||
+        (!accept && { msg: "Tick the box to agree first.", el: agreeBox.current }) ||
+        (ask && !workspace.trim() && { msg: ask.kind === "choose" ? "Choose a workspace first." : "Paste the workspace ID first.", el: workspaceField.current });
       if (why) {
         setMissing(true);
         setError(why.msg);
@@ -114,10 +132,27 @@ export function AiConnect({
     setError("");
     setMissing(false);
     try {
-      await ai.connect(apiKey, accept, model, provider);
+      await ai.connect(apiKey, accept, model, provider, workspace.trim() || undefined);
       setKey("");
+      clearAsk();
       onConnected?.();
     } catch (e) {
+      if (e instanceof ServiceRejected && e.kind === "workspace_choice" && e.workspaces?.length) {
+        setAsk({ kind: "choose", list: e.workspaces });
+        setWorkspace("");
+        setWorkspaceError("");
+        return;
+      }
+      if (e instanceof ServiceRejected && e.kind === "workspace_needed") {
+        setAsk({ kind: "paste" });
+        setWorkspaceError("");
+        return;
+      }
+      if (e instanceof ServiceRejected && e.kind === "workspace_invalid") {
+        setAsk((a) => a ?? { kind: "paste" });
+        setWorkspaceError(e.message);
+        return;
+      }
       let msg = e instanceof ServiceRejected ? e.message : SERVICE_UNREACHABLE;
       if (compact && e instanceof ServiceRejected && e.kind === "invalid_key") {
         msg = `The AI service did not accept your key. Check it's a ${PLAIN_NAME[provider]} key, copied in full.`;
@@ -164,6 +199,68 @@ export function AiConnect({
       <span className="warn" aria-hidden="true">!</span>
       <span className="err-text">{error}</span>
     </p>
+  );
+  // Anthropic: the workspace question, between the notice and Connect (where the eye is after clicking Connect).
+  const workspaceAsk = ask && (
+    <div className="workspace-ask" data-testid="workspace-ask">
+      {ask.kind === "choose" ? (
+        <>
+          <p className="prompt" id="workspace-q">
+            This key can work in several workspaces. Which one should the app use?
+          </p>
+          <fieldset aria-labelledby="workspace-q">
+            {ask.list.map((w) => (
+              <label key={w.id} className="choice opt-row">
+                <input
+                  type="radio"
+                  name="workspace"
+                  value={w.id}
+                  checked={workspace === w.id}
+                  onChange={() => {
+                    setWorkspace(w.id);
+                    setWorkspaceError("");
+                  }}
+                />
+                <span className="opt">
+                  <b>{w.name}</b>
+                  <span className="opt-desc mono">{w.id}</span>
+                </span>
+              </label>
+            ))}
+          </fieldset>
+        </>
+      ) : (
+        <>
+          <label className="field">
+            <span className="field-label">Workspace ID</span>
+            <input
+              ref={workspaceField}
+              aria-label="Workspace ID"
+              className="mono"
+              placeholder="wrkspc_…"
+              autoComplete="off"
+              spellCheck={false}
+              value={workspace}
+              onChange={(e) => {
+                setWorkspace(e.target.value);
+                setWorkspaceError("");
+              }}
+            />
+          </label>
+          <p className="muted ws-help">
+            This key is not tied to one workspace. Paste the ID from the Console's Workspaces page (
+            <a href="https://platform.claude.com/settings/workspaces" target="_blank" rel="noreferrer">platform.claude.com/settings/workspaces</a>, the ID column), or create a key scoped to a
+            workspace at <a href="https://platform.claude.com/settings/keys" target="_blank" rel="noreferrer">platform.claude.com/settings/keys</a>.
+          </p>
+        </>
+      )}
+      {workspaceError && (
+        <p className="err-line" role="alert">
+          <span className="warn" aria-hidden="true">!</span>
+          <span className="err-text">{workspaceError}</span>
+        </p>
+      )}
+    </div>
   );
   const reopen =
     compact && error && !missing && provider !== "ollama" ? (
@@ -247,10 +344,22 @@ export function AiConnect({
               API key
               {compact && <Note dir="left" className="field-note">stays on this computer</Note>}
             </span>
-            <input ref={keyField} aria-label="API key" type="password" autoComplete="off" spellCheck={false} value={key} onChange={(e) => setKey(e.target.value)} />
+            <input
+              ref={keyField}
+              aria-label="API key"
+              type="password"
+              autoComplete="off"
+              spellCheck={false}
+              value={key}
+              onChange={(e) => {
+                setKey(e.target.value);
+                if (ask) clearAsk(); // a different key may not need a workspace, or may need a different one
+              }}
+            />
           </label>
           {noticeBox}
-          {connectRow(busy || !key.trim() || !accept, () => void connect(key))}
+          {workspaceAsk}
+          {connectRow(busy || !key.trim() || !accept || (!!ask && !workspace.trim()), () => void connect(key))}
         </div>
       </div>
     );

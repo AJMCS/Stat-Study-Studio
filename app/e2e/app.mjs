@@ -1547,6 +1547,72 @@ for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claud
   });
 }
 
+await step("ai: an Anthropic key made for the whole organisation asks which workspace to use, or for its ID when they cannot be listed", async () => {
+  const setWorkspaces = (mode) => fetch(`${process.env.FAKE_CHAT}/__workspace`, { method: "POST", body: JSON.stringify(mode) });
+  const DEFAULT_WS = "wrkspc_01DefaultDefaultDefault";
+  const RESEARCH_WS = "wrkspc_01ResearchResearchRese";
+  const WS = [{ id: DEFAULT_WS, name: "Default Workspace", default: true }, { id: RESEARCH_WS, name: "Research" }];
+  const lastAnthropic = async () => (await (await fetch(`${process.env.FAKE_CHAT}/__log`)).json()).filter((r) => r.kind === "anthropic").at(-1);
+  try {
+    // several workspaces: the key is kept, the names are offered with their IDs, Connect waits for a choice
+    await setWorkspaces({ require: true, workspaces: WS });
+    await fresh("/settings");
+    await page.check("label:has-text('Anthropic Claude') input");
+    await page.waitForSelector("text=does not include API credit");
+    await page.fill("input[aria-label='API key']", "sk-good-key");
+    await page.check("label:has-text('I have read this') input");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector("text=Which one should the app use?");
+    if ((await page.inputValue("input[aria-label='API key']")) !== "sk-good-key") throw new Error("the key was not kept while asking for the workspace");
+    const offered = await page.locator(".workspace-ask").innerText();
+    if (!offered.includes("Default Workspace") || !offered.includes("Research") || !offered.includes(RESEARCH_WS)) throw new Error("the workspaces are not offered with their IDs: " + offered);
+    if (!(await page.locator("button.connect-btn").isDisabled())) throw new Error("Connect should wait for a choice");
+    if ((await apiGet("ai")).keyStored) throw new Error("nothing should be saved before the learner chooses");
+    await page.check(".workspace-ask label:has-text('Research') input");
+    await shot("ai-anthropic-workspace-choice");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector("text=Connected to Anthropic Claude in workspace Research");
+    let s = await apiGet("ai");
+    if (s.workspace !== RESEARCH_WS || s.workspaceName !== "Research") throw new Error("the chosen workspace was not kept: " + JSON.stringify(s));
+    // every request from now on names the workspace
+    await fresh(`/topic/${T}`);
+    await page.click("button:has-text('Try a recall')");
+    await page.fill("textarea", WRITTEN);
+    await page.click("button:has-text('Score with AI')");
+    await page.waitForSelector("text=The hosted model saw the central idea.", { timeout: 15000 });
+    const sent = await lastAnthropic();
+    if (sent?.workspace !== RESEARCH_WS) throw new Error("the scoring request did not name the workspace: " + JSON.stringify(sent));
+    await fresh("/settings");
+    await page.click("button:has-text('Disconnect')");
+    await page.waitForSelector("text=What gets sent");
+    // the account may not list its workspaces: the learner pastes the ID; a wrong one is said to be wrong and nothing is saved
+    await setWorkspaces({ require: true, workspaces: WS, forbidden: true });
+    await page.check("label:has-text('Anthropic Claude') input"); // with nothing in use the panel went back to the first service
+    await page.waitForSelector("text=does not include API credit");
+    await page.fill("input[aria-label='API key']", "sk-good-key");
+    await page.check("label:has-text('I have read this') input");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector("input[aria-label='Workspace ID']");
+    await page.waitForSelector("text=platform.claude.com/settings/workspaces");
+    if (!(await page.locator("button.connect-btn").isDisabled())) throw new Error("Connect should wait for the ID");
+    await page.fill("input[aria-label='Workspace ID']", "wrkspc_01NoSuchWorkspaceAtAll");
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector(".workspace-ask [role=alert]:has-text('not valid for this key')");
+    if ((await apiGet("ai")).keyStored) throw new Error("a key with a wrong workspace was saved");
+    await shot("ai-anthropic-workspace-id");
+    await page.fill("input[aria-label='Workspace ID']", DEFAULT_WS);
+    await page.click("button:has-text('Connect')");
+    await page.waitForSelector(`text=Connected to Anthropic Claude in workspace ${DEFAULT_WS}`);
+    s = await apiGet("ai");
+    if (s.workspace !== DEFAULT_WS || s.workspaceName !== null) throw new Error("the pasted workspace was not kept: " + JSON.stringify(s));
+    await page.click("button:has-text('Disconnect')");
+    await page.waitForSelector("text=What gets sent");
+  } finally {
+    await setWorkspaces({ require: false });
+    await page.request.delete(`${BASE.split("#")[0]}api/ai?provider=anthropic`).catch(() => {}); // in case the step failed midway
+  }
+});
+
 await step("connection: when the study service stops answering a notice slides down, work is kept, and the page reconnects by itself", async () => {
   await fresh("/settings");
   expectNetworkFailure = true;

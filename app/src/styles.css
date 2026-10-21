@@ -1008,6 +1008,13 @@ fieldset.ob-choices > .choice:last-of-type { border-bottom: none; padding-bottom
 /* errors are worded: the "!" marker and plain ink text (underline is for links only) */
 .err-line { display: flex; align-items: flex-start; gap: 8px; margin: 0; color: var(--ink); flex: 1 1 260px; }
 .err-line .warn { margin: 3px 0 0; }
+/* Anthropic: which workspace a key made for the whole organisation should use, asked after the first Connect */
+.workspace-ask { margin: 16px 0 0; }
+.workspace-ask .prompt { margin: 0 0 4px; }
+.workspace-ask fieldset, .workspace-ask .field { margin: 0; }
+.workspace-ask .ws-help { margin: 8px 0 0; max-width: 560px; }
+.workspace-ask .err-line { margin-top: 8px; }
+.workspace-ask input.mono { font-family: var(--mono); }
 .notice-title { font-size: 16px; line-height: 24px; font-weight: 600; letter-spacing: 0; margin: 0 0 4px; }
 .notice-title + p { margin-bottom: 12px; }
 

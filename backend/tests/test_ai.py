@@ -586,6 +586,92 @@ def test_a_rejected_claude_request_quotes_the_reason_instead_of_asking_for_a_ret
     assert "Retrying" not in r.json()["detail"]
 
 
+# ---------------------------------------------------------------- Anthropic keys made for every workspace
+DEFAULT_WS = {"id": "wrkspc_01DefaultDefaultDefault", "name": "Default Workspace", "default": True}
+RESEARCH_WS = {"id": "wrkspc_01ResearchResearchRese", "name": "Research"}
+OLD_WS = {"id": "wrkspc_01ArchivedArchivedArch", "name": "Old project", "archived_at": "2026-01-01T00:00:00Z"}
+
+
+def test_a_key_for_the_whole_organisation_uses_its_only_workspace_without_asking(client, claude):
+    claude.require_workspace = True
+    claude.workspaces = [DEFAULT_WS, OLD_WS]  # an archived workspace does not count
+    s = connect_with(client, "anthropic").json()
+    assert s["connected"] and s["workspace"] == DEFAULT_WS["id"] and s["workspaceName"] == "Default Workspace"
+    assert claude.workspace_list_calls == 1
+    assert client.get("/api/ai").json()["workspace"] == DEFAULT_WS["id"]
+    assert json.loads((client.data_dir / "ai.json").read_text())["accounts"]["anthropic"]["workspace"] == DEFAULT_WS["id"]
+    # every later request names the workspace
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["criteria"]["core"] == 90
+    assert claude.request_headers[0]["anthropic-workspace-id"] == DEFAULT_WS["id"]
+    claude.replies = [reply("diagnose")]
+    assert tutor(client, OPEN).status_code == 200
+    assert claude.request_headers[-1]["anthropic-workspace-id"] == DEFAULT_WS["id"]
+    assert client.post("/api/ai/test").status_code == 200
+
+
+def test_several_workspaces_are_offered_and_the_chosen_one_is_kept(client, claude):
+    claude.require_workspace = True
+    claude.workspaces = [DEFAULT_WS, RESEARCH_WS]
+    r = connect_with(client, "anthropic")
+    assert r.status_code == 409 and r.json()["kind"] == "workspace_choice"
+    assert [w["name"] for w in r.json()["workspaces"]] == ["Default Workspace", "Research"]
+    assert r.json()["workspaces"][1]["id"] == RESEARCH_WS["id"] and "Which one" in r.json()["detail"]
+    assert client.get("/api/ai").json()["keyStored"] is False  # nothing is saved until the learner chooses
+    s = client.post("/api/ai/connect", json={"provider": "anthropic", "apiKey": KEY, "accept": True, "workspace": RESEARCH_WS["id"]}).json()
+    assert s["connected"] and s["workspace"] == RESEARCH_WS["id"] and s["workspaceName"] == "Research" and s["model"] == "claude-haiku-4-5"
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    assert claude.request_headers[0]["anthropic-workspace-id"] == RESEARCH_WS["id"]
+
+
+def test_when_the_workspaces_cannot_be_listed_the_learner_pastes_the_id(client, claude):
+    claude.require_workspace = True
+    claude.workspaces = [DEFAULT_WS, RESEARCH_WS]
+    claude.workspace_list_forbidden = True
+    r = connect_with(client, "anthropic")
+    assert r.status_code == 409 and r.json()["kind"] == "workspace_needed"
+    assert "not tied to a workspace" in r.json()["detail"] and "Workspaces page" in r.json()["detail"]
+    # a wrong ID (unknown, or not an ID at all) saves nothing
+    for bad in ("wrkspc_01NoSuchWorkspaceAtAll", "my workspace"):
+        r = client.post("/api/ai/connect", json={"provider": "anthropic", "apiKey": KEY, "accept": True, "workspace": bad})
+        assert r.status_code == 404 and r.json()["kind"] == "workspace_invalid", bad
+        assert "Workspaces page" in r.json()["detail"] and "scoped to a workspace" in r.json()["detail"]
+        assert client.get("/api/ai").json()["keyStored"] is False and not (client.data_dir / "ai.json").exists()
+    s = client.post("/api/ai/connect", json={"provider": "anthropic", "apiKey": KEY, "accept": True, "workspace": f"  {RESEARCH_WS['id']}  "}).json()
+    assert s["connected"] and s["workspace"] == RESEARCH_WS["id"] and s["workspaceName"] is None  # the name is not known
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    assert claude.request_headers[0]["anthropic-workspace-id"] == RESEARCH_WS["id"]
+
+
+def test_a_key_scoped_to_a_workspace_connects_as_before_and_sends_no_workspace(client, claude, gpt):
+    s = connect_with(client, "anthropic").json()
+    assert s["connected"] and s["workspace"] is None and s["workspaceName"] is None
+    assert claude.workspace_list_calls == 0
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    assert "anthropic-workspace-id" not in claude.request_headers[0]
+    # a workspace sent for another service is ignored, and no other service reports one
+    s = client.post("/api/ai/connect", json={"provider": "openai", "apiKey": KEY, "accept": True, "workspace": RESEARCH_WS["id"]}).json()
+    assert s["connected"] and s["workspace"] is None and s["workspaceName"] is None
+    assert "workspace" not in json.loads((client.data_dir / "ai.json").read_text())["accounts"]["openai"]
+
+
+def test_a_workspace_demand_on_a_saved_connection_is_reported_plainly(client, claude):
+    """A key that was scoped when it was connected but now needs a workspace (the account changed) says so instead of
+    "rejected"; a workspace that stopped existing says the ID is not valid."""
+    connect_with(client, "anthropic")
+    claude.require_workspace = True
+    claude.workspaces = [DEFAULT_WS]
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 409 and r.json()["kind"] == "workspace_needed"
+    claude.replies = [(404, {"type": "error", "error": {"type": "not_found_error", "message": "Workspace `wrkspc_01Gone` not found."}})]
+    claude.require_workspace = False
+    r = client.post("/api/ai/score", json=SCORE_BODY)
+    assert r.status_code == 404 and r.json()["kind"] == "workspace_invalid"
+
+
 def test_scoring_passes_the_tutor_note_through_and_tolerates_its_absence(client, fake):
     connect(client)
     fake.replies = [json.dumps({**GOOD, "note": "You have the main idea: the prior and the likelihood combine. Say how they combine next time."})]

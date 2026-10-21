@@ -5,6 +5,6 @@ from . import tasks
 from .errors import AiError
 from .keystore import KeyStore
 from .provider import Provider
-from .service import AiService
+from .service import AiService, WorkspaceChoice
 
-__all__ = ["AiError", "AiService", "KeyStore", "Provider", "tasks"]
+__all__ = ["AiError", "AiService", "KeyStore", "Provider", "WorkspaceChoice", "tasks"]

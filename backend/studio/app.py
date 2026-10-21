@@ -25,7 +25,7 @@ from platformdirs import user_data_dir
 from pydantic import BaseModel, Field, ValidationError
 
 from . import __version__
-from .ai import AiError, AiService, tasks
+from .ai import AiError, AiService, WorkspaceChoice, tasks
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
 from .embedder import DEFAULT_MODEL, Embedder
@@ -46,6 +46,8 @@ class ConnectBody(BaseModel):
     accept: bool
     model: str | None = None
     provider: str = "gemini"
+    # Anthropic only: the workspace (wrkspc_...) a key made for the whole organisation should use.
+    workspace: str | None = Field(default=None, max_length=200)
 
 class ModelBody(BaseModel):
     model: str | None = None
@@ -194,9 +196,13 @@ def create_app(
 
     @app.post("/api/ai/connect")
     def ai_connect(body: ConnectBody) -> dict[str, Any]:
-        """Checks the key with the provider, then stores it in the OS credential store. Requires accepting the notice."""
+        """Checks the key with the provider, then stores it in the OS credential store. Requires accepting the notice.
+        An Anthropic key that may be used in several workspaces gets 409 workspace_choice with the list to pick from;
+        the app connects again with `workspace` set."""
         try:
-            return ai().connect(body.apiKey, body.accept, body.model, body.provider)
+            return ai().connect(body.apiKey, body.accept, body.model, body.provider, body.workspace)
+        except WorkspaceChoice as e:
+            return JSONResponse({"detail": e.message, "kind": "workspace_choice", "workspaces": e.workspaces}, status_code=409)
         except ValueError as e:
             raise HTTPException(422, str(e)) from e
 

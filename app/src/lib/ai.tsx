@@ -12,7 +12,7 @@ export interface AiStatus {
   comingSoon: false;
   info: AiInfo | null;
   refresh: () => Promise<void>;
-  connect: (apiKey: string, accept: boolean, model?: string, provider?: ProviderId) => Promise<void>;
+  connect: (apiKey: string, accept: boolean, model?: string, provider?: ProviderId, workspace?: string) => Promise<void>;
   /** Forget one saved service (the given one, or the one in use). The others stay saved. */
   disconnect: (provider?: ProviderId) => Promise<void>;
   /** Make another saved service the one in use; no key needed. */
@@ -47,7 +47,7 @@ export function AiProvider({ children }: { children: ReactNode }) {
       comingSoon: false,
       info,
       refresh,
-      connect: async (apiKey, accept, model, provider) => setInfo(await api.aiConnect(apiKey, accept, model, provider)),
+      connect: async (apiKey, accept, model, provider, workspace) => setInfo(await api.aiConnect(apiKey, accept, model, provider, workspace)),
       disconnect: async (provider) => setInfo(await api.aiDisconnect(provider)),
       switchTo: async (provider) => {
         warmed.current = null;

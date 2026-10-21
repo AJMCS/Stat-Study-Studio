@@ -9,6 +9,12 @@ export class ServiceUnavailable extends Error {
   }
 }
 
+/** An Anthropic workspace a key may be used in. */
+export interface Workspace {
+  id: string;
+  name: string;
+}
+
 /** Raised when the service answered but refused the request, with a message fit to show the learner. */
 export class ServiceRejected extends Error {
   constructor(
@@ -16,9 +22,29 @@ export class ServiceRejected extends Error {
     readonly status: number,
     /** For AI calls: why it failed (invalid_key, rate_limited, offline, ...), so the page can offer the right next step. */
     readonly kind?: string,
+    /** For kind "workspace_choice": the workspaces the Anthropic key may use, for the learner to pick one. */
+    readonly workspaces?: Workspace[],
   ) {
     super(message);
   }
+}
+
+/** The refusal the service answered with, from its status and JSON body (which may be missing or not what we expect). */
+export function readRejection(status: number, body: unknown): ServiceRejected {
+  let detail = `The study service returned an error (${status}).`;
+  let kind: string | undefined;
+  let workspaces: Workspace[] | undefined;
+  if (body && typeof body === "object") {
+    const b = body as Record<string, unknown>;
+    if (typeof b.detail === "string") detail = b.detail;
+    if (typeof b.kind === "string") kind = b.kind;
+    if (Array.isArray(b.workspaces)) {
+      workspaces = b.workspaces
+        .filter((w): w is { id: string; name?: unknown } => !!w && typeof w === "object" && typeof (w as { id?: unknown }).id === "string")
+        .map((w) => ({ id: w.id, name: typeof w.name === "string" && w.name ? w.name : w.id }));
+    }
+  }
+  return new ServiceRejected(detail, status, kind, workspaces);
 }
 
 /**
@@ -64,16 +90,13 @@ async function call(path: string, init?: RequestInit): Promise<Response> {
   }
   serviceEvents.emit(true); // it answered, even if it said no
   if (!res.ok) {
-    let detail = `The study service returned an error (${res.status}).`;
-    let kind: string | undefined;
+    let body: unknown = null;
     try {
-      const body = await res.json();
-      if (typeof body?.detail === "string") detail = body.detail;
-      if (typeof body?.kind === "string") kind = body.kind;
+      body = await res.json();
     } catch {
       /* keep the generic message */
     }
-    throw new ServiceRejected(detail, res.status, kind);
+    throw readRejection(res.status, body);
   }
   return res;
 }
@@ -278,6 +301,10 @@ export interface AiInfo {
   consentedAt: string | null;
   model: string;
   defaultModel: string;
+  /** Anthropic only: the workspace a key made for the whole organisation was told to use (null for a key scoped to
+   * one workspace, and for every other service). */
+  workspace: string | null;
+  workspaceName: string | null;
   /** The exact data notice the learner agrees to; shown verbatim. */
   notice: string;
   noticeVersion: number;
@@ -372,8 +399,10 @@ export const api = {
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
   aiStatus: async (provider?: string): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`)).json(),
   aiLocalModels: async (): Promise<{ running: boolean; models: string[] }> => (await call("/api/ai/local-models")).json(),
-  aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: ProviderId = "gemini"): Promise<AiInfo> =>
-    (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider }) })).json(),
+  /** `workspace` is for Anthropic only: a key made for the whole organisation must say which workspace to use. Without
+   * it the service answers 409 workspace_choice (with the list to pick from) or workspace_needed (paste the ID). */
+  aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: ProviderId = "gemini", workspace?: string): Promise<AiInfo> =>
+    (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider, workspace: workspace || null }) })).json(),
   aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
   aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),
   aiDisconnect: async (provider?: ProviderId): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`, { method: "DELETE" })).json(),

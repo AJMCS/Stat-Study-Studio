@@ -17,12 +17,18 @@ class Claude:
     name = "Anthropic Claude"
     local = False
 
-    def __init__(self, api_key: str, model: str = "", base: str | None = None, timeout: float = 90.0):
+    def __init__(self, api_key: str, model: str = "", workspace: str | None = None, base: str | None = None, timeout: float = 90.0):
         import os
 
         self.model = model
+        # A key made for every workspace of the organisation must name the workspace on each request; a key made for
+        # one workspace needs no header. Without it the API answers 400 "not scoped to a workspace" (see _from_status).
+        self.workspace = workspace or None
         self.base = (base or os.environ.get("STUDIO_ANTHROPIC_BASE") or BASE).rstrip("/")
-        self._http = httpx.Client(timeout=timeout, headers={"x-api-key": api_key, "anthropic-version": VERSION})
+        headers = {"x-api-key": api_key, "anthropic-version": VERSION}
+        if self.workspace:
+            headers["anthropic-workspace-id"] = self.workspace
+        self._http = httpx.Client(timeout=timeout, headers=headers)
 
     def _send(self, method: str, path: str, **kw) -> dict:
         try:
@@ -38,6 +44,25 @@ class Claude:
 
     def models(self) -> list[str]:
         return [m["id"] for m in self._send("GET", "/v1/models", params={"limit": 100}).get("data", [])]
+
+    def workspaces(self) -> list[dict]:
+        """The organisation's workspaces this key may use, as [{"id", "name"}] without the archived ones. A key that is
+        not scoped to a workspace is accepted by this Admin API endpoint; when the account's role is refused it (401/403,
+        or a 404 from an account without the endpoint) the answer is [] rather than an error, so the caller can ask the
+        learner for the ID instead."""
+        try:
+            r = self._http.get(f"{self.base}/v1/organizations/workspaces", params={"include_default": "true", "limit": 100})
+        except httpx.HTTPError as e:
+            raise AiError("offline", str(e)) from e
+        if r.status_code in (401, 403, 404):
+            return []
+        if r.status_code >= 400:
+            raise _from_status(r)
+        try:
+            rows = r.json().get("data", [])
+        except (ValueError, AttributeError) as e:
+            raise AiError("bad_response", "not JSON") from e
+        return [{"id": w["id"], "name": w.get("name") or w["id"]} for w in rows if isinstance(w, dict) and w.get("id") and not w.get("archived_at")]
 
     def check_key(self) -> None:
         ids = self.models()
@@ -90,8 +115,16 @@ def _from_status(r: httpx.Response) -> AiError:
     except (ValueError, AttributeError):
         pass
     code = r.status_code
-    if code == 400 and "credit balance" in detail.lower():
+    low = detail.lower()
+    if code == 400 and "credit balance" in low:
         return AiError("billing", detail)
+    # A key made for every workspace of the organisation: the request must say which one (anthropic-workspace-id).
+    if code == 400 and "not scoped to a workspace" in low:
+        return AiError("workspace_needed", detail)
+    if code == 400 and "must be a valid workspace id" in low:
+        return AiError("workspace_invalid", detail)
+    if code == 404 and low.startswith("workspace") and "not found" in low:
+        return AiError("workspace_invalid", detail)
     if code in (401, 403):
         return AiError("invalid_key", detail)
     if code == 402:

@@ -78,7 +78,13 @@ function AiPanel() {
       ) : connectedHere ? (
         <>
           <p role="status">
-            Connected to {info.providerName}.{" "}
+            Connected to {info.providerName}
+            {info.workspace && (
+              <>
+                {" "}in workspace <b className={info.workspaceName ? undefined : "mono"}>{info.workspaceName || info.workspace}</b>
+              </>
+            )}
+            .{" "}
             {info.local ? "It runs on this computer, so nothing is sent over the internet." : `Your key is stored ${info.keyLocation === "os" ? "in this computer's secure credential store" : "in a private file on this computer"}.`}
             {tested && " The connection works."}
           </p>

@@ -15,6 +15,9 @@ MESSAGES = {
     "model_missing": (404, "That model is not available. For Ollama, install it first (ollama pull <model name>). For an online service, pick a model name your account can use."),
     "billing": (402, "The AI service says this account has no credit or billing set up. Add credit on the provider's website, then retry. (A chat subscription does not include API credit.)"),
     "server": (502, "The AI service had a problem on its side. Retry in a moment."),
+    # An Anthropic key made for every workspace of the organisation must say which one each request is for.
+    "workspace_needed": (409, "This key is not tied to a workspace. Choose one below, or paste the workspace ID from the Console's Workspaces page."),
+    "workspace_invalid": (404, "That workspace ID is not valid for this key: check it on the Console's Workspaces page, or create a key scoped to a workspace."),
 }
 
 
