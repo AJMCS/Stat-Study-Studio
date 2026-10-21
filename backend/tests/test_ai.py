@@ -1,4 +1,5 @@
 import json
+import time
 
 import pytest
 from fastapi.testclient import TestClient
@@ -367,16 +368,85 @@ def test_a_local_model_may_see_every_collection_but_a_hosted_one_only_allowed_on
     assert "Private pangolin" not in json.dumps(fake.requests[-1])
 
 
-def test_switching_services_replaces_the_connection_and_a_failed_switch_changes_nothing(client, ollama, fake):
+def test_connecting_a_second_service_keeps_the_first_and_a_failed_connect_changes_nothing(client, ollama, fake):
     connect(client)
     assert client.get("/api/ai").json()["provider"] == "gemini"
     assert connect_local(client, model="not-installed").status_code == 404
     assert client.get("/api/ai").json()["provider"] == "gemini" and client.get("/api/ai").json()["connected"]
     connect_local(client)
     s = client.get("/api/ai").json()
-    assert s["provider"] == "ollama" and s["keyStored"] is False  # the Gemini key was removed on switching
+    assert s["provider"] == "ollama" and s["active"] == "ollama" and s["keyStored"] is False  # Ollama needs no key
+    assert [a["id"] for a in s["accounts"]] == ["gemini", "ollama"]  # the Gemini key is still saved
+    assert client.get("/api/ai?provider=gemini").json()["keyStored"] is True
     assert client.get("/api/ai?provider=gemini").json()["notice"].startswith("When you use")  # previewing the other one
     assert client.get("/api/ai").json()["provider"] == "ollama"  # without changing anything
+
+
+def test_switching_between_saved_services_needs_no_key_and_each_keeps_its_model(client, ollama, fake):
+    connect(client)
+    connect_local(client, model="llama3.2")
+    s = client.post("/api/ai/switch", json={"provider": "gemini"}).json()
+    assert s["connected"] and s["active"] == "gemini" and s["provider"] == "gemini"
+    assert [a["active"] for a in s["accounts"]] == [True, False]
+    assert client.get("/api/ai").json()["active"] == "gemini"
+    # scoring now goes to Gemini, and switching back goes to the local model with its own model name
+    fake.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    s = client.post("/api/ai/switch", json={"provider": "ollama"}).json()
+    assert s["active"] == "ollama" and s["model"] == "llama3.2"
+    ollama.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json=SCORE_BODY).status_code == 200
+    assert ollama.requests[-1]["model"] == "llama3.2"
+    # a service that was never saved cannot be switched to, and nothing changes
+    r = client.post("/api/ai/switch", json={"provider": "anthropic"})
+    assert r.status_code == 409 and r.json()["kind"] == "not_connected"
+    assert client.get("/api/ai").json()["active"] == "ollama"
+    assert client.post("/api/ai/switch", json={"provider": "nope"}).status_code == 422
+
+
+def test_forgetting_one_service_keeps_the_others_and_forgetting_the_active_one_leaves_none_active(client, ollama, fake):
+    connect(client)
+    connect_local(client)
+    s = client.delete("/api/ai?provider=gemini").json()
+    assert [a["id"] for a in s["accounts"]] == ["ollama"] and s["active"] == "ollama" and s["connected"]
+    assert client.get("/api/ai?provider=gemini").json()["keyStored"] is False
+    s = client.delete("/api/ai").json()  # the active one
+    assert s["accounts"] == [] and s["active"] is None and s["connected"] is False
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["kind"] == "not_connected"
+
+
+def test_a_connection_saved_by_an_older_version_is_read_as_one_account(tmp_path, fake):
+    (tmp_path / "ai.json").write_text(json.dumps({"provider": "gemini", "model": None, "consentVersion": 1, "consentedAt": "2026-10-01T10:00:00+00:00"}), encoding="utf-8")
+    with TestClient(create_app(data_dir=tmp_path, auto_check=False), base_url="http://127.0.0.1:8765", headers=ORIGIN) as c:
+        connect(c)  # stores the key in the (file) key store beside the old settings
+        s = c.get("/api/ai").json()
+        assert s["connected"] and s["active"] == "gemini" and [a["id"] for a in s["accounts"]] == ["gemini"]
+
+
+def test_warming_loads_the_local_model_in_the_background_and_only_once(client, ollama):
+    connect_local(client)
+    assert client.post("/api/ai/warm").json() == {"warming": True, "state": "loading"}
+    for _ in range(50):
+        if client.get("/api/ai").json()["warm"] == {"state": "ready"}:
+            break
+        time.sleep(0.05)
+    else:
+        raise AssertionError("the model never reported ready: " + json.dumps(client.get("/api/ai").json()["warm"]))
+    load = [r for r in ollama.requests if r.get("messages") == []]
+    assert len(load) == 1 and load[0]["model"] == "llama3.2" and load[0]["keep_alive"] == "30m"
+    # already warm: no second load request
+    assert client.post("/api/ai/warm").json() == {"warming": False, "state": "ready"}
+    assert len([r for r in ollama.requests if r.get("messages") == []]) == 1
+    # real requests ask Ollama to keep the model loaded for the session
+    ollama.replies = [json.dumps(GOOD)]
+    client.post("/api/ai/score", json=SCORE_BODY)
+    assert ollama.requests[-1]["keep_alive"] == "30m"
+
+
+def test_warming_does_nothing_for_a_hosted_service(client):
+    connect(client)
+    assert client.post("/api/ai/warm").json() == {"warming": False, "state": None}
+    assert client.get("/api/ai").json()["warm"] is None
 
 
 def test_ollama_trouble_is_explained_plainly(client, ollama):
@@ -475,12 +545,16 @@ def test_a_model_the_account_lacks_is_rejected_and_an_account_with_no_usable_mod
     assert client.get("/api/ai").json()["keyStored"]
 
 
-def test_only_the_service_you_connect_keeps_a_key(client, claude, fake):
+def test_every_connected_service_keeps_its_own_key_until_it_is_forgotten(client, claude, fake):
     connect(client)  # Gemini
     assert connect_with(client, "anthropic").json()["connected"]
-    assert sorted(p.name for p in client.data_dir.glob("*.key")) == ["anthropic.key"]
-    assert client.get("/api/ai?provider=gemini").json()["keyStored"] is False
-    client.delete("/api/ai")
+    assert sorted(p.name for p in client.data_dir.glob("*.key")) == ["anthropic.key", "gemini.key"]
+    assert client.get("/api/ai?provider=gemini").json()["keyStored"] is True
+    client.delete("/api/ai")  # forgets the active one (Anthropic) only
+    assert sorted(p.name for p in client.data_dir.glob("*.key")) == ["gemini.key"]
+    assert client.get("/api/ai").json()["connected"] is False  # nothing active until the learner switches or connects
+    assert client.post("/api/ai/switch", json={"provider": "gemini"}).json()["connected"]
+    client.delete("/api/ai?provider=gemini")
     assert not list(client.data_dir.glob("*.key"))
 
 

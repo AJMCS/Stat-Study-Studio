@@ -15,6 +15,8 @@ export interface PadValue {
  * independent (black ink on nothing) and keeps its contrast if the theme changes after it was drawn.
  */
 const PEN = "#0d0f14"; // inverts to exactly the dark theme's chalk ink (#f2f0eb); reads as black in light mode
+/** Whether the learner last left the drawing pad open, so the next question's pad opens the same way. */
+let padWasOpen = false;
 
 /** Drawings saved by an earlier version had a white background baked in; make that transparent so it takes the theme. */
 function dropWhite(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -36,7 +38,10 @@ export function Pad({
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
-  const [showCanvas, setShowCanvas] = useState(!!value.drawing);
+  // Open when this answer already has a drawing, or when the learner opened the pad on an earlier question: a quiz or
+  // exam mounts one Pad per question (keyed by the question), so each question keeps its own drawing and a fresh
+  // question starts blank, while the pad itself stays open from question to question.
+  const [showCanvas, setShowCanvas] = useState(!!value.drawing || padWasOpen);
   const [erase, setErase] = useState(false);
 
   useEffect(() => {
@@ -120,7 +125,17 @@ export function Pad({
         </div>
       )}
       <div className="row">
-        <button type="button" className="ghost btn-sm" onClick={() => setShowCanvas((s) => !s)} aria-expanded={showCanvas}>
+        <button
+          type="button"
+          className="ghost btn-sm"
+          onClick={() =>
+            setShowCanvas((s) => {
+              padWasOpen = !s;
+              return !s;
+            })
+          }
+          aria-expanded={showCanvas}
+        >
           {showCanvas ? "Hide drawing pad" : "Add a drawing (optional)"}
         </button>
         {showCanvas && !disabled && (

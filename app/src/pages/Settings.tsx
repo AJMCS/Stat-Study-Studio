@@ -37,6 +37,9 @@ function AiPanel() {
 
   const connectedHere = info.connected && selected === info.provider;
   const shownModel = model ?? (info.model === info.defaultModel ? "" : info.model);
+  /** The chosen service is saved and ready but not the one in use: offer to switch rather than ask for its key again. */
+  const savedHere = info.accounts.find((a) => a.id === selected && !a.active);
+  const others = info.accounts.filter((a) => a.id !== selected);
 
   return (
     <section className="panel" aria-labelledby="ai-h">
@@ -55,9 +58,23 @@ function AiPanel() {
         ))}
       </fieldset>
       {error && <p className="notice warn-box" role="alert">{error}</p>}
-      {info.connected && !connectedHere && <p className="muted">You are connected to {info.providerName}. Connecting this one replaces it.</p>}
+      {others.length > 0 && !savedHere && !connectedHere && (
+        <p className="muted">
+          {others.map((a) => a.name).join(" and ")} {others.length === 1 ? "stays" : "stay"} saved. Connecting this one adds it and makes it the one in use; the corner chip switches between them.
+        </p>
+      )}
 
-      {connectedHere ? (
+      {savedHere ? (
+        <>
+          <p role="status">
+            {savedHere.name} is saved{savedHere.local ? "" : " with its key"} and ready, using <b className="mono">{savedHere.model}</b>. {info.connected ? `${info.providerName} is the one in use.` : "Nothing is in use right now."}
+          </p>
+          <div className="row">
+            <button disabled={busy} onClick={() => void run(() => ai.switchTo(savedHere.id))}>Use this service</button>
+            <button className="ghost danger" disabled={busy} onClick={() => void run(() => ai.disconnect(savedHere.id))}>Forget it{savedHere.local ? "" : " and its key"}</button>
+          </div>
+        </>
+      ) : connectedHere ? (
         <>
           <p role="status">
             Connected to {info.providerName}.{" "}
@@ -83,6 +100,27 @@ function AiPanel() {
       <p className="muted">
         {info.local ? "Because the model runs on this computer, all your collections can be used to ground answers." : "Hosted requests that use your uploaded files are also controlled per collection in Course materials."} Disconnecting removes the connection; the app keeps working on its own.
       </p>
+      {info.accounts.length > 1 && (
+        <>
+          <p className="eyebrow">{"// Saved services"}</p>
+          <ul className="saved-services">
+            {info.accounts.map((a) => (
+              <li key={a.id}>
+                <span>
+                  <b>{a.name}</b> <span className="muted">· {a.model}{a.active ? " · in use" : ""}</span>
+                </span>
+                {!a.active && (
+                  <span className="row">
+                    <button className="ghost btn-sm" disabled={busy} onClick={() => void run(() => ai.switchTo(a.id))}>Use this</button>
+                    <button className="ghost btn-sm danger" disabled={busy} onClick={() => void run(() => ai.disconnect(a.id))}>Forget</button>
+                  </span>
+                )}
+              </li>
+            ))}
+          </ul>
+          <p className="muted">Switch any time from the chip in the bottom corner of the screen, too.</p>
+        </>
+      )}
     </section>
   );
 }

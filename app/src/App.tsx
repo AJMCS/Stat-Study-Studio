@@ -20,6 +20,7 @@ import { Notes } from "./pages/Notes";
 import { Settings } from "./pages/Settings";
 import { ThetaMark } from "./components/ThetaMark";
 import { Onboarding } from "./components/Onboarding";
+import { AiStatus } from "./components/AiStatus";
 import { useStore } from "./lib/store";
 import { megabytes, useLibrary } from "./lib/library";
 import { useTheme } from "./lib/theme";
@@ -181,6 +182,7 @@ export function App() {
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>
       </main>
+      <AiStatus />
       <Onboarding />
     </>
   );

@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import threading
 import re
+import time
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
@@ -55,6 +56,9 @@ PROVIDER_NAMES = {"gemini": "Google Gemini", "anthropic": "Anthropic Claude", "o
 LOCAL = {"ollama"}
 KEYED = ("gemini", "anthropic", "openai")  # services that need a pasted API key
 DEFAULT_MODELS = {"gemini": DEFAULT_MODEL}  # the others are chosen from what the learner's account can use
+# How long a warmed local model is assumed to stay loaded before the app asks Ollama to load it again (its keep-alive
+# is longer, so this only avoids pointless repeat requests).
+WARM_FOR = 10 * 60
 
 
 def _version(name: str) -> tuple[int, ...]:
@@ -72,10 +76,16 @@ def pick_model(ids: list[str], patterns: tuple[str, ...]) -> str | None:
 
 
 class AiService:
+    """The learner's AI services. Several can be saved at once (one key per hosted service, one chosen model for
+    Ollama), each with its own model and its own accepted notice. Exactly one is active, and every AI feature goes
+    through it; switching to another saved service needs no key."""
+
     def __init__(self, data_dir: Path):
         self._file = Path(data_dir) / "ai.json"
         self._lock = threading.Lock()
         self.stores = {p: KeyStore(data_dir, account=p) for p in KEYED}
+        # The local model's warm-up: {"model", "state": "loading" | "ready" | "failed", "at"}; see warm().
+        self._warm: dict[str, Any] = {}
 
     @property
     def keys(self) -> KeyStore:
@@ -84,10 +94,17 @@ class AiService:
 
     # ------------------------------------------------------------------ settings file
     def _read(self) -> dict[str, Any]:
+        """{"provider": <the active service or None>, "accounts": {service: {"model", "consentVersion", "consentedAt"}}}.
+        A file written before several services could be saved held one flat connection; it is read as one account."""
         try:
-            return json.loads(self._file.read_text(encoding="utf-8"))
+            s = json.loads(self._file.read_text(encoding="utf-8"))
         except (OSError, ValueError):
-            return {}
+            return {"provider": None, "accounts": {}}
+        if "accounts" not in s:
+            p = s.get("provider")
+            accounts = {p: {"model": s.get("model"), "consentVersion": s.get("consentVersion"), "consentedAt": s.get("consentedAt")}} if p else {}
+            return {"provider": p, "accounts": accounts}
+        return {"provider": s.get("provider"), "accounts": s.get("accounts") or {}}
 
     def _write(self, data: dict[str, Any]) -> None:
         self._file.parent.mkdir(parents=True, exist_ok=True)
@@ -96,38 +113,58 @@ class AiService:
         tmp.replace(self._file)
 
     # ------------------------------------------------------------------ state
+    def _ready(self, provider: str | None, accounts: dict[str, Any]) -> bool:
+        """Saved and usable: a stored key (hosted) or a chosen model (local), with the current notice accepted."""
+        a = accounts.get(provider or "")
+        if not a or a.get("consentVersion") != CONSENT_VERSION:
+            return False
+        if provider in LOCAL:
+            return bool(a.get("model"))
+        return provider in self.stores and self.stores[provider].get() is not None
+
     @property
     def is_local(self) -> bool:
-        """True when the connected model runs on this computer, so nothing leaves it."""
+        """True when the active model runs on this computer, so nothing leaves it."""
         return self._read().get("provider") in LOCAL
 
     def status(self, provider: str | None = None) -> dict[str, Any]:
         s = self._read()
-        saved = s.get("provider", "gemini")
-        shown = provider if provider in PROVIDER_NAMES else saved
-        consented = s.get("consentVersion") == CONSENT_VERSION
+        active, accounts = s["provider"], s["accounts"]
+        shown = provider if provider in PROVIDER_NAMES else (active or "gemini")
+        a = accounts.get(shown, {})
         has_key = shown in self.stores and self.stores[shown].get() is not None
-        active = shown == saved
-        ready = (shown in LOCAL) or has_key
+        connected = active is not None and self._ready(active, accounts)
+        saved = [
+            {"id": p, "name": PROVIDER_NAMES[p], "model": accounts[p].get("model") or DEFAULT_MODELS.get(p, ""), "local": p in LOCAL, "active": p == active}
+            for p in PROVIDER_NAMES
+            if self._ready(p, accounts)
+        ]
+        warm = None
+        if connected and active in LOCAL and self._warm.get("model") == accounts[active].get("model"):
+            warm = {"state": self._warm.get("state")}
         return {
             "provider": shown,
             "providerName": PROVIDER_NAMES[shown],
             "providers": [{"id": k, "name": v, "local": k in LOCAL} for k, v in PROVIDER_NAMES.items()],
             "local": shown in LOCAL,
-            "connected": active and ready and consented and bool(s),
+            "connected": connected,
+            "active": active if connected else None,
+            "accounts": saved,
             "keyStored": has_key,
             "keyLocation": self.keys.where,
-            "consented": consented and active,
-            "consentedAt": s.get("consentedAt") if active else None,
-            "model": (s.get("model") if active else None) or DEFAULT_MODELS.get(shown, ""),
+            "consented": a.get("consentVersion") == CONSENT_VERSION,
+            "consentedAt": a.get("consentedAt"),
+            "model": a.get("model") or DEFAULT_MODELS.get(shown, ""),
             "defaultModel": DEFAULT_MODELS.get(shown, ""),
             "needsKey": shown in KEYED,
             "notice": NOTICE[shown],
             "noticeVersion": CONSENT_VERSION,
+            "warm": warm,
         }
 
     def connect(self, api_key: str, accept: bool, model: str | None = None, provider: str = "gemini") -> dict[str, Any]:
-        """Check the connection with the provider, then save it. Nothing is saved if the check fails."""
+        """Check the connection with the provider, then save it and make it the active one. Nothing is saved if the
+        check fails, and the other saved services keep their keys."""
         if provider not in PROVIDER_NAMES:
             raise ValueError(f"Unknown AI service: {provider}")
         if not accept:
@@ -156,19 +193,33 @@ class AiService:
                     if not model:
                         raise ValueError("The key works, but no suitable model was found on your account. Type the name of the model you want to use and connect again.")
         with self._lock:
-            for name, store in self.stores.items():  # one connection at a time: only the chosen service keeps a key
-                if name == provider:
-                    store.set(api_key)
-                else:
-                    store.delete()
-            self._write(
-                {
-                    "provider": provider,
-                    "model": model,
-                    "consentVersion": CONSENT_VERSION,
-                    "consentedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-                }
-            )
+            s = self._read()
+            if provider in self.stores:
+                self.stores[provider].set(api_key)
+            s["accounts"][provider] = {
+                "model": model,
+                "consentVersion": CONSENT_VERSION,
+                "consentedAt": datetime.now(timezone.utc).isoformat(timespec="seconds"),
+            }
+            s["provider"] = provider
+            self._write(s)
+        return self.status()
+
+    def switch(self, provider: str) -> dict[str, Any]:
+        """Make a saved service the active one. No key is needed: it was checked and stored when it was connected."""
+        if provider not in PROVIDER_NAMES:
+            raise ValueError(f"Unknown AI service: {provider}")
+        with self._lock:
+            s = self._read()
+            a = s["accounts"].get(provider)
+            if a is None:
+                raise AiError("not_connected", f"{provider} is not saved")
+            if a.get("consentVersion") != CONSENT_VERSION:
+                raise AiError("no_consent", provider)
+            if not self._ready(provider, s["accounts"]):
+                raise AiError("not_connected", provider)
+            s["provider"] = provider
+            self._write(s)
         return self.status()
 
     def local_models(self) -> dict[str, Any]:
@@ -181,16 +232,43 @@ class AiService:
             raise
 
     def set_model(self, model: str | None) -> dict[str, Any]:
+        """Change the active service's model."""
         with self._lock:
             s = self._read()
-            s["model"] = (model or "").strip() or None
-            self._write(s)
+            p = s["provider"]
+            if p and p in s["accounts"]:
+                s["accounts"][p]["model"] = (model or "").strip() or None
+                self._write(s)
         return self.status()
 
-    def disconnect(self) -> dict[str, Any]:
+    def disconnect(self, provider: str | None = None) -> dict[str, Any]:
+        """Forget one saved service (its key included): the given one, or the active one. The others stay saved;
+        if the forgotten one was active, nothing is active until the learner switches or connects."""
+        with self._lock:
+            s = self._read()
+            p = provider if provider in PROVIDER_NAMES else s["provider"]
+            if p in self.stores:
+                self.stores[p].delete()
+            s["accounts"].pop(p, None)
+            if s["provider"] == p:
+                s["provider"] = None
+            if p in LOCAL:
+                self._warm = {}
+            if s["accounts"]:
+                self._write(s)
+            else:
+                try:
+                    self._file.unlink()
+                except OSError:
+                    pass
+        return self.status()
+
+    def disconnect_all(self) -> dict[str, Any]:
+        """Forget every saved service, for "delete all my data"."""
         with self._lock:
             for store in self.stores.values():
                 store.delete()
+            self._warm = {}
             try:
                 self._file.unlink()
             except OSError:
@@ -201,22 +279,51 @@ class AiService:
         self.provider().check_key()
         return self.status()
 
-    def provider(self) -> Provider:
-        """The connected model, or an AiError saying what is missing. Every AI feature goes through here."""
+    def warm(self) -> dict[str, Any]:
+        """Start loading the active local model in the background, so the learner's first question does not wait for
+        it. Returns at once. Does nothing for a hosted service, or when the model was loaded recently."""
         s = self._read()
-        if not s:
+        p = s["provider"]
+        if p not in LOCAL or not self._ready(p, s["accounts"]):
+            return {"warming": False, "state": None}
+        model = s["accounts"][p]["model"]
+        with self._lock:
+            w = self._warm
+            fresh = w.get("model") == model and (w.get("state") == "loading" or (w.get("state") == "ready" and time.time() - w.get("at", 0) < WARM_FOR))
+            if fresh:
+                return {"warming": w["state"] == "loading", "state": w["state"]}
+            self._warm = {"model": model, "state": "loading", "at": time.time()}
+
+        def run() -> None:
+            try:
+                Ollama(model).warm()
+                state = "ready"
+            except (AiError, ValueError):
+                state = "failed"
+            with self._lock:
+                if self._warm.get("model") == model:
+                    self._warm.update({"state": state, "at": time.time()})
+
+        threading.Thread(target=run, name="ollama-warm", daemon=True).start()
+        return {"warming": True, "state": "loading"}
+
+    def provider(self) -> Provider:
+        """The active model, or an AiError saying what is missing. Every AI feature goes through here."""
+        s = self._read()
+        p = s["provider"]
+        a = s["accounts"].get(p or "")
+        if not p or a is None:
             raise AiError("not_connected")
-        if s.get("consentVersion") != CONSENT_VERSION:
+        if a.get("consentVersion") != CONSENT_VERSION:
             raise AiError("no_consent")
-        if s.get("provider") == "ollama":
-            if not s.get("model"):
+        if p in LOCAL:
+            if not a.get("model"):
                 raise AiError("not_connected")
-            return Ollama(s["model"])
-        provider = s.get("provider", "gemini")
-        key = self.stores[provider].get() if provider in self.stores else None
+            return Ollama(a["model"])
+        key = self.stores[p].get() if p in self.stores else None
         if key is None:
             raise AiError("not_connected")
-        return self._build(provider, key, s.get("model"))
+        return self._build(p, key, a.get("model"))
 
     @staticmethod
     def _build(provider: str, key: str, model: str | None) -> Provider:

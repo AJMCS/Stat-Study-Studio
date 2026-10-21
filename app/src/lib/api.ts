@@ -210,10 +210,27 @@ export const hitToSource = (h: SearchHit): SourceRef => ({
 
 export type ProviderId = "gemini" | "anthropic" | "openai" | "ollama";
 
+/** A service the learner has connected and that is ready to use (key stored, or a local model chosen). */
+export interface AiAccount {
+  id: ProviderId;
+  name: string;
+  model: string;
+  local: boolean;
+  /** The one every AI feature uses right now. */
+  active: boolean;
+}
+
 export interface AiInfo {
+  /** The service these fields describe: the active one, or the one being previewed in Settings. */
   provider: ProviderId;
   providerName: string;
   providers: { id: ProviderId; name: string; local: boolean }[];
+  /** The service in use, or null when none is. */
+  active: ProviderId | null;
+  /** Every saved, ready service; the learner can switch between them without a key. */
+  accounts: AiAccount[];
+  /** The local model's warm-up, when one is active and has been asked to load. */
+  warm: { state: "loading" | "ready" | "failed" } | null;
   /** Needs a pasted API key (everything except a model on this computer). */
   needsKey: boolean;
   /** The model runs on this computer, so nothing is sent over the internet. */
@@ -287,7 +304,10 @@ export const api = {
     (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider }) })).json(),
   aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
   aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),
-  aiDisconnect: async (): Promise<AiInfo> => (await call("/api/ai", { method: "DELETE" })).json(),
+  aiDisconnect: async (provider?: ProviderId): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`, { method: "DELETE" })).json(),
+  aiSwitch: async (provider: ProviderId): Promise<AiInfo> =>
+    (await call("/api/ai/switch", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider }) })).json(),
+  aiWarm: async (): Promise<{ warming: boolean; state: "loading" | "ready" | "failed" | null }> => (await call("/api/ai/warm", { method: "POST" })).json(),
   health: async (): Promise<Health> => (await call("/api/health")).json(),
   search: async (q: string, k = 5, collections: string[] = []): Promise<SearchResponse> => {
     const extra = collections.map((c) => `&collection=${encodeURIComponent(c)}`).join("");

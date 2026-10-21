@@ -51,6 +51,10 @@ class ModelBody(BaseModel):
     model: str | None = None
 
 
+class SwitchBody(BaseModel):
+    provider: str
+
+
 class Turn(BaseModel):
     role: str = Field(pattern="^(tutor|learner)$")
     text: str = Field(max_length=6000)
@@ -181,6 +185,19 @@ def create_app(
     def ai_model(body: ModelBody) -> dict[str, Any]:
         return ai().set_model(body.model)
 
+    @app.post("/api/ai/switch")
+    def ai_switch(body: SwitchBody) -> dict[str, Any]:
+        """Make another saved service the active one; its key was checked and stored when it was connected."""
+        try:
+            return ai().switch(body.provider)
+        except ValueError as e:
+            raise HTTPException(422, str(e)) from e
+
+    @app.post("/api/ai/warm")
+    def ai_warm() -> dict[str, Any]:
+        """Start loading the active local model (Ollama) in the background so the first question does not wait for it."""
+        return ai().warm()
+
     @app.post("/api/ai/score")
     def ai_score(body: ScoreBody) -> dict[str, Any]:
         """Score one written answer on the four criteria. Sends only the question, the answer and the reference text."""
@@ -224,8 +241,9 @@ def create_app(
         return {"questions": questions, "model": getattr(provider, "model", "")}
 
     @app.delete("/api/ai")
-    def ai_disconnect() -> dict[str, Any]:
-        return ai().disconnect()
+    def ai_disconnect(provider: str | None = Query(default=None, max_length=20)) -> dict[str, Any]:
+        """Forget one saved service (the given one, or the active one); the others stay saved."""
+        return ai().disconnect(provider)
 
     def shared_results(q: str, k: int) -> list[dict[str, Any]]:
         index: SharedIndex | None = app.state.library.index
@@ -480,7 +498,7 @@ def create_app(
     def delete_all() -> dict[str, bool]:
         app.state.personal.wipe()
         db().wipe()
-        ai().disconnect()
+        ai().disconnect_all()
         return {"ok": True}
 
     # ------------------------------------------------------------------ files

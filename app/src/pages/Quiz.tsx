@@ -378,7 +378,7 @@ export function Quiz() {
             ))}
           </fieldset>
         ) : (
-          <Pad value={ans.pad} onChange={(pad) => setAns({ ...ans, pad })} label="Show your work" disabled={locked || !!rate} />
+          <Pad key={q.id} value={ans.pad} onChange={(pad) => setAns({ ...ans, pad })} label="Show your work" disabled={locked || !!rate} />
         )}
 
         {aiError[q.id] && <p className="notice warn-box" role="alert">{aiError[q.id]} Your answer is kept.</p>}

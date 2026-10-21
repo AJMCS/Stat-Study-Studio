@@ -285,7 +285,7 @@ export function Exam() {
       <section className="panel focal">
         <p className="prompt"><RichText text={q.prompt} /></p>
         {q.aiWritten && <p className="muted small">Written by your AI service for this exam. If a reference solution later disagrees with the lecture notes, trust the notes.</p>}
-        <Pad value={a} onChange={(v) => setAnswers((m) => ({ ...m, [q.id]: v }))} label="Your full solution" />
+        <Pad key={q.id} value={a} onChange={(v) => setAnswers((m) => ({ ...m, [q.id]: v }))} label="Your full solution" />
         {!timed && (
           <div className="row">
             <button className="ghost" aria-pressed={showSrc} onClick={() => setShowSrc((s) => !s)}>{showSrc ? "Hide source material" : "Show source material"}</button>

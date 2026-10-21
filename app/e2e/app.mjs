@@ -584,6 +584,15 @@ await step("quiz: written answers are self-scored, labeled, and saved as self-sc
   if (pad.dark.bg !== "rgb(18, 18, 18)" || pad.light.bg !== "rgb(250, 250, 250)") throw new Error(`pad background does not follow the theme: ${JSON.stringify(pad)}`);
   if (pad.dark.filter !== "invert(1)" || pad.light.filter !== "none") throw new Error(`dark mode should invert the ink: ${JSON.stringify(pad)}`);
   if (!pad.dark.canvasBg.endsWith(", 0)") && pad.dark.canvasBg !== "transparent") throw new Error(`canvas must stay transparent: ${JSON.stringify(pad)}`);
+  // each question has its own drawing: the next one starts blank (with the pad still open), and going back restores this one
+  const inkCount = () => page.evaluate(() => { const c = document.querySelector("canvas.canvas"); if (!c) return -1; const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; let n = 0; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) n++; return n; });
+  await page.click("button:has-text('Next')");
+  await page.waitForSelector("text=Question 7 of 10");
+  const nextInk = await inkCount();
+  if (nextInk !== 0) throw new Error(`the next question's pad should start blank (and stay open): ink=${nextInk}`);
+  await page.click("button:has-text('Back')");
+  await page.waitForSelector("text=Question 6 of 10");
+  await page.waitForFunction(() => { const c = document.querySelector("canvas.canvas"); if (!c) return false; const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data; for (let i = 3; i < d.length; i += 4) if (d[i] > 0) return true; return false; });
   await page.fill("textarea", "The likelihood is the probability of the data as a function of theta, and the MLE is the value that maximizes it.");
   await page.click("button:has-text('Review') >> nth=-1");
   await page.click("button:has-text('Submit quiz')");
@@ -1289,6 +1298,67 @@ await step("ai: a model on this computer (Ollama) can be chosen, says nothing le
   await page.waitForSelector("text=What gets sent");
   if ((await apiGet("ai")).connected) throw new Error("still connected");
 });
+
+await step("ai: several services stay saved; the corner chip shows the one in use, switches between them, and opening a topic warms the local model", async () => {
+  await fresh("/settings");
+  await page.check("label:has-text('Ollama') input");
+  await page.waitForSelector("select[aria-label='Ollama model'] option:has-text('qwen2.5:7b')", { state: "attached" });
+  await page.selectOption("select[aria-label='Ollama model']", "qwen2.5:7b");
+  await page.check("label:has-text('I have read this') input");
+  await page.click("button:has-text('Connect')");
+  await page.waitForSelector("text=Connected to Ollama");
+  // a hosted service on top: both stay saved, the newest becomes the one in use
+  await page.check("label:has-text('Google Gemini') input");
+  await page.waitForSelector("text=stays saved");
+  await page.fill("input[aria-label='API key']", GOOD_KEY);
+  await page.check("label:has-text('I have read this') input");
+  await page.click("button:has-text('Connect')");
+  await page.waitForSelector("text=Connected to Google Gemini");
+  let s = await apiGet("ai");
+  if (s.active !== "gemini" || s.accounts.map((a) => a.id).join() !== "gemini,ollama") throw new Error("both services should be saved with Gemini in use: " + JSON.stringify(s.accounts));
+  await page.waitForSelector(".saved-services li:has-text('Ollama') button:has-text('Use this')");
+  await shot("ai-saved-services");
+  // the corner chip names the model in use and switches to another saved service without a key
+  const chip = page.locator(".ai-chip");
+  if (!(await chip.textContent()).includes("gemini-flash-latest · Google")) throw new Error("chip reads: " + (await chip.textContent()));
+  await chip.click();
+  if ((await page.locator("[role=menu] [role=menuitemradio]").count()) !== 2) throw new Error("the menu should list both saved services");
+  await shot("ai-chip-menu");
+  await page.click("[role=menuitemradio]:has-text('qwen2.5:7b')");
+  await page.waitForFunction(() => (document.querySelector(".ai-chip")?.textContent ?? "").includes("qwen2.5:7b · local"));
+  if ((await apiGet("ai")).active !== "ollama") throw new Error("the switch did not take");
+  if (await page.locator("[role=menu]").count()) throw new Error("the menu should close after switching");
+  // opening a topic asks Ollama to load the model now and keep it loaded for the session
+  const before = (await (await fetch(`${process.env.FAKE_OLLAMA}/__log`)).json()).length;
+  const aiCalls = [];
+  const onReq = (r) => { if (r.url().includes("/api/ai")) aiCalls.push(`${r.method()} ${r.url().split("/api/")[1]}`); };
+  page.on("request", onReq);
+  await go(`/topic/${T}`);
+  let warm = null;
+  for (let i = 0; i < 100 && !warm; i++) {
+    const log = await (await fetch(`${process.env.FAKE_OLLAMA}/__log`)).json();
+    warm = log.slice(before).find((r) => Array.isArray(r.messages) && r.messages.length === 0);
+    if (!warm) await page.waitForTimeout(100);
+  }
+  page.off("request", onReq);
+  if (!warm || warm.model !== "qwen2.5:7b" || warm.keep_alive !== "30m") {
+    const st = await apiGet("ai");
+    throw new Error(`the local model was not warmed on opening a topic: ${JSON.stringify(warm)}; chip="${await chip.textContent()}"; status active=${st.active} local=${st.local} warm=${JSON.stringify(st.warm)}; ai calls=${aiCalls.join(", ")}; url=${page.url()}`);
+  }
+  await page.waitForFunction(() => !(document.querySelector(".ai-chip")?.textContent ?? "").includes("loading"));
+  // forgetting one service keeps the other; forgetting the one in use leaves none in use
+  await fresh("/settings");
+  await page.click(".saved-services li:has-text('Google Gemini') button:has-text('Forget')");
+  await page.waitForFunction(() => !document.querySelector(".saved-services"));
+  s = await apiGet("ai");
+  if (s.accounts.map((a) => a.id).join() !== "ollama" || s.active !== "ollama") throw new Error("forgetting Gemini should keep Ollama in use: " + JSON.stringify(s));
+  await page.click("button:has-text('Disconnect')");
+  await page.waitForSelector("text=What gets sent");
+  s = await apiGet("ai");
+  if (s.connected || s.accounts.length) throw new Error("something is still saved: " + JSON.stringify(s));
+  if (!(await chip.textContent()).includes("off")) throw new Error("the chip should say off: " + (await chip.textContent()));
+});
+for (const id of ["gemini", "ollama"]) await page.request.delete(`${BASE.split("#")[0]}api/ai?provider=${id}`).catch(() => {}); // in case the step failed midway
 
 for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claude-haiku-4-5", "anthropic"], ["openai", "OpenAI", "gpt-5.4-mini", "openai"]]) {
   await step(`ai: ${label} connects with a pasted key, picks a model the account has, warns about API credit, and scores a recall`, async () => {

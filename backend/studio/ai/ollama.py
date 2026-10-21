@@ -10,6 +10,9 @@ from .errors import AiError
 from .provider import Message
 
 BASE = "http://127.0.0.1:11434"
+# How long Ollama keeps the model in memory after a request. Its default is five minutes, which is shorter than a
+# study session, so the learner would pay the load time again after every pause.
+KEEP_ALIVE = "30m"
 
 
 def local_base(value: str | None = None) -> str:
@@ -67,6 +70,11 @@ class Ollama:
         if self.model not in names and wanted not in names:
             raise AiError("model_missing", self.model)
 
+    def warm(self) -> None:
+        """Load the model into memory now and keep it there, so the first real request does not pay the load time.
+        Ollama treats a chat request with no messages as exactly that. Blocks until the model is loaded."""
+        self._send("POST", "/api/chat", json={"model": self.model, "messages": [], "keep_alive": KEEP_ALIVE})
+
     def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
         body: dict = {
             "model": self.model,
@@ -74,6 +82,7 @@ class Ollama:
             "messages": [{"role": "system", "content": system}, *(_message(m) for m in messages)],
             # The default context window is small and would silently cut off the course excerpts.
             "options": {"temperature": temperature, "num_ctx": 8192},
+            "keep_alive": KEEP_ALIVE,
         }
         if json_output:
             body["format"] = "json"
