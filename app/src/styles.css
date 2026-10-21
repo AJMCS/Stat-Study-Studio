@@ -361,7 +361,7 @@ details summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
 .pad .preview small { font: 13.5px var(--mono); text-transform: uppercase; color: var(--muted); }
 /* Drawing pad: the wrapper carries the theme's input background and border; the canvas itself is transparent and
    holds near-black ink, which dark mode inverts to chalk (see Pad.tsx), so one saved drawing suits both themes. */
-.canvas-wrap { max-width: 800px; background: var(--canvas); border: 1px solid var(--muted); border-radius: var(--r-sm); overflow: hidden; }
+.canvas-wrap { width: 100%; background: var(--canvas); border: 1px solid var(--muted); border-radius: var(--r-sm); overflow: hidden; }
 .canvas { display: block; width: 100%; touch-action: none; background: transparent; cursor: crosshair; }
 :root[data-theme="dark"] .canvas { filter: invert(1); }
 .formula { padding: 8px 0; overflow-x: auto; }
@@ -1988,3 +1988,19 @@ button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-dec
 .short-version .sv-head { font-weight: 600; margin: 0 0 4px; }
 .short-version ul { margin: 0 0 16px; padding-left: 20px; }
 .short-version > .eyebrow { margin: 0 0 8px; }
+
+/* ---- connection notice: slides down from the top when the study service stops answering ---- */
+.toast-wrap { position: fixed; top: 12px; left: 0; right: 0; display: flex; justify-content: center; z-index: 40; pointer-events: none; padding: 0 16px; }
+.toast {
+  pointer-events: auto; max-width: 640px; width: 100%; background: var(--surface); color: var(--ink); border: 1px solid var(--ink);
+  border-radius: 12px; box-shadow: 0 3px 4px rgba(0, 0, 0, 0.6); padding: 14px 18px 14px 44px; position: relative;
+  animation: toast-in 320ms ease-out;
+}
+.toast p { margin: 0 0 8px; }
+.toast p:last-child, .toast .row { margin-bottom: 0; }
+.toast .row { margin-top: 12px; }
+.toast::before { position: absolute; left: 16px; top: 13px; font: 700 18px/24px var(--mono); }
+.toast-lost::before { content: "!"; }
+.toast-back::before { content: "✓"; }
+@keyframes toast-in { from { transform: translateY(-140%); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toast { animation: none; } }

@@ -21,6 +21,8 @@ import { Settings } from "./pages/Settings";
 import { ThetaMark } from "./components/ThetaMark";
 import { Onboarding } from "./components/Onboarding";
 import { AiStatus } from "./components/AiStatus";
+import { ConnectionToast } from "./components/ConnectionToast";
+import { useConnection } from "./lib/connection";
 import { useStore } from "./lib/store";
 import { megabytes, useLibrary } from "./lib/library";
 import { useTheme } from "./lib/theme";
@@ -34,6 +36,7 @@ function PerTopic({ children }: { children: ReactNode }) {
 function Banners() {
   const { saveError, retrySave, notice, dismissNotice } = useStore();
   const { status, showBanner, later, update, dismissUpdated } = useLibrary();
+  const link = useConnection();
   return (
     <>
       {status?.state === "downloading" && (
@@ -67,7 +70,7 @@ function Banners() {
           <button onClick={() => void update()}>Try again</button>
         </div>
       )}
-      {saveError && (
+      {saveError && link.state !== "lost" && ( // while the service is gone the connection notice says it all, and the save is retried when it is back
         <div className="banner bad" role="alert">
           <span>{saveError}</span>
           <button onClick={retrySave}>Try saving again</button>
@@ -183,6 +186,7 @@ export function App() {
         </Routes>
       </main>
       <AiStatus />
+      <ConnectionToast />
       <Onboarding />
     </>
   );

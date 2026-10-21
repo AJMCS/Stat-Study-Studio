@@ -15,8 +15,9 @@ export interface PadValue {
  * independent (black ink on nothing) and keeps its contrast if the theme changes after it was drawn.
  */
 const PEN = "#0d0f14"; // inverts to exactly the dark theme's chalk ink (#f2f0eb); reads as black in light mode
-/** Whether the learner last left the drawing pad open, so the next question's pad opens the same way. */
-let padWasOpen = false;
+/** Whether the learner last left the drawing pad open within a group of questions (one quiz, one exam), so the next
+ * question's pad opens the same way. Pads outside that group (another page, the tutor) are not affected. */
+let padMemory: { group: string; open: boolean } | null = null;
 
 /** Drawings saved by an earlier version had a white background baked in; make that transparent so it takes the theme. */
 function dropWhite(ctx: CanvasRenderingContext2D, w: number, h: number) {
@@ -30,18 +31,21 @@ export function Pad({
   onChange,
   label = "Your work",
   disabled = false,
+  group,
 }: {
   value: PadValue;
   onChange: (v: PadValue) => void;
   label?: string;
   disabled?: boolean;
+  /** Questions that share a group (a quiz, an exam) keep the pad open from one to the next once it has been opened. */
+  group?: string;
 }) {
   const canvas = useRef<HTMLCanvasElement>(null);
   const drawing = useRef(false);
   // Open when this answer already has a drawing, or when the learner opened the pad on an earlier question: a quiz or
   // exam mounts one Pad per question (keyed by the question), so each question keeps its own drawing and a fresh
   // question starts blank, while the pad itself stays open from question to question.
-  const [showCanvas, setShowCanvas] = useState(!!value.drawing || padWasOpen);
+  const [showCanvas, setShowCanvas] = useState(!!value.drawing || (group !== undefined && padMemory?.group === group && padMemory.open));
   const [erase, setErase] = useState(false);
 
   useEffect(() => {
@@ -82,7 +86,9 @@ export function Pad({
   const move = (e: React.PointerEvent) => {
     if (!drawing.current) return;
     const ctx = canvas.current!.getContext("2d")!;
-    ctx.lineWidth = erase ? 18 : 2.5;
+    // The canvas is drawn at a higher resolution than it is shown, so scale the pen to keep the same visible weight.
+    const scale = canvas.current!.width / canvas.current!.getBoundingClientRect().width;
+    ctx.lineWidth = (erase ? 18 : 2.5) * scale;
     ctx.lineCap = "round";
     // The eraser removes ink rather than painting over it, so the theme's background shows through again.
     ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
@@ -130,13 +136,13 @@ export function Pad({
           className="ghost btn-sm"
           onClick={() =>
             setShowCanvas((s) => {
-              padWasOpen = !s;
+              if (group !== undefined) padMemory = { group, open: !s };
               return !s;
             })
           }
           aria-expanded={showCanvas}
         >
-          {showCanvas ? "Hide drawing pad" : "Add a drawing (optional)"}
+          {showCanvas ? "Hide the drawing pad" : "Open a drawing pad (a full page, optional)"}
         </button>
         {showCanvas && !disabled && (
           <>
@@ -151,10 +157,11 @@ export function Pad({
       </div>
       {showCanvas && (
         <div className="canvas-wrap">
+          {/* A page's worth of space (letter proportions at the column's width), so a whole solution fits without scrolling the pad. */}
           <canvas
             ref={canvas}
-            width={800}
-            height={360}
+            width={1600}
+            height={2070}
             className="canvas"
             role="img"
             aria-label="Drawing pad. Typing in the text box above is always enough; drawing is optional."

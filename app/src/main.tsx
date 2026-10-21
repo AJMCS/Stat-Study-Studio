@@ -5,6 +5,7 @@ import { App } from "./App";
 import { StoreProvider } from "./lib/store";
 import { LibraryProvider } from "./lib/library";
 import { AiProvider } from "./lib/ai";
+import { ConnectionProvider } from "./lib/connection";
 // Fonts ship inside the app so it looks the same offline.
 import "@fontsource/geist-sans/latin-400.css";
 import "@fontsource/geist-sans/latin-500.css";
@@ -24,7 +25,9 @@ createRoot(document.getElementById("root")!).render(
       <LibraryProvider>
         <AiProvider>
           <HashRouter>
-            <App />
+            <ConnectionProvider>
+              <App />
+            </ConnectionProvider>
           </HashRouter>
         </AiProvider>
       </LibraryProvider>

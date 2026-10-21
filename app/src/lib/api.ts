@@ -21,13 +21,48 @@ export class ServiceRejected extends Error {
   }
 }
 
+/**
+ * Whether the local service answered the last request. Every call reports here, so the connection monitor learns
+ * about a vanished service from the first failed request rather than only from its own periodic probe.
+ */
+type ServiceListener = (ok: boolean) => void;
+const serviceListeners = new Set<ServiceListener>();
+export const serviceEvents = {
+  on(fn: ServiceListener): () => void {
+    serviceListeners.add(fn);
+    return () => {
+      serviceListeners.delete(fn);
+    };
+  },
+  emit(ok: boolean): void {
+    for (const fn of serviceListeners) fn(ok);
+  },
+};
+
+/** One quick, bounded probe of the service: true when it answered. Does not report to the listeners; the monitor
+ * that asked for it decides what the answer means. */
+export async function healthProbe(timeoutMs = 3000): Promise<boolean> {
+  const ctl = new AbortController();
+  const t = setTimeout(() => ctl.abort(), timeoutMs);
+  try {
+    const res = await fetch("/api/health", { signal: ctl.signal, cache: "no-store" });
+    return res.ok;
+  } catch {
+    return false;
+  } finally {
+    clearTimeout(t);
+  }
+}
+
 async function call(path: string, init?: RequestInit): Promise<Response> {
   let res: Response;
   try {
     res = await fetch(path, init);
   } catch {
+    serviceEvents.emit(false);
     throw new ServiceUnavailable();
   }
+  serviceEvents.emit(true); // it answered, even if it said no
   if (!res.ok) {
     let detail = `The study service returned an error (${res.status}).`;
     let kind: string | undefined;

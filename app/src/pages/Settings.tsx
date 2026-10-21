@@ -7,6 +7,7 @@ import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { AiConnect, BLURB, SERVICE_UNREACHABLE } from "../components/AiConnect";
 import { useAi } from "../lib/ai";
 import { useTheme } from "../lib/theme";
+import { useConnection } from "../lib/connection";
 
 function AiPanel() {
   const ai = useAi();
@@ -125,6 +126,31 @@ function AiPanel() {
   );
 }
 
+/** The study service on this computer: whether this page can reach it, and a button to check. */
+function ServicePanel() {
+  const link = useConnection();
+  const [result, setResult] = useState<"" | "ok" | "no">("");
+  const check = async () => setResult((await link.reconnect()) ? "ok" : "no");
+  const lost = link.state === "lost";
+  return (
+    <section className="panel" aria-labelledby="service-h">
+      <h2 id="service-h">The study service</h2>
+      <p className="muted">
+        This page talks to a small program on this computer that keeps your progress and runs the AI features. It is the black window that opens with the app.
+      </p>
+      <p role="status">
+        {lost ? "Lost connection: the service is not answering." : "Connected."} Address: <span className="mono">{window.location.origin}</span>
+      </p>
+      {lost && <p>Your work on this page is kept. If you closed the app's window, start Stats Study Studio again; this page reconnects by itself, or press the button.</p>}
+      <div className="row">
+        <button disabled={link.checking} onClick={() => void check()}>{link.checking ? "Checking…" : lost ? "Reconnect now" : "Check the service"}</button>
+        {result === "ok" && <span>The service answered.</span>}
+        {result === "no" && <span>Still no answer.</span>}
+      </div>
+    </section>
+  );
+}
+
 /** Dark or light: the same switch as the theme button in the top bar. */
 function Appearance() {
   const [theme, setTheme] = useTheme();
@@ -201,6 +227,8 @@ export function Settings() {
       </section>
 
       <Appearance />
+
+      <ServicePanel />
 
       <section className="panel">
         <h2>Your data</h2>

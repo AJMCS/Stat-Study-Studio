@@ -554,7 +554,7 @@ await step("quiz: written answers are self-scored, labeled, and saved as self-sc
   await page.waitForSelector("text=Question 6 of 10");
   // the drawing pad takes the theme: a transparent canvas on the theme's input background, near-black ink that dark
   // mode inverts to chalk, and an eraser that removes ink instead of painting white over it
-  await page.click("button:has-text('Add a drawing')");
+  await page.click("button:has-text('Open a drawing pad')");
   const box = await page.locator("canvas.canvas").boundingBox();
   // hover onto the canvas and let the pointer settle before pressing; a press straight after a move is dropped
   await page.locator("canvas.canvas").hover({ position: { x: 40, y: 40 } });
@@ -1391,6 +1391,27 @@ for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claud
     await page.waitForSelector("text=What gets sent");
   });
 }
+
+await step("connection: when the study service stops answering a notice slides down, work is kept, and the page reconnects by itself", async () => {
+  await fresh("/settings");
+  expectNetworkFailure = true;
+  await page.route("**/api/**", (r) => r.abort()); // the service has gone away
+  await page.fill("label:has-text('Composite cutoff') input", "77"); // a change that needs saving
+  await page.waitForSelector(".toast-lost:has-text('Lost connection to the study service')", { timeout: 10000 });
+  await page.waitForSelector("text=Lost connection: the service is not answering"); // the Settings panel agrees
+  if (await page.locator(".banner.bad:has-text('Try saving again')").count()) throw new Error("the save banner should stay out of the way while the service is gone");
+  await page.click(".toast button:has-text('Reconnect now')");
+  await page.waitForSelector(".toast:has-text('Still no answer')");
+  await shot("connection-lost");
+  await page.unroute("**/api/**"); // the learner started the app again
+  await page.waitForSelector(".toast-back:has-text('Connected again')", { timeout: 15000 });
+  await page.waitForSelector("text=Connected. Address");
+  expectNetworkFailure = false;
+  for (let i = 0; i < 40 && (await apiGet("state")).state.config.compositeCutoff !== 77; i++) await page.waitForTimeout(200);
+  if ((await apiGet("state")).state.config.compositeCutoff !== 77) throw new Error("the change made while the service was gone was not saved after reconnecting");
+  await page.waitForFunction(() => !document.querySelector(".toast"), null, { timeout: 10000 });
+  await page.fill("label:has-text('Composite cutoff') input", "70");
+});
 
 expectNetworkFailure = false;
 await step("ai: leave the service empty for the next test file", async () => {
