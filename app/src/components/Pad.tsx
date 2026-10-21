@@ -9,7 +9,20 @@ export interface PadValue {
 /**
  * Answer pad: typed text with $LaTeX$ live preview, plus an optional freeform drawing canvas.
  * Typing is always sufficient; drawing is never required.
+ *
+ * The canvas is transparent and sits on the theme's input background; strokes are always drawn in near-black, and in
+ * dark mode the stylesheet inverts the canvas so the same strokes read as chalk. A saved drawing is therefore theme
+ * independent (black ink on nothing) and keeps its contrast if the theme changes after it was drawn.
  */
+const PEN = "#0d0f14"; // inverts to exactly the dark theme's chalk ink (#f2f0eb); reads as black in light mode
+
+/** Drawings saved by an earlier version had a white background baked in; make that transparent so it takes the theme. */
+function dropWhite(ctx: CanvasRenderingContext2D, w: number, h: number) {
+  const img = ctx.getImageData(0, 0, w, h);
+  const d = img.data;
+  for (let i = 0; i < d.length; i += 4) if (d[i] > 240 && d[i + 1] > 240 && d[i + 2] > 240) d[i + 3] = 0;
+  ctx.putImageData(img, 0, 0);
+}
 export function Pad({
   value,
   onChange,
@@ -30,11 +43,13 @@ export function Pad({
     const c = canvas.current;
     if (!c || !showCanvas) return;
     const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, c.width, c.height);
+    ctx.clearRect(0, 0, c.width, c.height);
     if (value.drawing) {
       const img = new Image();
-      img.onload = () => ctx.drawImage(img, 0, 0);
+      img.onload = () => {
+        ctx.drawImage(img, 0, 0);
+        dropWhite(ctx, c.width, c.height);
+      };
       img.src = value.drawing;
     }
     // Only restore when the canvas is first shown or the question changes.
@@ -49,7 +64,11 @@ export function Pad({
   const down = (e: React.PointerEvent) => {
     if (disabled) return;
     drawing.current = true;
-    canvas.current!.setPointerCapture(e.pointerId);
+    try {
+      canvas.current!.setPointerCapture(e.pointerId); // keeps the stroke when the pointer leaves the canvas mid-line
+    } catch {
+      /* a pointer that cannot be captured (some pens, synthetic events) still draws; it just stops at the edge */
+    }
     const ctx = canvas.current!.getContext("2d")!;
     const { x, y } = pos(e);
     ctx.beginPath();
@@ -60,7 +79,9 @@ export function Pad({
     const ctx = canvas.current!.getContext("2d")!;
     ctx.lineWidth = erase ? 18 : 2.5;
     ctx.lineCap = "round";
-    ctx.strokeStyle = erase ? "#fff" : "#111";
+    // The eraser removes ink rather than painting over it, so the theme's background shows through again.
+    ctx.globalCompositeOperation = erase ? "destination-out" : "source-over";
+    ctx.strokeStyle = PEN;
     const { x, y } = pos(e);
     ctx.lineTo(x, y);
     ctx.stroke();
@@ -72,9 +93,7 @@ export function Pad({
   };
   const clear = () => {
     const c = canvas.current!;
-    const ctx = c.getContext("2d")!;
-    ctx.fillStyle = "#fff";
-    ctx.fillRect(0, 0, c.width, c.height);
+    c.getContext("2d")!.clearRect(0, 0, c.width, c.height);
     onChange({ ...value, drawing: null });
   };
 
@@ -116,18 +135,20 @@ export function Pad({
         )}
       </div>
       {showCanvas && (
-        <canvas
-          ref={canvas}
-          width={800}
-          height={360}
-          className="canvas"
-          role="img"
-          aria-label="Drawing pad. Typing in the text box above is always enough; drawing is optional."
-          onPointerDown={down}
-          onPointerMove={move}
-          onPointerUp={up}
-          onPointerLeave={up}
-        />
+        <div className="canvas-wrap">
+          <canvas
+            ref={canvas}
+            width={800}
+            height={360}
+            className="canvas"
+            role="img"
+            aria-label="Drawing pad. Typing in the text box above is always enough; drawing is optional."
+            onPointerDown={down}
+            onPointerMove={move}
+            onPointerUp={up}
+            onPointerLeave={up}
+          />
+        </div>
       )}
     </div>
   );

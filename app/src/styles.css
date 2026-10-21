@@ -359,7 +359,11 @@ ul.ticks [aria-hidden] { font-family: var(--mono); }
 details summary { cursor: pointer; font-weight: 600; margin: 8px 0; }
 .pad .preview { border: 1px dashed var(--faint); border-radius: var(--r-sm); padding: 8px 16px; margin: 8px 0; }
 .pad .preview small { font: 13.5px var(--mono); text-transform: uppercase; color: var(--muted); }
-.canvas { width: 100%; max-width: 800px; touch-action: none; background: #fff; border: 1px solid var(--rim); border-radius: var(--r-sm); cursor: crosshair; }
+/* Drawing pad: the wrapper carries the theme's input background and border; the canvas itself is transparent and
+   holds near-black ink, which dark mode inverts to chalk (see Pad.tsx), so one saved drawing suits both themes. */
+.canvas-wrap { max-width: 800px; background: var(--canvas); border: 1px solid var(--muted); border-radius: var(--r-sm); overflow: hidden; }
+.canvas { display: block; width: 100%; touch-action: none; background: transparent; cursor: crosshair; }
+:root[data-theme="dark"] .canvas { filter: invert(1); }
 .formula { padding: 8px 0; overflow-x: auto; }
 .feedback { border-top: 1px solid var(--hair); margin-top: 16px; padding-top: 16px; }
 .timer { font: 700 24px/1 var(--mono); font-variant-numeric: tabular-nums; }

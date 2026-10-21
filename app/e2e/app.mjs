@@ -552,6 +552,38 @@ await step("quiz: written answers are self-scored, labeled, and saved as self-sc
   await page.click("button:has-text('Graded quiz')");
   for (let k = 0; k < 5; k++) await page.click("button:has-text('Next')");
   await page.waitForSelector("text=Question 6 of 10");
+  // the drawing pad takes the theme: a transparent canvas on the theme's input background, near-black ink that dark
+  // mode inverts to chalk, and an eraser that removes ink instead of painting white over it
+  await page.click("button:has-text('Add a drawing')");
+  const box = await page.locator("canvas.canvas").boundingBox();
+  // hover onto the canvas and let the pointer settle before pressing; a press straight after a move is dropped
+  await page.locator("canvas.canvas").hover({ position: { x: 40, y: 40 } });
+  await page.waitForTimeout(100);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 160, box.y + 90, { steps: 8 });
+  await page.mouse.up();
+  const pad = await page.evaluate(() => {
+    const c = document.querySelector("canvas.canvas");
+    const d = c.getContext("2d").getImageData(0, 0, c.width, c.height).data;
+    let inked = 0, lightInk = 0, opaqueBlank = 0;
+    for (let i = 0; i < d.length; i += 4) {
+      if (d[i + 3] === 0) continue;
+      if (d[i] < 40 && d[i + 1] < 40 && d[i + 2] < 40) inked++; else if (d[i] > 200) opaqueBlank++; else lightInk++;
+    }
+    const theme = (name) => {
+      document.documentElement.dataset.theme = name;
+      const wrap = getComputedStyle(c.parentElement), canvas = getComputedStyle(c);
+      return { bg: wrap.backgroundColor, canvasBg: canvas.backgroundColor, filter: canvas.filter };
+    };
+    const was = document.documentElement.dataset.theme;
+    const out = { inked, lightInk, opaqueBlank, dark: theme("dark"), light: theme("light") };
+    document.documentElement.dataset.theme = was;
+    return out;
+  });
+  if (pad.inked < 50 || pad.opaqueBlank > 0 || pad.lightInk > 0) throw new Error(`pad ink is wrong: ${JSON.stringify(pad)}`);
+  if (pad.dark.bg !== "rgb(18, 18, 18)" || pad.light.bg !== "rgb(250, 250, 250)") throw new Error(`pad background does not follow the theme: ${JSON.stringify(pad)}`);
+  if (pad.dark.filter !== "invert(1)" || pad.light.filter !== "none") throw new Error(`dark mode should invert the ink: ${JSON.stringify(pad)}`);
+  if (!pad.dark.canvasBg.endsWith(", 0)") && pad.dark.canvasBg !== "transparent") throw new Error(`canvas must stay transparent: ${JSON.stringify(pad)}`);
   await page.fill("textarea", "The likelihood is the probability of the data as a function of theta, and the MLE is the value that maximizes it.");
   await page.click("button:has-text('Review') >> nth=-1");
   await page.click("button:has-text('Submit quiz')");
