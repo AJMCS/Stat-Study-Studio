@@ -2,6 +2,7 @@ import { mkdirSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { launchBrowser } from "./browser.mjs";
+import { HOMEWORK_NAME, HOMEWORK_PDF, HOMEWORK_PHOTO_HTML, HOMEWORK_PHOTO_NAME, makePdf } from "./fixtures.mjs";
 
 const OUT = process.argv[2] ?? join(tmpdir(), "studio-e2e-out");
 mkdirSync(OUT, { recursive: true });
@@ -43,32 +44,6 @@ const T = "maximum-likelihood-estimation";
 
 const mainInput = () => page.locator("input[type=file]").first();
 const apiGet = async (path) => (await page.request.get(`${BASE.split("#")[0]}api/${path}`)).json();
-
-/** A small valid PDF with one line of text per page. */
-function makePdf(lines) {
-  const objs = [];
-  const add = (body) => objs.push(body) && objs.length;
-  const pageIds = [];
-  add("<</Type/Catalog/Pages 2 0 R>>");
-  add("PAGES");
-  add("<</Type/Font/Subtype/Type1/BaseFont/Helvetica>>"); // object 3
-  for (const line of lines) {
-    const content = `BT /F1 14 Tf 72 720 Td (${line}) Tj ET`;
-    const contentId = add(`<</Length ${content.length}>>\nstream\n${content}\nendstream`);
-    pageIds.push(add(`<</Type/Page/Parent 2 0 R/MediaBox[0 0 612 792]/Contents ${contentId} 0 R/Resources<</Font<</F1 3 0 R>>>>>>`));
-  }
-  objs[1] = `<</Type/Pages/Kids[${pageIds.map((i) => `${i} 0 R`).join(" ")}]/Count ${pageIds.length}>>`;
-  let out = "%PDF-1.4\n";
-  const offsets = [];
-  objs.forEach((body, i) => {
-    offsets.push(out.length);
-    out += `${i + 1} 0 obj\n${body}\nendobj\n`;
-  });
-  const xref = out.length;
-  out += `xref\n0 ${objs.length + 1}\n0000000000 65535 f \n` + offsets.map((o) => `${String(o).padStart(10, "0")} 00000 n \n`).join("");
-  out += `trailer\n<</Size ${objs.length + 1}/Root 1 0 R>>\nstartxref\n${xref}\n%%EOF`;
-  return Buffer.from(out, "latin1");
-}
 
 async function photoOf(html) {
   const tmp = await ctx.newPage();
@@ -527,6 +502,49 @@ await step("tutor: says it needs an AI service and points to what works without 
   await page.waitForSelector("a:has-text('Guided tutorial')");
   if (await page.locator("textarea").count()) throw new Error("a chat box is offered with no AI service connected");
   await shot("tutor-gated");
+});
+
+await step("paths: without an AI service, Learn says building a path needs one and points to Settings; saved paths would still open", async () => {
+  await go("/learn");
+  await page.waitForSelector(".own-path:has-text('needs an AI service')");
+  await page.waitForSelector(".own-path a[href='#/settings']");
+  if (await page.locator(".own-path a:has-text('Build my path')").count()) throw new Error("Build my path is offered with no AI service");
+  await go("/paths/new");
+  await page.waitForSelector("[role=status]:has-text('needs an AI service')");
+  await page.waitForSelector("a:has-text('Set one up in Settings')");
+  await shot("paths-gated");
+  // a finished path whose check was a tutor session: with no AI service its wrap-up leads with the topic's quiz
+  const P = "posterior-distribution";
+  const at = (h) => `2026-10-18T${h}:00:00Z`;
+  await putSlice("paths", {
+    items: [
+      {
+        id: "p-done",
+        title: "Updating a prior with data",
+        goal: "Read the posterior mean as a weighted average of the prior mean and the data.",
+        ask: "",
+        concepts: [],
+        steps: [
+          { kind: "tutorial", ref: `tutorial:${P}:2`, title: "Conjugate priors", why: "Start here.", sources: [], done: true, doneAt: at("16") },
+          { kind: "tutor", ref: `tutor:${P}`, title: "Talk it through", why: "Say it in your own words.", sources: [], done: true, doneAt: at("17") },
+        ],
+        createdAt: at("10"),
+        openedAt: at("19"),
+      },
+    ],
+  });
+  await go("/paths/p-done");
+  await page.reload(); // the page's copy of the study data is loaded once; a reload picks up the seeded path
+  await page.waitForSelector(".path-wrap:has-text('needs an AI service')");
+  const again = await page.locator(".path-wrap a.button").first();
+  if ((await again.innerText()) !== "Take the quiz" || (await again.getAttribute("href")) !== `#/topic/${P}/quiz`) throw new Error("without an AI service the wrap-up should lead with the topic's quiz");
+  if (await page.locator(".path-wrap a:has-text('Talk it through again')").count()) throw new Error("the tutor is offered as the check with no AI service");
+  await page.waitForSelector(".path-wrap .err-line.path-gated .warn"); // the note is the app's warning: "!" and ink text
+  if (await page.locator(".path-step:last-child h3 a").count()) throw new Error("a done tutor step is a live link with no AI service");
+  await shot("path-done-gated");
+  await putSlice("paths", { items: [] });
+  await go("/learn");
+  await page.reload(); // ...and forgets it again, so no later save writes the stale copy back
 });
 
 await step("quiz graded flow with unanswered + review + summary", async () => {
@@ -1175,6 +1193,139 @@ await step("ai: when the tutor cannot answer, the message stays in the box and t
   await page.waitForSelector("a:has-text('The tutorial')");
 });
 
+await step("ai: a path is built from a text ask, shown as a proposal, saved on start, and listed on Learn", async () => {
+  await fresh("/paths/new");
+  await page.waitForSelector("h1:has-text('Your own')");
+  if (!(await page.locator("button:has-text('Build my path')").isDisabled())) throw new Error("Build must wait for an ask or a file");
+  await page.waitForSelector(".path-form .row .muted:has-text('comes alive')"); // ...and says so beside the button
+  await page.fill("textarea", "I can follow the MLE steps for an exponential rate but I don't see why the answer is one over the mean");
+  await page.click("button:has-text('Build my path')");
+  await page.waitForSelector("section[aria-label='Proposed path']", { timeout: 15000 });
+  const steps = await page.locator(".proposal-steps li").count();
+  if (steps !== 5) throw new Error(`expected 5 proposed steps, got ${steps}`);
+  await page.waitForSelector(".proposal-steps li:last-child .eyebrow:has-text('mastery check')");
+  await page.waitForSelector(".proposal-steps .ps-text .katex"); // the written explanation is readable before starting...
+  await page.waitForSelector(".proposal-steps .ps-cites .cite"); // ...and cites a course page
+  await page.waitForSelector(".pp-covers:has-text('This path covers')"); // what the path takes on and what it leaves out
+  await page.waitForSelector(".pp-covers:has-text('It leaves out')");
+  await page.waitForSelector(".path-proposal .form-note:has-text('the whole path is saved once you start')"); // the note points at Start
+  if ((await page.locator(".panel.focal, .card.focal").count()) !== 1) throw new Error("more than one raised element on the proposal");
+  await shot("path-proposed");
+  const sent = (await geminiLog()).at(-1);
+  const system = sent.systemInstruction.parts[0].text;
+  if (!system.includes("Catalogue") || !system.includes("quiz:maximum-likelihood-estimation")) throw new Error("the catalogue was not sent with the request");
+  if (system.includes("one over the mean")) throw new Error("the ask leaked into the instructions");
+  if ((await apiGet("state")).state.paths.items.length !== 0) throw new Error("the path was saved before it was started");
+  await page.click("button:has-text('Start this path')");
+  await page.waitForSelector("h1:has-text('exponential rate')");
+  await page.waitForSelector(".path-step.current .card.focal");
+  await page.waitForSelector(".ps-text .katex"); // the explanation renders its maths
+  await page.waitForSelector(".ps-text .citations .cite");
+  await page.waitForSelector(".step-track[aria-valuenow='0']"); // nothing done yet; the first step is current
+  await page.waitForSelector(".path-covers:has-text('It leaves out')"); // the coverage travels with the saved path
+  if ((await page.locator(".panel.focal, .card.focal").count()) !== 1) throw new Error("more than one raised element on the path page");
+  await shot("path-started");
+  await settleSaves();
+  const items = (await apiGet("state")).state.paths.items;
+  if (items.length !== 1 || items[0].steps.length !== 5 || items[0].steps.some((s) => s.done)) throw new Error("the path was not saved: " + JSON.stringify(items));
+  await go("/learn");
+  await page.waitForSelector(".path-row:has-text('0 of 5')");
+  await page.waitForSelector(".path-row a:has-text('Start')");
+  await shot("learn-with-path");
+});
+
+await step("ai: a path is built from an uploaded homework file: its reading is shown first, its text goes with the ask, and it lands in Your files", async () => {
+  await fresh("/paths/new");
+  await mainInput().setInputFiles({ name: HOMEWORK_NAME, mimeType: "application/pdf", buffer: HOMEWORK_PDF });
+  await page.waitForSelector(`.file-read:has-text('${HOMEWORK_NAME}')`, { timeout: 30000 });
+  await page.waitForSelector(".file-line b.mono:text-is('2')"); // two pages
+  await page.waitForSelector(".file-preview:has-text('Find the MLE of the rate')");
+  await page.click(".file-all summary"); // everything that was read, page by page: page 2 contributed the standard error
+  await page.waitForSelector(".file-pages li:nth-child(2):has-text('standard error')");
+  if (!(await page.locator("button:has-text('Build my path')").isEnabled())) throw new Error("a read file should be enough to build from");
+  await shot("path-file-read");
+  await page.click("button:has-text('Build my path')");
+  await page.waitForSelector("section[aria-label='Proposed path'] h2:has-text('homework')", { timeout: 15000 });
+  const sent = (await geminiLog()).at(-1);
+  const user = sent.contents[0].parts.map((p) => p.text ?? "").join("");
+  if (!user.includes("Find the MLE of the rate") || !user.includes(`file "${HOMEWORK_NAME}" (2 pages`)) throw new Error("the file's text did not go with the ask");
+  if (sent.systemInstruction.parts[0].text.includes("Find the MLE of the rate")) throw new Error("the file's text leaked into the instructions");
+  await page.click("button:has-text('Start this path')");
+  await page.waitForSelector(".path-step.current .card.focal");
+  await page.waitForSelector(`.path-ask:has-text('${HOMEWORK_NAME}')`);
+  const files = await apiGet("files");
+  if (!files.some((f) => f.filename === HOMEWORK_NAME && !f.removed)) throw new Error("the homework did not land in Your files");
+  await go("/learn");
+  await page.waitForFunction(() => document.querySelectorAll(".path-row").length === 2);
+});
+
+await step("ai: a path is built from a photo of the homework: its OCR reading is shown as read, and the picture goes with the ask", async () => {
+  await fresh("/paths/new");
+  await mainInput().setInputFiles({ name: HOMEWORK_PHOTO_NAME, mimeType: "image/png", buffer: await photoOf(HOMEWORK_PHOTO_HTML) });
+  await page.waitForSelector(`.file-read:has-text('${HOMEWORK_PHOTO_NAME}')`, { timeout: 60000 });
+  await page.waitForSelector(".file-read .eyebrow:has-text('picture')");
+  await page.waitForSelector(".file-read .preview-label:has-text('read with OCR')");
+  await page.waitForSelector(".file-preview:has-text('rate')");
+  await page.waitForSelector(".sent-line:has-text('the picture itself')");
+  await shot("path-photo-read");
+  await page.click("button:has-text('Build my path')");
+  await page.waitForSelector("section[aria-label='Proposed path'] h2:has-text('homework')", { timeout: 15000 });
+  const parts = (await geminiLog()).at(-1).contents[0].parts;
+  if (!parts.some((p) => p.inlineData)) throw new Error("the picture did not go with the ask");
+  const user = parts.map((p) => p.text ?? "").join("");
+  if (!user.includes(`file "${HOMEWORK_PHOTO_NAME}"`) || !/rate/i.test(user)) throw new Error("the OCR reading did not go with the ask");
+  // not started: the proposal is not saved
+  await go("/learn");
+  await page.waitForFunction(() => document.querySelectorAll(".path-row").length === 2);
+});
+
+await step("paths: steps are marked done, the current step moves on, a reload resumes there, undo works, and a path can be removed", async () => {
+  await go("/learn");
+  const pathRow = (title) => page.locator(".path-row").filter({ has: page.locator(".jl-title", { hasText: title }) });
+  await pathRow("The MLE of an exponential rate").locator("a", { hasText: "Start" }).click();
+  await page.waitForSelector(".path-step:nth-child(1).current .card.focal");
+  await page.locator(".path-step.current button:has-text('Mark as done')").click();
+  await page.waitForSelector(".path-step:nth-child(2).current");
+  await page.locator(".path-step.current button:has-text('Mark as done')").click();
+  await page.waitForSelector(".path-step:nth-child(3).current");
+  await page.waitForSelector(".step-track[aria-valuenow='2']");
+  await page.waitForSelector(".path-step:nth-child(1) .status:has-text('Done')");
+  await shot("path-two-done");
+  await settleSaves();
+  await page.reload();
+  await page.waitForSelector(".path-step:nth-child(3).current .card.focal");
+  if ((await page.locator(".path-step.done").count()) !== 2) throw new Error("done steps were not kept across a reload");
+  // the page opens at its top; the link under the track (and the current node) jump to the current step's card
+  if ((await page.evaluate(() => window.scrollY)) !== 0) throw new Error("a path should open at its top");
+  await page.click(".path-jump button:has-text('Jump to the current step')");
+  await page.waitForFunction(() => {
+    const r = document.querySelector(".path-step.current")?.getBoundingClientRect();
+    return !!r && r.top >= 0 && r.top < 200;
+  });
+  const eyebrow = await page.locator("main > .eyebrow").first().innerText();
+  if (!/2 of 5/i.test(eyebrow)) throw new Error("the eyebrow should say 2 of 5 steps done: " + eyebrow);
+  await page.locator(".path-step:nth-child(2) button:has-text('Undo')").click();
+  await page.waitForSelector(".path-step:nth-child(2).current");
+  await page.locator(".path-step.current button:has-text('Mark as done')").click();
+  await page.waitForSelector(".path-step:nth-child(3).current");
+  const last = await page.locator(".path-step:last-child h3 a").getAttribute("href");
+  if (last !== `#/topic/${T}/quiz`) throw new Error("the mastery check should open the topic's quiz: " + last);
+  // the tutor, opened from a path, takes the path's goal as its focus and leads back to the path
+  await go(`/topic/${T}/tutor?focus=${encodeURIComponent("the MLE of a rate")}&path=nope`);
+  await page.waitForSelector("text=You came to work on this");
+  await page.waitForSelector("a:has-text('Your path')");
+  await go("/learn");
+  await page.waitForSelector(".path-row:has-text('2 of 5')");
+  await page.waitForSelector(".path-row a:has-text('Resume')");
+  const row = pathRow("From your homework");
+  await row.locator("button:has-text('Remove')").click();
+  await row.locator("button:has-text('Remove for good')").click();
+  await page.waitForFunction(() => document.querySelectorAll(".path-row").length === 1);
+  await settleSaves();
+  if ((await apiGet("state")).state.paths.items.length !== 1) throw new Error("the removed path is still saved");
+  await shot("learn-path-removed");
+});
+
 await step("ai: an exam is written around the focus, marked as AI-written, cites course pages, and can be scored and reviewed", async () => {
   await fresh(`/topic/${T}/exam`);
   await page.fill("label:has-text('Focus') input", "Uniform edge case");
@@ -1323,14 +1474,18 @@ await step("ai: several services stay saved; the corner chip shows the one in us
   if (s.active !== "gemini" || s.accounts.map((a) => a.id).join() !== "gemini,ollama") throw new Error("both services should be saved with Gemini in use: " + JSON.stringify(s.accounts));
   await page.waitForSelector(".saved-services li:has-text('Ollama') button:has-text('Use this')");
   await shot("ai-saved-services");
-  // the corner chip names the model in use and switches to another saved service without a key
+  // the corner chip names only the model in use (the provider is in its tooltip and the menu's header, so the chip
+  // stays short) and switches to another saved service without a key
   const chip = page.locator(".ai-chip");
-  if (!(await chip.textContent()).includes("gemini-flash-latest · Google")) throw new Error("chip reads: " + (await chip.textContent()));
+  const chipText = (await chip.textContent()).trim();
+  if (!/^\/\/ AI · gemini-flash-latest$/.test(chipText)) throw new Error("chip reads: " + chipText);
+  if (!(await chip.getAttribute("title")).includes("Google")) throw new Error("the chip's tooltip should name the provider");
   await chip.click();
   if ((await page.locator("[role=menu] [role=menuitemradio]").count()) !== 2) throw new Error("the menu should list both saved services");
+  if (!(await page.locator("[role=menu] .eyebrow").textContent()).includes("Google")) throw new Error("the menu's header should name the provider");
   await shot("ai-chip-menu");
   await page.click("[role=menuitemradio]:has-text('qwen2.5:7b')");
-  await page.waitForFunction(() => (document.querySelector(".ai-chip")?.textContent ?? "").includes("qwen2.5:7b · local"));
+  await page.waitForFunction(() => /^\/\/ AI · qwen2\.5:7b( · loading…)?$/.test((document.querySelector(".ai-chip")?.textContent ?? "").trim()));
   if ((await apiGet("ai")).active !== "ollama") throw new Error("the switch did not take");
   if (await page.locator("[role=menu]").count()) throw new Error("the menu should close after switching");
   // opening a topic asks Ollama to load the model now and keep it loaded for the session

@@ -313,6 +313,39 @@ export interface TutorReply {
   sources: (SearchHit | PersonalHit)[];
 }
 
+/** One activity the app can offer as a path step, as sent to the model (built by lib/paths.ts). */
+export interface CatalogueItem {
+  id: string;
+  kind: "tutorial" | "vocab" | "example" | "breakdown" | "quiz" | "tutor";
+  topic: string;
+  title: string;
+  summary: string;
+}
+
+export interface AiPathStep {
+  kind: "tutorial" | "vocab" | "example" | "breakdown" | "quiz" | "tutor" | "explain";
+  ref: string;
+  title: string;
+  why: string;
+  text: string;
+  sources: (SearchHit | PersonalHit)[];
+}
+
+/** A proposed custom path, before the learner starts (and so saves) it. */
+export interface AiPathProposal {
+  title: string;
+  goal: string;
+  /** What the path takes on, completing "This path covers …", and what it leaves out and why, completing "It
+   * leaves out …" ("" when nothing is). */
+  covers: string;
+  leavesOut: string;
+  concepts: string[];
+  steps: AiPathStep[];
+  fileId: string | null;
+  filename: string | null;
+  model: string;
+}
+
 export interface AiExamQuestion {
   concept: string;
   prompt: string;
@@ -331,8 +364,10 @@ export const api = {
   },
   aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[]): Promise<{ questions: AiExamQuestion[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples }) })).json(),
-  aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[]): Promise<TutorReply> =>
-    (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history }) })).json(),
+  aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[], focus = ""): Promise<TutorReply> =>
+    (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history, focus }) })).json(),
+  aiPath: async (ask: string, fileId: string | null, catalogue: CatalogueItem[]): Promise<AiPathProposal> =>
+    (await call("/api/ai/path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ask, fileId, catalogue }) })).json(),
   aiScore: async (req: AiScoreRequest): Promise<AiScoreResponse> =>
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
   aiStatus: async (provider?: string): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`)).json(),

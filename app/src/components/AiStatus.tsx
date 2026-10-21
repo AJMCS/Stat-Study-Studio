@@ -6,9 +6,9 @@ import type { ProviderId } from "../lib/api";
 const WHERE: Record<ProviderId, string> = { gemini: "Google", anthropic: "Anthropic", openai: "OpenAI", ollama: "local" };
 
 /**
- * The small chip fixed in the bottom corner that says which model the AI features use right now ("AI · nemotron ·
- * local", or "AI · off"), and opens a menu of the saved services so the learner can switch between them without
- * going to Settings. It also asks a local model to warm up whenever a topic is opened, so the first question does not
+ * The small chip fixed in the bottom corner that says which model the AI features use right now ("AI · nemotron",
+ * or "AI · off"; where it runs is in the tooltip and the menu's header), and opens a menu of the saved services so
+ * the learner can switch between them without going to Settings. It also asks a local model to warm up whenever a topic is opened, so the first question does not
  * wait for the model to load, and shows "loading" until it is ready.
  */
 export function AiStatus() {
@@ -51,7 +51,11 @@ export function AiStatus() {
 
   if (!info) return null;
   const active = info.accounts.find((a) => a.active);
-  const label = active ? `${active.model || active.name} · ${WHERE[active.id]}` : "off";
+  // the chip names only the model, so it stays inside the page's right gutter; the provider is in the menu's header
+  // and in the chip's tooltip
+  const label = active ? active.model || active.name : "off";
+  const where = active ? WHERE[active.id] : "";
+  const tip = active ? `AI: ${label} (${where}). Click to switch.` : "No AI service is connected. Click to connect one.";
 
   const switchTo = async (id: ProviderId) => {
     setBusy(true);
@@ -67,7 +71,7 @@ export function AiStatus() {
     <div className="ai-status" ref={box}>
       {open && (
         <div className="ai-menu" role="menu" aria-label="AI service">
-          <p className="eyebrow">{"// AI service"}</p>
+          <p className="eyebrow">{"// AI service"}{where ? ` · ${where}` : ""}</p>
           {info.accounts.length === 0 && <p className="muted">None connected. Everything works without one.</p>}
           {info.accounts.map((a) => (
             <button key={a.id} type="button" role="menuitemradio" aria-checked={a.active} className="ai-menu-item" disabled={busy || a.active} onClick={() => void switchTo(a.id)}>
@@ -82,7 +86,7 @@ export function AiStatus() {
           </Link>
         </div>
       )}
-      <button type="button" className="ai-chip" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} title="Which AI model the app is using. Click to switch.">
+      <button type="button" className="ai-chip" aria-haspopup="menu" aria-expanded={open} onClick={() => setOpen((o) => !o)} title={tip}>
         {"// AI · "}
         {label}
         {warmState === "loading" ? " · loading…" : ""}

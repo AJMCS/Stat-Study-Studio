@@ -11,7 +11,7 @@ const LEGACY_BACKUP_KEY = "stats132-studio-v1-backup-before-service";
 export const GENERAL_ID = "general";
 
 // `files` is deliberately not here: the service owns uploaded files and the app only reads them.
-const SLICES: Slice[] = ["attempts", "quizzes", "exams", "topicState", "session", "collections", "config", "hostedDisclosureAck", "chats", "onboarding", "learning"];
+const SLICES: Slice[] = ["attempts", "quizzes", "exams", "topicState", "session", "collections", "config", "hostedDisclosureAck", "chats", "onboarding", "learning", "paths"];
 const SAVE_DELAY_MS = 150;
 
 const empty = (): AppData => ({
@@ -27,6 +27,7 @@ const empty = (): AppData => ({
   chats: {},
   onboarding: { done: false },
   learning: { vocab: {}, checks: {}, breakdowns: {} },
+  paths: { items: [] },
 });
 
 /** Fill anything the service left empty so pages can rely on a complete AppData. */
@@ -42,6 +43,7 @@ function complete(partial: Partial<AppData>): AppData {
     session: partial.session ?? null,
     onboarding: partial.onboarding ?? base.onboarding,
     learning: { ...base.learning, ...partial.learning },
+    paths: partial.paths?.items ? partial.paths : base.paths,
   };
 }
 

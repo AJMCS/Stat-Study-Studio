@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { useAi } from "../lib/ai";
 import { topicById } from "../mock/topics";
 import { api, hitToSource, personalHitToSource, ServiceRejected, type TutorStage } from "../lib/api";
@@ -12,8 +12,16 @@ import { ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
 import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores, type SourceRef } from "../types";
 
-const OPENING = (title: string) =>
-  `Let's start with what you already know. In your own words, what is "${title.toLowerCase()}" about? Informal answers are perfect here, and a quick sketch is welcome too.`;
+const OPENING = (title: string, focus: string) =>
+  focus
+    ? `Let's start with what you already know. You came to work on this: "${focus}". In your own words, where are you with it so far? Informal answers are perfect here, and a quick sketch is welcome too.`
+    : `Let's start with what you already know. In your own words, what is "${title.toLowerCase()}" about? Informal answers are perfect here, and a quick sketch is welcome too.`;
+
+/** A custom path can open the tutor with its goal as the focus (and a way back to the path). */
+function usePathFocus() {
+  const [params] = useSearchParams();
+  return { focus: (params.get("focus") ?? "").trim().slice(0, 500), pathId: params.get("path") ?? "" };
+}
 
 interface Msg extends ChatMessage {
   sources?: SourceRef[];
@@ -22,6 +30,7 @@ interface Msg extends ChatMessage {
 function TutorChat() {
   const { id } = useParams();
   const topic = topicById(id ?? "");
+  const { focus, pathId } = usePathFocus();
   const { data, update, recordAttempt } = useStore();
   const [msgs, setMsgs] = useState<Msg[]>([]);
   const [stage, setStage] = useState<TutorStage>("probe");
@@ -36,8 +45,8 @@ function TutorChat() {
   const endRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
-    if (topic) setMsgs([{ role: "tutor", text: OPENING(topic.title) }]);
-  }, [topic?.id]);
+    if (topic) setMsgs([{ role: "tutor", text: OPENING(topic.title, focus) }]);
+  }, [topic?.id, focus]);
   useEffect(() => {
     endRef.current?.scrollIntoView?.({ block: "end" });
   }, [msgs.length]);
@@ -51,7 +60,7 @@ function TutorChat() {
     setError("");
     const sent: Msg = { role: "learner", text: shown };
     try {
-      const turn = await api.aiTutor(topic.title, from, [...msgs, sent].map((m) => ({ role: m.role, text: m === sent ? learnerText : m.text })));
+      const turn = await api.aiTutor(topic.title, from, [...msgs, sent].map((m) => ({ role: m.role, text: m === sent ? learnerText : m.text })), focus);
       const sources = turn.sources.map((h) => (h.scope === "shared" ? hitToSource(h) : personalHitToSource(h)));
       setMsgs((m) => [...m, sent, { role: "tutor", text: turn.text, sources }]);
       if (clearPad) setPad(emptyPad());
@@ -90,7 +99,7 @@ function TutorChat() {
   const needsPlan = stage === "plan" && plan;
   const finalComposite = final ? composite(final, data.config) : null;
   const restart = () => {
-    setMsgs([{ role: "tutor", text: OPENING(topic.title) }]);
+    setMsgs([{ role: "tutor", text: OPENING(topic.title, focus) }]);
     setStage("probe");
     setPlan(null);
     setFinal(null);
@@ -101,8 +110,8 @@ function TutorChat() {
 
   return (
     <>
-      <p className="back"><Link to={`/topic/${topic.id}`}>← {topic.title}</Link></p>
-      <Eyebrow>Tutor · {topic.title}</Eyebrow>
+      <p className="back">{pathId ? <Link to={`/paths/${pathId}`}>← Your path</Link> : <Link to={`/topic/${topic.id}`}>← {topic.title}</Link>}</p>
+      <Eyebrow>Tutor · {topic.title}{focus ? " · from your path" : ""}</Eyebrow>
       <h1>Adaptive <Scribble>tutor</Scribble></h1>
       <div className="chat" role="log" aria-live="polite" aria-label="Tutor conversation">
         {msgs.map((m, i) => (

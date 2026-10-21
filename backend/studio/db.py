@@ -204,6 +204,7 @@ class Database:
                 "config": self._setting("config"),
                 "onboarding": self._setting("onboarding", {"done": False}),
                 "learning": self._setting("learning", {"vocab": {}, "checks": {}, "breakdowns": {}}),
+                "paths": self._setting("paths", {"items": []}),
                 "hostedDisclosureAck": self._setting("hostedDisclosureAck", False),
                 "chats": self._setting("chats", {}),
             }

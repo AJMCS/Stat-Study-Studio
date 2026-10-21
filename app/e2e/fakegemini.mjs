@@ -39,13 +39,61 @@ const examScript = (_body, lastUser) => {
   });
 };
 
+// The path the fake builds for the MLE ask ("I can follow the steps but don't see why the answer is one over the
+// mean, or how to get its standard error"): it does not re-teach the steps, says what it covers and leaves out, and
+// its concepts are the vocabulary's own terms. The design shots seed the same path (e2e/shots.mjs), so the two agree.
+export const MLE_PATH = {
+  title: "The MLE of an exponential rate",
+  fileTitle: "From your homework: the MLE of a rate",
+  goal: "You will be able to find the MLE of an exponential rate from a sample of waiting times, check it is a maximum, and say why it comes out as one over the mean.",
+  covers: "why the rate's MLE comes out as one over the mean and how to check it is a maximum; it takes your word that you can run the four steps, so it does not go over them again.",
+  leavesOut: "the standard error of that estimator: it needs the sampling-distribution ideas from two topics on and would double the path, so build a second path for it once this one holds.",
+  concepts: ["Log likelihood", "Candidate MLE", "Second-derivative check"],
+  steps: [
+    ["vocab", "vocab:maximum-likelihood-estimation", "Check the words you will lean on", "A quick pass, not a lesson: you can run the steps, so just make sure log likelihood, candidate MLE and the second-derivative check mean what you think before the path leans on them."],
+    ["tutorial", "tutorial:maximum-likelihood-estimation:3", "The worked patterns, exponential among them", "You can run the procedure, so this skips it and goes straight to the patterns: the exponential's answer is n over the sum, which is the thing you want to see through."],
+    ["explain", "", "Why a rate comes out as one over the mean", "Lecture 6 asks exactly this about wait times and leaves the solution blank, so here it is in words."],
+    ["example", "example:maximum-likelihood-estimation:4:2", "Try the exponential example yourself", "Now do one with numbers, on paper, before you look at the solution."],
+    ["quiz", "quiz:maximum-likelihood-estimation", "Prove it with the quiz", "Ten questions, marked for you, so you know it rather than recognise it."],
+  ],
+  explanation:
+    "For waiting times $x_1,\\dots,x_n$ from an exponential with rate $\\lambda$, the log-likelihood is $\\ell(\\lambda)=n\\log\\lambda-\\lambda\\sum x_i$. Setting $\\ell'(\\lambda)=0$ gives $\\hat\\lambda = n/\\sum x_i = 1/\\bar x$: a long average wait means a small rate, which is exactly what a rate is. The second derivative, $-n/\\lambda^2$, is negative everywhere, so this is the maximum, and by invariance the MLE of the average wait is $1/\\hat\\lambda=\\bar x$.",
+};
+
+// The path builder: uses the catalogue ids the system prompt lists (so every ref exists in the app), writes one
+// explanation that cites the course excerpt from a lecture on maximum likelihood (the first excerpt if none is), and
+// ends with the quiz. A file that was read gets a title saying so.
+const pathScript = (body) => {
+  const system = body.systemInstruction?.parts?.[0]?.text ?? "";
+  const user = [...body.contents].reverse().find((c) => c.role === "user")?.parts?.map((p) => p.text ?? "").join("") ?? "";
+  const ids = new Set([...system.matchAll(/^- ([a-z]+:[^ |]+) \| /gm)].map((m) => m[1]));
+  const excerpts = [...system.matchAll(/^\[S(\d+)\] ([^\n]*)/gm)].map((m) => ({ n: Number(m[1]), head: m[2] }));
+  const cite = excerpts.find((x) => /^Lecture \d+: Maximum Likelihood/i.test(x.head))?.n ?? excerpts[0]?.n;
+  const file = /Text read from the student's file "([^"]+)"/.exec(user)?.[1];
+  return JSON.stringify({
+    title: file ? MLE_PATH.fileTitle : MLE_PATH.title,
+    goal: MLE_PATH.goal,
+    covers: MLE_PATH.covers,
+    leavesOut: MLE_PATH.leavesOut,
+    concepts: MLE_PATH.concepts,
+    steps: MLE_PATH.steps.map(([kind, ref, title, why]) => ({
+      kind,
+      ref: kind === "explain" ? "" : ids.has(ref) ? ref : ([...ids].find((x) => x.startsWith(`${kind}:`)) ?? ref),
+      title,
+      why,
+      text: kind === "explain" ? MLE_PATH.explanation : "",
+      cites: kind === "explain" && cite ? [cite] : [],
+    })),
+  });
+};
+
 const transcribeScript = () =>
   JSON.stringify({
     text: "Nebulous quokka identity: the posterior is proportional to the likelihood times the prior, $p(\\theta \\mid x) \\propto p(x \\mid \\theta)\\,p(\\theta)$.",
     unclear: ["a smudged subscript"],
   });
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript }) {
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

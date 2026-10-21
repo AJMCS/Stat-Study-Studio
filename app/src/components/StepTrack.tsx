@@ -11,6 +11,8 @@ import { HArc, Ring, arcInto } from "./Rail";
  * Pass `done` to give the filled nodes another meaning (the vocabulary lesson's known terms) and `count` for the label
  * that says so ("6 of 10 known"); the ringed orange node is always the current one. `counter={false}` draws the track
  * alone, with no position label at its end (the flashcards and the quiz: the card's eyebrow states the position).
+ * With `onJump`, the current node and its note become pointer shortcuts to the current step (a custom path's card
+ * further down the page); the page sets the accessible control for the same thing under the track.
  */
 export function StepTrack({
   at,
@@ -21,6 +23,7 @@ export function StepTrack({
   done,
   count,
   counter = true,
+  onJump,
 }: {
   at: number;
   total: number;
@@ -30,7 +33,16 @@ export function StepTrack({
   done?: (i: number) => boolean;
   count?: ReactNode;
   counter?: boolean;
+  onJump?: () => void;
 }) {
+  const jumpable = (node: ReactNode) =>
+    onJump ? (
+      <button type="button" className="st-jump" onClick={onJump} tabIndex={-1} aria-hidden="true" title="Jump to the current step">
+        {node}
+      </button>
+    ) : (
+      node
+    );
   const pin = noteAt ?? at;
   const p = total > 1 ? pin / (total - 1) : 0;
   const noted = !!note && pin >= 0;
@@ -51,7 +63,7 @@ export function StepTrack({
           <span className={`st-track${long ? " long" : ""}`}>
             {Array.from({ length: total }, (_, i) => (
               <Fragment key={i}>
-                <Ring state={i === at ? "current" : (done ? done(i) : i < at) ? "done" : "todo"} />
+                {i === at ? jumpable(<Ring state="current" />) : <Ring state={(done ? done(i) : i < at) ? "done" : "todo"} />}
                 {i < total - 1 && <HArc state={arcInto(i + 1, at)} />}
               </Fragment>
             ))}
@@ -60,7 +72,7 @@ export function StepTrack({
             <span className="st-note">
               {/* the rail pads each side; the pin sits under the centre of node `pin` */}
               <span style={{ left: `calc((100% - 2 * var(--rail-pad) - var(--ring)) * ${p} + var(--rail-pad) + var(--ring) / 2)` }}>
-                <Note dir="up">{note}</Note>
+                {pin === at ? jumpable(<Note dir="up">{note}</Note>) : <Note dir="up">{note}</Note>}
               </span>
             </span>
           )}

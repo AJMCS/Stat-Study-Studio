@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from typing import Literal
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
@@ -120,6 +120,50 @@ class Learning(Wire):
     breakdowns: dict[str, dict[str, BreakdownProgress]] = Field(default_factory=dict)
 
 
+PATH_STEP_KINDS = ("tutorial", "vocab", "example", "breakdown", "quiz", "tutor", "explain")
+PathStepKind = Literal["tutorial", "vocab", "example", "breakdown", "quiz", "tutor", "explain"]
+
+
+class PathStep(Wire):
+    """One stop on a custom path: an activity that exists in the app (by its catalogue id), or an explanation the
+    model wrote because nothing in the app fitted (kind "explain", with its text and the course pages it cites)."""
+
+    kind: PathStepKind
+    ref: str = Field(default="", max_length=200)
+    title: str = Field(min_length=1, max_length=200)
+    why: str = Field(default="", max_length=1000)
+    text: str | None = Field(default=None, max_length=20000)
+    # citation chips for an explanation: the service's own source records, kept as they came
+    sources: list[dict[str, Any]] = Field(default_factory=list, max_length=12)
+    done: bool = False
+    done_at: str | None = None
+
+
+class CustomPath(Wire):
+    """A path the learner asked for: their own words (and the file they handed in), the model's title, goal and
+    concepts, and the steps with their progress."""
+
+    id: str = Field(min_length=1, max_length=40)
+    title: str = Field(min_length=1, max_length=200)
+    goal: str = Field(default="", max_length=600)
+    # what the path takes on and what it leaves out (and why), as the model said them; older paths have neither
+    covers: str | None = Field(default=None, max_length=600)
+    leaves_out: str | None = Field(default=None, max_length=600)
+    ask: str = Field(default="", max_length=4000)
+    concepts: list[str] = Field(default_factory=list, max_length=12)
+    file_id: str | None = None
+    filename: str | None = None
+    steps: list[PathStep] = Field(min_length=1, max_length=12)
+    created_at: str
+    opened_at: str
+
+
+class Paths(Wire):
+    """Every custom path, newest first. Progress on a path is study activity but never feeds scores."""
+
+    items: list[CustomPath] = Field(default_factory=list, max_length=200)
+
+
 class Record(BaseModel):
     """Quizzes and exams are stored as documents; only the identifying fields are required."""
 
@@ -134,7 +178,7 @@ class Record(BaseModel):
 # Personal files are not a slice: the service owns them (uploads, versions, removal) and the app only reads them.
 LIST_SLICES = {"attempts": Attempt, "quizzes": Record, "exams": Record, "collections": Collection}
 MAP_SLICES = {"topicState": TopicState}
-VALUE_SLICES = {"session": Session, "config": ScoringConfig, "onboarding": Onboarding, "learning": Learning}
+VALUE_SLICES = {"session": Session, "config": ScoringConfig, "onboarding": Onboarding, "learning": Learning, "paths": Paths}
 FLAG_SLICES = {"hostedDisclosureAck"}
 FREE_SLICES = {"chats"}
 ALL_SLICES = set(LIST_SLICES) | set(MAP_SLICES) | set(VALUE_SLICES) | FLAG_SLICES | FREE_SLICES

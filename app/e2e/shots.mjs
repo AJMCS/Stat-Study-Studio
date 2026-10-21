@@ -5,6 +5,11 @@
 //   node e2e/shots.mjs <outDir> --intro            filmstrip of the intro, both themes
 //   node e2e/shots.mjs <outDir> --onboarding       first-run setup, both themes
 //   node e2e/shots.mjs <outDir> --onboarding --empty --connect   ...plus a refused key and the connected last slide
+//   node e2e/shots.mjs <outDir> [routes...] --paths    ...plus custom learning paths, desktop only: Learn with two
+//                                                    saved paths (one half done) and with no AI service, the new-path
+//                                                    screen empty, with a text ask and a read file, with the proposed
+//                                                    path, and with a photo read by OCR, and a path 2 of 5 done and
+//                                                    fully done (the latter also with no AI service)
 //   node e2e/shots.mjs <outDir> [routes...] --states   ...plus the learning activities' key states: a revealed
 //                                                    flashcard, a marked quiz definition, a marked comprehension check
 //                                                    (and its "Why"), a step with its first question marked and the
@@ -21,7 +26,8 @@ import { mkdirSync, mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join, resolve } from "node:path";
 import { launchBrowser } from "./browser.mjs";
-import { GOOD_KEY, startFakeGemini } from "./fakegemini.mjs";
+import { GOOD_KEY, MLE_PATH, startFakeGemini } from "./fakegemini.mjs";
+import { HOMEWORK_NAME, HOMEWORK_PDF, HOMEWORK_PHOTO_NAME, renderPhoto } from "./fixtures.mjs";
 
 const root = resolve(import.meta.dirname, "../..");
 const python = join(root, "venv", process.platform === "win32" ? "Scripts/python.exe" : "bin/python");
@@ -34,7 +40,9 @@ const dataDir = mkdtempSync(join(tmpdir(), "studio-shots-"));
 // --connect (with --onboarding) also films the Connect slide with a refused key and the last slide after connecting,
 // against a stand-in for Gemini so no real key or network is needed.
 const connectShots = rest.includes("--connect");
-const gemini = connectShots ? await startFakeGemini() : null;
+// --paths builds a path against the same stand-in, so it needs it too
+const pathShots = rest.includes("--paths");
+const gemini = connectShots || pathShots ? await startFakeGemini() : null;
 const server = spawn(python, ["-m", "studio.server", "--no-browser", "--port", String(port)], {
   cwd: join(root, "backend"),
   env: { ...process.env, STUDIO_DATA_DIR: dataDir, STUDIO_AUTOCHECK: "0", STUDIO_KEYSTORE: "file", ...(gemini ? { STUDIO_GEMINI_BASE: gemini.url } : {}) },
@@ -108,7 +116,7 @@ async function seed() {
 }
 if (!rest.includes("--empty")) await seed();
 const stateShots = rest.includes("--states");
-const restArgs = rest.filter((r) => r !== "--empty" && r !== "--connect" && r !== "--states");
+const restArgs = rest.filter((r) => r !== "--empty" && r !== "--connect" && r !== "--states" && r !== "--paths");
 rest.length = 0;
 rest.push(...restArgs);
 
@@ -294,6 +302,129 @@ async function learningStates() {
   }
 }
 
+/** Two saved paths for the Learn list and the path page: one 2 of 5 done, one every step done. Every ref is an
+ * activity the app has (lib/paths.ts builds the same ids), so the pages open without any AI service. The half-done
+ * path is the very path the stand-in proposes for the same ask with the homework attached (fakegemini.mjs), title
+ * and file included, down to the page its explanation cites: the lecture 6 wait-times example, the course page the
+ * grounding search puts first among the lectures on maximum likelihood for this ask. */
+const PATHS = (() => {
+  const P = "posterior-distribution";
+  const at = (d, h) => new Date(Date.UTC(2026, 9, d, h)).toISOString();
+  const st = (kind, ref, title, why, extra = {}) => ({ kind, ref, title, why, sources: [], done: false, ...extra });
+  const done = (d) => ({ done: true, doneAt: at(d, 16) });
+  const lecture6 = { id: "lecture-06-maximum-likelihood-properties#p2-1", kind: "Shared", title: "Lecture 6: Maximum Likelihood Properties", filename: "lecture-notes/lecture-06-maximum-likelihood-properties.pdf", page: 2 };
+  return {
+    items: [
+      {
+        id: "p-half",
+        title: MLE_PATH.fileTitle,
+        goal: MLE_PATH.goal,
+        covers: MLE_PATH.covers,
+        leavesOut: MLE_PATH.leavesOut,
+        ask: "I can follow the MLE steps for an exponential rate but I don't see why the answer is one over the mean, or how to get its standard error",
+        filename: HOMEWORK_NAME,
+        concepts: MLE_PATH.concepts,
+        steps: MLE_PATH.steps.map(([kind, ref, title, why], i) =>
+          st(kind, ref, title, why, { ...(kind === "explain" ? { text: MLE_PATH.explanation, sources: [lecture6] } : {}), ...(i < 2 ? done(19 + i) : {}) }),
+        ),
+        createdAt: at(19, 15),
+        openedAt: at(20, 17),
+      },
+      {
+        id: "p-done",
+        title: "Updating a prior with data",
+        goal: "You will be able to take a Beta or Gamma prior, update it with a sample, and read the posterior mean as a weighted average of the prior mean and the data.",
+        covers: "why the posterior mean lands where it does, as a weighted average of the prior mean and the data; it uses the Beta-Bernoulli update you can already do as the worked case rather than teaching it again.",
+        leavesOut: "",
+        ask: "What actually happens to the prior when the data come in? I can do the Beta-Bernoulli update but I don't see why the posterior mean lands where it does.",
+        concepts: ["Conjugate prior", "Posterior mean", "Weighted average"],
+        steps: [
+          st("tutorial", `tutorial:${P}:2`, "Recognize the family: conjugate priors", "Start with why the posterior stays in the same family; the update is then one line.", done(17)),
+          st("example", `example:${P}:3:1`, "A Beta-Bernoulli update with numbers", "Do the update once with real numbers so the weights become visible.", done(17)),
+          st("breakdown", `breakdown:${P}:po-b1`, "Break down: calorie labels", "An exam-style problem taken apart the same five ways, so the plan comes before the arithmetic.", done(18)),
+          st("tutor", `tutor:${P}`, "Talk it through with the tutor", "Explain in your own words why the posterior mean is a weighted average; the tutor will push until it holds.", done(18)),
+        ],
+        createdAt: at(17, 10),
+        openedAt: at(18, 19),
+      },
+    ],
+  };
+})();
+
+/** Custom learning paths, desktop only: Learn with saved paths (with and without an AI service), the new-path
+ * screen in its three states, and a path half done and fully done. */
+async function pathStates() {
+  const hdr = { "Content-Type": "application/json", Origin: origin };
+  const connect = () => fetch(`${origin}/api/ai/connect`, { method: "POST", headers: hdr, body: JSON.stringify({ apiKey: GOOD_KEY, accept: true, provider: "gemini" }) });
+  const disconnect = () => fetch(`${origin}/api/ai`, { method: "DELETE", headers: { Origin: origin } }).catch(() => {});
+  /** The homework (and its photo) uploaded for the filled screens is removed again, so the next theme uploads afresh. */
+  const dropHomework = async () => {
+    const files = await (await fetch(`${origin}/api/files`)).json();
+    for (const f of files.filter((x) => (x.filename === HOMEWORK_NAME || x.filename === HOMEWORK_PHOTO_NAME) && !x.removed)) {
+      await fetch(`${origin}/api/files/${f.id}`, { method: "DELETE", headers: { Origin: origin } });
+    }
+  };
+  const snap = async (page, name, theme, full = true) => {
+    await page.waitForTimeout(1300);
+    await page.screenshot({ path: join(outDir, `${name}-${theme}-desktop.png`) });
+    if (!full) return;
+    await page.evaluate(() => window.scrollTo(0, 0)); // a full-page capture of a scrolled page repeats the sticky top bar mid-page
+    await page.waitForTimeout(300);
+    await page.screenshot({ path: join(outDir, `${name}-${theme}-desktop-full.png`), fullPage: true });
+  };
+  const vp = "desktop";
+  for (const theme of ["dark", "light"]) {
+    await put("paths", PATHS);
+    await connect();
+    const { ctx, page } = await newPage(theme, vp);
+    // Learn with two saved paths, one half done
+    await page.goto(`${origin}/#/learn`);
+    await page.waitForSelector(".path-row");
+    await snap(page, "learn-paths", theme);
+    // the new-path screen, empty
+    await page.goto(`${origin}/#/paths/new`);
+    await page.waitForSelector("textarea");
+    await snap(page, "paths-new-empty", theme);
+    // ...with a text ask and a read file shown
+    await page.fill("textarea", PATHS.items[0].ask);
+    await page.locator("input[type=file]").setInputFiles({ name: HOMEWORK_NAME, mimeType: "application/pdf", buffer: HOMEWORK_PDF });
+    await page.waitForSelector(".file-read .file-preview", { timeout: 30000 });
+    await snap(page, "paths-new-filled", theme);
+    // ...with the proposed path
+    await page.click("button:has-text('Build my path')");
+    await page.waitForSelector("section[aria-label='Proposed path']", { timeout: 15000 });
+    await snap(page, "paths-new-proposed", theme);
+    // ...and with a photo of the homework, read with OCR (a fresh screen: the route must change for the form to reset)
+    await page.goto(`${origin}/#/learn`);
+    await page.goto(`${origin}/#/paths/new`);
+    await page.waitForSelector("textarea");
+    await page.locator("input[type=file]").setInputFiles({ name: HOMEWORK_PHOTO_NAME, mimeType: "image/png", buffer: await renderPhoto(ctx) });
+    await page.waitForSelector(".file-read .preview-label:has-text('OCR')", { timeout: 60000 });
+    await snap(page, "paths-new-photo", theme);
+    // a path with 2 of 5 steps done (it opens at the top; step 3 is the raised card), and one every step of which is done
+    await page.goto(`${origin}/#/paths/p-half`);
+    await page.waitForSelector(".path-step.current .card.focal");
+    await snap(page, "path-half", theme);
+    await page.goto(`${origin}/#/paths/p-done`);
+    await page.waitForSelector(".path-wrap");
+    await snap(page, "path-done", theme);
+    await ctx.close();
+    // with no AI service: the Learn entry explains, the saved paths still open, and a finished path whose check was
+    // a tutor session leads with the quiz instead
+    await disconnect();
+    const noai = await newPage(theme, vp);
+    await noai.page.goto(`${origin}/#/learn`);
+    await noai.page.waitForSelector(".own-path:has-text('needs an AI service')");
+    await snap(noai.page, "learn-paths-noai", theme);
+    await noai.page.goto(`${origin}/#/paths/p-done`);
+    await noai.page.waitForSelector(".path-wrap a.button:has-text('Take the quiz')");
+    await snap(noai.page, "path-done-noai", theme);
+    await noai.ctx.close();
+    await dropHomework();
+  }
+  await put("paths", { items: [] });
+}
+
 try {
   if (rest[0] === "--intro") {
     await setOnboarding(true);
@@ -371,6 +502,7 @@ try {
       }
     }
     if (stateShots) await learningStates();
+    if (pathShots) await pathStates();
   }
   console.log("shots written to", outDir);
 } finally {

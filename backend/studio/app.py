@@ -33,7 +33,7 @@ from .highlight import best_highlight
 from .library import LibraryRuntime
 from .models import ALL_SLICES
 from .pages import PageStore
-from .personal import MAX_BYTES, MAX_IMPROVE_PAGES, MEDIA_TYPES, PersonalStore, UploadRejected
+from .personal import IMAGE_EXTS, MAX_BYTES, MAX_IMPROVE_PAGES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
 from .update import Updater
 
@@ -64,6 +64,29 @@ class TutorBody(BaseModel):
     topic: str = Field(max_length=200)
     stage: str = Field(pattern="^(probe|diagnose|plan|build|bridge|done)$")
     history: list[Turn] = Field(min_length=1, max_length=60)
+    # what the learner came to work on (a custom path opens the tutor with its step as the focus)
+    focus: str = Field(default="", max_length=500)
+
+
+class CatalogueItem(BaseModel):
+    """One activity the app can offer as a path step, as the front end describes it."""
+
+    id: str = Field(min_length=1, max_length=120, pattern=r"^[a-z]+:[A-Za-z0-9_.:-]+$")
+    kind: str = Field(pattern="^(tutorial|vocab|example|breakdown|quiz|tutor)$")
+    topic: str = Field(max_length=120)
+    title: str = Field(max_length=200)
+    summary: str = Field(default="", max_length=400)
+
+
+class PathBody(BaseModel):
+    ask: str = Field(default="", max_length=4000)
+    # a file added through the upload pipeline (so it was parsed, OCR'd and saved like any upload)
+    fileId: str | None = Field(default=None, max_length=40)
+    catalogue: list[CatalogueItem] = Field(min_length=1, max_length=400)
+
+
+# How much of an uploaded file goes to the model with a path request: the first pages, up to this many characters.
+PATH_FILE_CHARS = 12000
 
 
 class ExampleQuestion(BaseModel):
@@ -221,9 +244,58 @@ def create_app(
         last = next((t.text for t in reversed(body.history) if t.role == "learner"), "")
         sources = grounding(f"{body.topic} {last}"[:500])
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
-        turn = tasks.tutor_turn(provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts)
+        turn = tasks.tutor_turn(provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts, focus=body.focus)
         cited = [sources[i - 1] for i in turn.pop("cites")]
         return {**turn, "sources": cited}
+
+    @app.post("/api/ai/path")
+    def ai_path(body: PathBody) -> dict[str, Any]:
+        """Build a custom learning path from what the learner typed and, optionally, a file they uploaded: the model
+        chooses steps from the app's own activities (the catalogue the front end sends) and writes an explanation only
+        where nothing fits. The file's text (and, for a photo, the picture itself) is sent because the learner handed
+        it in for exactly this; grounding excerpts follow the usual consent rules."""
+        if not body.ask.strip() and not body.fileId:
+            raise HTTPException(422, "Type what you want to be able to do, or add a file, or both.")
+        provider = ai().provider()
+        store: PersonalStore = app.state.personal
+        file_name, file_text, file_pages, image = "", "", 0, None
+        if body.fileId:
+            row = store._file(body.fileId)
+            if row is None or row["removed"]:
+                raise HTTPException(404, "That file is no longer in your collections. Add it again.")
+            file_name, file_pages = row["filename"], row["pages"]
+            parts: list[str] = []
+            used = 0
+            for r in db().read("SELECT page, text FROM personal_pages WHERE file_id=? ORDER BY page", (body.fileId,)):
+                text = r["text"].strip()
+                if not text:
+                    continue
+                piece = f"[page {r['page']}]\n{text}"[: PATH_FILE_CHARS - used]
+                parts.append(piece)
+                used += len(piece)
+                if used >= PATH_FILE_CHARS:
+                    break
+            file_text = "\n\n".join(parts)
+            if row["ext"] in IMAGE_EXTS:
+                image = store.render_for_ai(body.fileId, 1)
+            if not file_text.strip() and image is None:
+                raise HTTPException(422, "Nothing readable was found in that file. Try a clearer copy, or type what you want instead.")
+        query = f"{body.ask} {file_text[:600]}".strip()[:500] or file_name
+        sources = grounding(query, shared=6, personal=2)
+        excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
+        built = tasks.build_path(
+            provider,
+            ask=body.ask,
+            catalogue=[c.model_dump() for c in body.catalogue],
+            excerpts=excerpts,
+            file_name=file_name,
+            file_text=file_text,
+            file_pages=file_pages,
+            image=image,
+        )
+        for s in built["steps"]:
+            s["sources"] = [sources[i - 1] for i in s.pop("cites")]
+        return {**built, "fileId": body.fileId, "filename": file_name or None, "model": getattr(provider, "model", "")}
 
     @app.post("/api/ai/exam")
     def ai_exam(body: ExamBody) -> dict[str, Any]:

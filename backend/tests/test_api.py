@@ -75,6 +75,7 @@ def test_every_slice_roundtrips(client):
         "chats": {"t1": [{"role": "tutor", "text": "hi"}]},
         "onboarding": {"done": True, "completedAt": "2026-10-19T12:00:00Z"},
         "learning": LEARNING,
+        "paths": PATHS,
     }
     for name, value in state.items():
         assert put(client, name, value).status_code == 200, name
@@ -171,6 +172,21 @@ def test_onboarding_is_exported_imported_and_wiped(client):
     assert client.post("/api/import?overwrite=true", json=older, headers=ORIGIN).status_code == 200
     assert client.get("/api/state").json()["state"]["onboarding"] == {"done": False}
 
+
+PATHS = {
+    "items": [
+        {
+            "id": "p1", "title": "The MLE of a rate", "goal": "Find the MLE of an exponential rate and say why it is 1 over the mean.",
+            "ask": "I can't do the exponential MLE problems", "concepts": ["Likelihood", "Log-likelihood"],
+            "steps": [
+                {"kind": "tutorial", "ref": "tutorial:maximum-likelihood-estimation:2", "title": "The four-step procedure", "why": "This is the recipe the problem wants.", "sources": [], "done": True, "doneAt": "x"},
+                {"kind": "explain", "ref": "", "title": "Why a rate comes out as one over the mean", "why": "The notes show it but not in these words.", "text": "Set $\\ell'(\\theta)=0$.", "sources": [{"id": "s1", "kind": "Shared", "title": "Lecture 5", "page": 2}], "done": False},
+                {"kind": "quiz", "ref": "quiz:maximum-likelihood-estimation", "title": "Quiz", "why": "Prove it to yourself.", "sources": [], "done": False},
+            ],
+            "createdAt": "2026-10-20T10:00:00Z", "openedAt": "2026-10-21T10:00:00Z",
+        }
+    ]
+}
 
 LEARNING = {
     "vocab": {"t1": {"known": ["t1-prior", "t1-posterior"], "notYet": ["t1-conjugate"]}},

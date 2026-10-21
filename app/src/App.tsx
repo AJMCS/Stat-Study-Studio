@@ -18,6 +18,8 @@ import { Progress } from "./pages/Progress";
 import { Materials } from "./pages/Materials";
 import { Notes } from "./pages/Notes";
 import { Settings } from "./pages/Settings";
+import { PathNew } from "./pages/PathNew";
+import { PathPage } from "./pages/PathPage";
 import { ThetaMark } from "./components/ThetaMark";
 import { Onboarding } from "./components/Onboarding";
 import { AiStatus } from "./components/AiStatus";
@@ -90,7 +92,7 @@ function Banners() {
 function section(path: string): string {
   // Quizzes and exams (and their reviews) belong to Practice however you reached them; the back link returns you.
   if (/^\/topic\/[^/]+\/(quiz|exam)$/.test(path)) return "practice";
-  if (path.startsWith("/learn") || path.startsWith("/topic/")) return "learn";
+  if (path.startsWith("/learn") || path.startsWith("/topic/") || path.startsWith("/paths")) return "learn";
   if (path.startsWith("/practice") || path.startsWith("/exams")) return "practice";
   if (path.startsWith("/progress")) return "progress";
   if (path.startsWith("/library") || path.startsWith("/notes") || path.startsWith("/materials") || path.startsWith("/glossary")) return "library";
@@ -175,6 +177,8 @@ export function App() {
           <Route path="/topic/:id/breakdown" element={<PerTopic><Breakdown /></PerTopic>} />
           <Route path="/topic/:id/quiz" element={<PerTopic><Quiz /></PerTopic>} />
           <Route path="/topic/:id/exam" element={<PerTopic><Exam /></PerTopic>} />
+          <Route path="/paths/new" element={<PathNew />} />
+          <Route path="/paths/:id" element={<PathPage />} />
           <Route path="/exams" element={<ExamHistory />} />
           <Route path="/exams/:examId" element={<ExamReview />} />
           <Route path="/glossary" element={<Glossary />} />

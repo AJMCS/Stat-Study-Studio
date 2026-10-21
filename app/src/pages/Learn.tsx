@@ -6,7 +6,11 @@ import { currentTopicId, journey, splitUnit, units, type TopicProgress } from ".
 import { topicById } from "../mock/topics";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { JourneyMap, RowCurve, leafSize } from "../components/JourneyMap";
+import { HArc, Ring } from "../components/Rail";
 import { PATH_ROUTE, topicPath, type PathStep } from "../lib/learning";
+import { pathProgress, usePaths } from "../lib/paths";
+import { useAi } from "../lib/ai";
+import type { CustomPath } from "../types";
 
 const ACTIVITY_PATH = { tutor: "tutor", tutorial: "tutorial", quiz: "quiz", exam: "exam", vocab: "vocab", breakdown: "breakdown", check: "check" } as const;
 const NEXT_LABEL: Record<PathStep, string> = { vocab: "Start with the vocabulary", tutorial: "Continue: the tutorial", breakdown: "Continue: break down a question", practice: "Continue: take the quiz" };
@@ -93,6 +97,105 @@ export function JourneyList({ rows, current, className }: { rows: TopicProgress[
   );
 }
 
+const when = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
+
+/** A saved path's node: the same ring as the list rows, its fill growing with the steps done. */
+function PathNode({ done, total }: { done: number; total: number }) {
+  const cls = done >= total ? "strength" : done > 0 ? "started" : "new";
+  const dot = done >= total ? 12 : done > 0 ? 6 : 0;
+  return (
+    <span className={`row-node ${cls}`} style={{ width: 18, height: 18 }} aria-hidden="true">
+      {dot > 0 && <span className="row-node-dot" style={{ width: dot, height: dot }} />}
+    </span>
+  );
+}
+
+/**
+ * Where a learner's own question becomes a path: a short line in the journey's node-and-curve language (an ask, a
+ * few stops, mastery), and the paths already built, each with its progress and a way back in.
+ */
+function OwnPaths() {
+  const ai = useAi();
+  const { paths, remove } = usePaths();
+  const [confirm, setConfirm] = useState<string | null>(null);
+  return (
+    <>
+      <section className="own-path" aria-labelledby="own-h">
+        <div className="own-copy">
+          <p className="eyebrow">{"// Your own path"}</p>
+          <h2 id="own-h">Start from your own question</h2>
+          <p className="muted">
+            A problem you can't do, an idea that won't settle, or the whole homework: say what you want to be able to do, or hand the file over, and your AI service draws a short path to it through this course.
+          </p>
+          {ai.connected ? (
+            <p className="own-go">
+              <Link className="button" to="/paths/new">Build my path</Link>
+            </p>
+          ) : (
+            <p className="err-line own-noai" role="status">
+              <span className="warn" aria-hidden="true">!</span>
+              <span>
+                Building a path needs an AI service, and none is connected. <Link to="/settings">Set one up in Settings</Link>.{paths.length > 0 ? " The paths below still open and work." : ""}
+              </span>
+            </p>
+          )}
+        </div>
+        <div className="own-map" aria-hidden="true">
+          <span className="st-track own-track">
+            <Ring state="todo" />
+            <HArc state="todo" />
+            <Ring state="todo" />
+            <HArc state="todo" />
+            <Ring state="todo" />
+            <HArc state="todo" />
+            <Ring state="done" />
+          </span>
+          <span className="own-labels">
+            <span className="own-label hand">your ask</span>
+            <span className="own-label hand">mastery</span>
+          </span>
+        </div>
+      </section>
+      {paths.length > 0 && (
+        <section className="own-list" aria-label="Your paths">
+          <p className="eyebrow">{"// Your paths · "}{paths.length}</p>
+          <ol className="path-rows">
+            {paths.map((p: CustomPath) => {
+              const { done, total } = pathProgress(p);
+              return (
+                <li key={p.id} className="path-row">
+                  <span className="path-node"><PathNode done={done} total={total} /></span>
+                  <Link to={`/paths/${p.id}`} className="topic-link">
+                    <span className="jl-title">{p.title}</span>
+                    <span className="jl-intro">{p.goal}</span>
+                  </Link>
+                  <span className="path-meta">
+                    <span className="state">
+                      {done >= total && <span aria-hidden="true">✓ </span>}
+                      <b>{done}</b> of <b>{total}</b> steps · opened <b className="mono">{when(p.openedAt)}</b>
+                    </span>
+                    <span className="path-actions">
+                      <Link to={`/paths/${p.id}`}>{done >= total ? "Open" : done > 0 ? "Resume" : "Start"}</Link>
+                      {confirm === p.id ? (
+                        <span className="path-confirm">
+                          <button className="danger btn-sm" onClick={() => { remove(p.id); setConfirm(null); }}>Remove for good</button>
+                          <button className="link" onClick={() => setConfirm(null)}>Keep it</button>
+                        </span>
+                      ) : (
+                        <button className="link path-remove" onClick={() => setConfirm(p.id)}>Remove</button>
+                      )}
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ol>
+        </section>
+      )}
+    </>
+  );
+}
+
 export function Learn() {
   const { data, setSession } = useStore();
   const nav = useNavigate();
@@ -114,7 +217,11 @@ export function Learn() {
       <h1>
         Your study <Scribble>journey</Scribble>
       </h1>
-      <p className="lede">Each topic is a stop on the way to the exam. The fuller a node, the better you know it.</p>
+      <p className="lede">
+        Each topic is a stop on the way to the exam. The fuller a node, the better you know it.
+        <br />
+        Or <Link to="/paths/new">build your own path</Link> from a question or your homework.
+      </p>
 
       <JourneyMap rows={rows} current={current} meta={(r) => <StateLine r={r} />} note="next up" />
 
@@ -163,6 +270,7 @@ export function Learn() {
           </section>
         )}
 
+        <OwnPaths />
         <JourneyList rows={rows} current={current} />
         <p className="glossary-line">
           Stuck on a word? <Link to="/glossary">The glossary</Link> has every term from the lectures, with search.

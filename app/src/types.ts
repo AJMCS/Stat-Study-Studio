@@ -342,6 +342,50 @@ export interface LearningState {
   breakdowns: Record<string, Record<string, BreakdownProgress>>;
 }
 
+/* ------------------------------------------------------------------ custom learning paths */
+
+export const PATH_STEP_KINDS = ["tutorial", "vocab", "example", "breakdown", "quiz", "tutor", "explain"] as const;
+export type PathStepKind = (typeof PATH_STEP_KINDS)[number];
+
+/** One stop on a custom path: an activity that exists in the app (by its catalogue id), or an explanation the model
+ * wrote because nothing in the app fitted (kind "explain", with its text and the course pages it cites). */
+export interface CustomPathStep {
+  kind: PathStepKind;
+  /** The catalogue id of the activity ("" for an explanation). */
+  ref: string;
+  title: string;
+  /** One sentence on why this stop is on the path. */
+  why: string;
+  /** Explanations only: Markdown with LaTeX. */
+  text?: string;
+  sources: SourceRef[];
+  done: boolean;
+  doneAt?: string;
+}
+
+/** A path the learner asked for: their own words (and the file they handed in), the model's title, goal and
+ * concepts, and the steps with their progress. */
+export interface CustomPath {
+  id: string;
+  title: string;
+  goal: string;
+  /** What the path takes on ("This path covers …") and what it leaves out and why ("It leaves out …"). */
+  covers?: string;
+  leavesOut?: string;
+  ask: string;
+  concepts: string[];
+  fileId?: string;
+  filename?: string;
+  steps: CustomPathStep[];
+  createdAt: string;
+  openedAt: string;
+}
+
+/** Every custom path, newest first. Kept by the service. Progress here never feeds scores. */
+export interface PathsState {
+  items: CustomPath[];
+}
+
 export interface AppData {
   attempts: Attempt[];
   quizzes: QuizResult[];
@@ -355,4 +399,5 @@ export interface AppData {
   chats: Record<string, ChatMessage[]>;
   onboarding: OnboardingState;
   learning: LearningState;
+  paths: PathsState;
 }

@@ -1960,9 +1960,11 @@ button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-dec
 .ai-status { position: fixed; right: 24px; bottom: 24px; z-index: 30; display: flex; flex-direction: column; align-items: flex-end; gap: 8px; }
 .ai-chip {
   font: 500 13px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.04em; color: var(--ink);
-  background: var(--canvas); border: 1px solid var(--ink); border-radius: 9999px; padding: 4px 12px; cursor: pointer; max-width: 440px;
+  background: var(--canvas); border: 1px solid var(--ink); border-radius: 9999px; padding: 4px 12px; cursor: pointer; max-width: 260px;
   white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
 }
+/* 260px keeps "// AI · GEMINI-FLASH-LATEST" whole and the chip inside the right gutter of a 760px column at 1440px
+   (its left edge at 1156px, past the column's edge and hard shadow at 1105px) */
 .ai-chip:hover, .ai-chip[aria-expanded="true"] { background: var(--ink); color: var(--ink-on-fill); }
 .ai-chip:focus-visible { outline: 2px solid var(--ink); outline-offset: 2px; }
 .ai-menu {
@@ -2004,3 +2006,123 @@ button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-dec
 .toast-back::before { content: "✓"; }
 @keyframes toast-in { from { transform: translateY(-140%); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toast { animation: none; } }
+
+/* ==================================================================== piece E: custom learning paths */
+/* Learn: the "Your own path" entry is an open section under the next-up line, in the journey's language: a short
+   track (an ask, a few stops, mastery) drawn in ink and muted only, since the map above carries the orange route */
+.own-path { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 24px 56px; align-items: center; padding: 40px 0 32px; margin: 0; }
+.own-copy .eyebrow { margin: 0 0 8px; }
+.own-copy h2 { margin: 0 0 8px; }
+.own-copy > p.muted { max-width: 600px; margin: 0; }
+.own-go { margin: 24px 0 0; }
+.own-noai { margin: 16px 0 0; max-width: 600px; }
+.own-map { display: flex; flex-direction: column; gap: 4px; }
+.own-track { height: calc(var(--ring) + 16px); }
+.own-labels { display: flex; justify-content: space-between; margin: 0 var(--rail-pad); }
+.own-label.hand { font: 500 30px/1 var(--hand); color: var(--ink); }
+.own-list { border-top: 1px solid var(--hair); padding: 24px 0 0; margin: 0 0 16px; }
+.own-list > .eyebrow { margin: 0; }
+.path-rows { list-style: none; padding: 0; margin: 8px 0 0; }
+.path-row { display: grid; grid-template-columns: 32px minmax(0, 1fr) auto; gap: 4px 16px; align-items: center; padding: 14px 0; margin: 0; border-bottom: 1px solid var(--hair); }
+.path-node { justify-self: center; display: flex; }
+.path-row .jl-intro { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.path-meta { display: flex; flex-direction: column; align-items: flex-end; gap: 4px; }
+.path-actions { display: flex; align-items: center; gap: 12px; }
+.path-actions button.link { font: inherit; }
+/* removing is set apart from the way in: a muted link further along the row (ink on hover), confirmed in place */
+.path-remove { color: var(--muted); margin-left: 16px; }
+.path-remove:hover:not(:disabled) { color: var(--ink); }
+.path-confirm { display: inline-flex; align-items: center; gap: 12px; margin-left: 16px; }
+@media (max-width: 899px) { .own-path { grid-template-columns: 1fr; } .own-map { max-width: 360px; } }
+
+/* the new-path screen: one focal card holding the ask, the file, and then the proposal */
+.path-form .field { margin: 0 0 16px; }
+.path-form .field > span { color: var(--ink); }
+.form-note { display: inline-flex; margin: 0 0 -6px 16px; max-width: none; white-space: nowrap; }
+.form-note .hand-note-text { text-wrap: nowrap; }
+/* one input fill in the card: the ask and the drop zone both take the system's surface fill, so the two never differ */
+.path-form textarea, .path-form .drop { background: var(--surface); }
+.drop { border: 1px solid var(--muted); border-radius: var(--r-sm); padding: 16px; display: flex; flex-direction: column; gap: 8px; }
+.drop.over { border-color: var(--ink); background: var(--surface-2); }
+.drop .field { margin: 0; }
+.drop .field > span { color: var(--muted); }
+.drop p { margin: 0; }
+.drop .err-line { margin: 0 0 4px; }
+.file-read { border-top: 1px solid var(--hair); padding: 12px 0 0; margin: 8px 0 0; }
+.file-read .eyebrow { margin: 0 0 4px; }
+.file-line { margin: 0 0 8px; }
+.file-preview { margin: 0 0 12px; padding: 4px 16px; border-left: 2px solid var(--ink); color: var(--muted); }
+.file-preview .plain-page { padding: 0; }
+/* the preview's caption is an eyebrow: the first lines (or the whole) of page 1 of n, and whether OCR read it */
+.preview-label { display: block; margin: 0 0 4px; }
+/* everything that was read, page by page, waits behind a link-styled disclosure under the excerpt */
+.file-all { margin: -4px 0 12px; }
+.file-all summary { font-weight: 400; margin: 0; text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; width: fit-content; }
+.file-pages { list-style: none; margin: 8px 0 0; padding: 4px 16px; border-left: 2px solid var(--ink); color: var(--muted); display: grid; gap: 12px; }
+.file-pages li { margin: 0; }
+.file-pages .plain-page { padding: 0; }
+.file-read .notice.warn-box { margin: 0 0 12px; }
+.file-read > p.small { margin: 0; }
+.sent-line { margin: 16px 0 0; }
+.path-form .err-line { margin: 12px 0 0; }
+.path-form > .row { margin: 16px 0 0; }
+.path-form > progress { margin-top: 12px; }
+.path-proposal > .eyebrow { margin: 0 0 4px; }
+.path-proposal h2 { margin: 0 0 8px; }
+.pp-goal { max-width: 640px; margin: 0 0 8px; }
+/* what the path covers and leaves out: the model's two sentences under the goal, muted so the goal leads */
+.pp-covers, .path-covers { color: var(--muted); max-width: 640px; margin: 0 0 8px; text-wrap: pretty; }
+main h1 + p.lede + .path-covers { margin-top: -8px !important; }
+.path-covers + .step-wrap { margin-top: 8px; }
+.path-wrap .path-gated { margin: 12px 0 0; }
+/* an explanation's text is shown in the proposal, so the learner can read it before starting */
+.proposal-steps .ps-text { margin: 8px 0 0; max-width: 640px; }
+.proposal-steps .ps-text .page-view > :first-child { margin-top: 0; }
+.proposal-steps .ps-text .page-view > :last-child { margin-bottom: 0; }
+.proposal-steps .ps-cites { margin: 8px 0 0; }
+.proposal-steps .ps-cites .citations { margin: 0; }
+.concepts { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin: 0 0 8px; }
+.concepts .eyebrow.inline { margin: 0 4px 0 0; }
+.concepts .chip { margin: 0; font-weight: 500; }
+.proposal-steps { list-style: none; padding: 0; margin: 16px 0 0; }
+.proposal-steps li { padding: 12px 0; margin: 0; border-top: 1px solid var(--hair); }
+.proposal-steps .eyebrow { margin: 0 0 2px; }
+.ps-title { font-weight: 600; margin: 0; }
+.ps-why { color: var(--muted); margin: 0; max-width: 640px; }
+.ps-cites .chip { margin: 0 0 0 6px; font-weight: 500; }
+.pp-actions { margin: 24px 0 0; }
+
+/* the path page: the track carries "where you are"; the steps are flat rows, the current one the raised card */
+main h1 + p.lede + .step-wrap { margin-top: 0 !important; }
+.path-steps { list-style: none; padding: 0; margin: 0; }
+.path-step { margin: 0; scroll-margin-top: 88px; }
+/* the current node and its note jump to the current step's card; the keyboard's way is one small link under the
+   diagram, so the hand note and the orange route carry the diagram alone (the eyebrow says how many steps are done) */
+.st-jump { display: inline-flex; flex: none; padding: 0; border: 0; background: none; border-radius: var(--r-pill); line-height: 0; cursor: pointer; color: inherit; font: inherit; }
+.st-jump:hover:not(:disabled) { transform: none; box-shadow: none; background: none; }
+.path-jump { margin: -16px 0 16px; }
+.path-jump button.link { font: 400 16px/24px var(--sans); }
+.ps-body { padding: 20px 0 24px; border-top: 1px solid var(--hair); }
+.ps-body.card.focal { padding: 16px 24px 24px; margin: 8px 0 24px; }
+.path-step.current + .path-step .ps-body { border-top: none; }
+.ps-body .eyebrow { margin: 0 0 4px; }
+.ps-body h3 { margin: 0; font-size: 16px; line-height: 24px; }
+.path-step.current .ps-body h3 { font-size: 24px; line-height: 33px; letter-spacing: -0.02em; }
+.ps-body .ps-why { margin: 4px 0 0; }
+.ps-head { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: baseline; gap: 4px 16px; }
+.ps-head .status { white-space: nowrap; }
+.path-step.done .ps-body { padding: 16px 0 20px; }
+.path-proposal .form-note, .path-wrap .form-note { margin: 16px 0 -14px 16px; }
+.path-step.current .ps-body .ps-why { color: var(--ink); }
+.ps-text { margin: 12px 0 0; }
+.ps-text .page-view > :first-child { margin-top: 0; }
+.ps-text .citations { margin: 8px 0 0; }
+.ps-body > p.muted { margin: 8px 0 0; }
+.ps-actions { margin: 12px 0 0; }
+.path-step.current .ps-actions { margin-top: 16px; }
+.ps-actions .status button.link { font: inherit; }
+.path-ask { margin: 24px 0 0; }
+.path-wrap > .eyebrow { margin: 0 0 4px; }
+.path-wrap h2 { margin: 0 0 8px; }
+.path-wrap .concepts { margin: 0 0 12px; }
+.path-wrap .row { margin: 16px 0 0; }
