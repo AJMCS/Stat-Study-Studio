@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
-import { api, type AiInfo, type ProviderId } from "./api";
+import { api, type AiInfo, type AiTestResult, type ProviderId } from "./api";
 
 /**
  * Whether an AI service is connected. Everything that needs a model (the tutor, rubric scoring, generated exam
@@ -18,7 +18,8 @@ export interface AiStatus {
   /** Make another saved service the one in use; no key needed. */
   switchTo: (provider: ProviderId) => Promise<void>;
   setModel: (model: string) => Promise<void>;
-  test: () => Promise<void>;
+  /** A real round trip to the model in use: resolves with what it answered and how long it took, or throws. */
+  test: () => Promise<AiTestResult>;
   /** Ask a local model to load now, so the first question does not wait for it. Harmless for hosted services. */
   warm: () => Promise<void>;
 }
@@ -54,7 +55,11 @@ export function AiProvider({ children }: { children: ReactNode }) {
         setInfo(await api.aiSwitch(provider));
       },
       setModel: async (model) => setInfo(await api.aiSetModel(model)),
-      test: async () => setInfo(await api.aiTest()),
+      test: async () => {
+        const { test, ...status } = await api.aiTest();
+        setInfo(status);
+        return test;
+      },
       warm: async () => {
         if (!info?.connected || !info.local) return;
         const last = warmed.current;

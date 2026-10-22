@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
-import { api, ServiceRejected, type ProviderId } from "../lib/api";
+import { api, ServiceRejected, type AiTestResult, type ProviderId } from "../lib/api";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { AiConnect, BLURB, SERVICE_UNREACHABLE } from "../components/AiConnect";
 import { useAi } from "../lib/ai";
@@ -16,7 +16,8 @@ function AiPanel() {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const [model, setModel] = useState<string | null>(null);
-  const [tested, setTested] = useState(false);
+  /** The last "Test connection" that came back: the model answered, and how long it took. Cleared by any other action. */
+  const [tested, setTested] = useState<AiTestResult | null>(null);
 
   const selected: ProviderId = choice ?? info?.provider ?? "gemini";
   useEffect(() => setError(""), [selected]);
@@ -39,7 +40,7 @@ function AiPanel() {
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
     setError("");
-    setTested(false);
+    setTested(null);
     try {
       await fn();
     } catch (e) {
@@ -101,8 +102,13 @@ function AiPanel() {
             )}
             .{" "}
             {info.local ? "It runs on this computer, so nothing is sent over the internet." : `Your key is stored ${info.keyLocation === "os" ? "in this computer's secure credential store" : "in a private file on this computer"}.`}
-            {tested && " The connection works."}
           </p>
+          {tested && (
+            <p className="ok-text" role="status">
+              Connection works: {info.providerName} answered in <span className="mono">{(tested.ms / 1000).toFixed(1)} s</span> with <span className="mono">{tested.model}</span>
+              {tested.reply && <> (it said <span className="mono">{tested.reply}</span>)</>}.
+            </p>
+          )}
           {info.local ? (
             <div className="row model-row">
               <label className="field grow">
@@ -140,7 +146,7 @@ function AiPanel() {
           )}
           <div className="row">
             {!info.local && <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(!info.defaultModel ? (model ?? info.model) : shownModel))}>Save model</button>}
-            <button className="ghost" disabled={busy} onClick={() => void run(async () => { await ai.test(); setTested(true); })}>Test connection</button>
+            <button className="ghost" disabled={busy} onClick={() => void run(async () => setTested(await ai.test()))}>{busy ? "Testing…" : "Test connection"}</button>
             <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect{info.local ? "" : " and forget my key"}</button>
           </div>
         </>

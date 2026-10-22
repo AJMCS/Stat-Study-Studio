@@ -833,3 +833,14 @@ def test_an_exam_on_one_topic_asks_for_no_sections(client, fake):
     qs = client.post("/api/ai/exam", json=exam_body()).json()["questions"]
     assert [q["section"] for q in qs] == ["", ""]
     assert "Sections of the course" not in fake.requests[0]["contents"][0]["parts"][0]["text"]
+
+
+def test_the_connection_test_is_a_real_round_trip_that_reports_the_model_and_its_timing(client, fake):
+    connect(client)
+    fake.replies = ["OK"]
+    r = client.post("/api/ai/test")
+    assert r.status_code == 200
+    t = r.json()["test"]
+    assert t["ok"] is True and t["reply"] == "OK" and t["model"] and isinstance(t["ms"], int) and t["ms"] >= 0
+    assert "Are you there?" in fake.requests[-1]["contents"][0]["parts"][0]["text"]
+    assert r.json()["connected"] is True  # the usual status comes with it

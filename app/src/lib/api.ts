@@ -310,6 +310,14 @@ export interface AiInfo {
   noticeVersion: number;
 }
 
+/** What "Test connection" found: the model answered a one-word request, and how long it took. */
+export interface AiTestResult {
+  ok: boolean;
+  model: string;
+  ms: number;
+  reply: string;
+}
+
 export interface AiScoreRequest {
   topic: string;
   question: string;
@@ -419,7 +427,8 @@ export const api = {
    * it the service answers 409 workspace_choice (with the list to pick from) or workspace_needed (paste the ID). */
   aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: ProviderId = "gemini", workspace?: string): Promise<AiInfo> =>
     (await call("/api/ai/connect", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ apiKey, accept, model: model || null, provider, workspace: workspace || null }) })).json(),
-  aiTest: async (): Promise<AiInfo> => (await call("/api/ai/test", { method: "POST" })).json(),
+  /** A real round trip to the model in use; a failure is thrown as a ServiceRejected with the service's own message. */
+  aiTest: async (): Promise<AiInfo & { test: AiTestResult }> => (await call("/api/ai/test", { method: "POST" })).json(),
   aiSetModel: async (model: string): Promise<AiInfo> => (await call("/api/ai/model", json({ model: model || null }))).json(),
   aiDisconnect: async (provider?: ProviderId): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`, { method: "DELETE" })).json(),
   aiSwitch: async (provider: ProviderId): Promise<AiInfo> =>

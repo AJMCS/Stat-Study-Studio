@@ -1152,6 +1152,16 @@ await step("ai: connecting needs the data notice accepted; a wrong key is refuse
   if (exported.includes(GOOD_KEY)) throw new Error("the key leaked into the data export");
 });
 
+await step("ai: Test connection makes a real request and says plainly that it worked, with the model and the time", async () => {
+  const calls = (await geminiLog()).length;
+  await page.click("button:has-text('Test connection')");
+  await page.waitForSelector("p.ok-text:has-text('Connection works')");
+  const line = await page.locator("p.ok-text").textContent();
+  if (!line.includes("gemini-flash-latest") || !/\d\.\d s/.test(line) || !line.includes("Google Gemini")) throw new Error("the result should name the service, the model and the time: " + line);
+  if ((await geminiLog()).length !== calls + 1) throw new Error("the test should make exactly one request to the service");
+  await shot("ai-test-connection");
+});
+
 await step("ai: a recall with a drawing is scored on four criteria, with comments, the drawing goes with the text, and it is saved as AI-scored", async () => {
   await fresh(`/topic/${T}`);
   await page.click("button:has-text('Try a recall')");

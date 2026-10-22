@@ -94,7 +94,7 @@ const transcribeScript = () =>
     unclear: ["a smudged subscript"],
   });
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript }) {
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript, "single word OK": () => "OK" }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

@@ -16,7 +16,7 @@ from .gemini import DEFAULT_MODEL, Gemini
 from .keystore import KeyStore
 from .ollama import Ollama, local_base
 from .openai_provider import OpenAI
-from .provider import Provider
+from .provider import Message, Provider
 
 # Bump when a notice changes in a way that matters; everyone is then asked again.
 CONSENT_VERSION = 2  # 2: the notice names the pad's drawings as well as typed text
@@ -314,8 +314,14 @@ class AiService:
         return self.status()
 
     def test(self) -> dict[str, Any]:
-        self.provider().check_key()
-        return self.status()
+        """A real round trip, not just a key check: the model is asked for one word and timed, so a result means the
+        service is live and answering with this model. The status comes back with "test" {ok, model, ms, reply}."""
+        provider = self.provider()
+        provider.check_key()
+        started = time.perf_counter()
+        reply = provider.generate("Reply with the single word OK and nothing else.", [Message("user", "Are you there?")], temperature=0.0)
+        ms = round((time.perf_counter() - started) * 1000)
+        return {**self.status(), "test": {"ok": True, "model": getattr(provider, "model", ""), "ms": ms, "reply": " ".join(reply.split())[:40]}}
 
     def warm(self) -> dict[str, Any]:
         """Start loading the active local model in the background, so the learner's first question does not wait for
