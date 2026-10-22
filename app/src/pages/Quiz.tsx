@@ -1,7 +1,8 @@
 import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
-import { sourceById, topicById } from "../mock/topics";
-import { buildQuiz } from "../mock/quiz";
+import { sourceById } from "../mock/topics";
+import { buildCourseQuiz, buildQuiz } from "../mock/quiz";
+import { COURSE_ID, scopeFor, sectionTitle } from "../lib/exam";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
@@ -58,11 +59,27 @@ function gradeMc(q: QuizQuestion, a: Answer | undefined): Outcome {
   return { correct: ok, credit: ok ? 1 : 0, feedback: ok ? q.explanation : `Not quite. ${q.explanation}` };
 }
 
+/** The four criteria over some of the items: AI-scored written answers use their own scores; everything else counts as its credit. */
+function criteriaOf(items: QuizResult["items"]): { criteria: CriterionScores; selfScored: boolean; aiScored: boolean } {
+  const percent = (items.reduce((s, it) => s + (it.partial ?? 0), 0) / Math.max(1, items.length)) * 100;
+  const selfScored = items.some((it) => it.selfScored);
+  const aiScored = items.some((it) => it.aiScored);
+  const criteria: CriterionScores = aiScored
+    ? (Object.fromEntries(
+        CRITERIA.map((k) => [k, Math.round(items.reduce((s, it) => s + (it.aiScored && it.criteria ? it.criteria[k] : (it.partial ?? 0) * 100), 0) / Math.max(1, items.length))]),
+      ) as CriterionScores)
+    : uniformCriteria(percent);
+  return { criteria, selfScored, aiScored };
+}
+
+/** A quiz on one topic (/topic/:id/quiz) or, with no topic in the route (/quiz), across every topic of the course. */
 export function Quiz() {
   const { id } = useParams();
-  const topic = topicById(id ?? "");
+  const scope = scopeFor(id);
   const { data, recordAttempt, saveQuiz } = useStore();
-  const questions = useMemo(() => (topic ? buildQuiz(topic) : []), [topic]);
+  /** Across the course: how many such quizzes came before, so each sitting moves on to every topic's next questions. */
+  const [rotation] = useState(() => data.quizzes.filter((q) => q.topicId === COURSE_ID).length);
+  const questions = useMemo(() => (scope ? (scope.general ? buildCourseQuiz(scope.topics, rotation) : buildQuiz(scope.topics[0])) : []), [scope?.id, rotation]); // eslint-disable-line react-hooks/exhaustive-deps
   const [mode, setMode] = useState<Mode | null>(null);
   const [i, setI] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
@@ -86,16 +103,24 @@ export function Quiz() {
   /** Graded quizzes: answers the AI has already scored this submit, so a retry only redoes the ones that failed. */
   const [aiDone, setAiDone] = useState<Record<string, Outcome>>({});
 
-  if (!topic) return <p>Topic not found.</p>;
+  if (!scope) return <p>Topic not found.</p>;
+  const general = scope.general;
   const cfg = data.config;
+  const back = general ? (
+    <p className="back"><Link to="/practice">← Practice</Link></p>
+  ) : (
+    <BackToTopic id={scope.id} title={scope.title} />
+  );
+  /** The topic a question is scored against: its own, in a quiz across the course. */
+  const topicOf = (qq: QuizQuestion) => sectionTitle(qq.topicId) || scope.title;
 
   if (!mode) {
     return (
       <>
-        <BackToTopic id={topic.id} title={topic.title} />
-        <Eyebrow>Quiz · {questions.length} questions</Eyebrow>
-        <h1><KeyTitle text={topic.title} /></h1>
-        <p className="lede">One question at a time. Choose how you want feedback.</p>
+        {back}
+        <Eyebrow>Quiz · {questions.length} questions{general && " · every topic"}</Eyebrow>
+        <h1><KeyTitle text={scope.title} /></h1>
+        <p className="lede">{general ? "Ten questions drawn from every topic, one question at a time. " : "One question at a time. "}Choose how you want feedback.</p>
         <Annotated block note="graded counts toward progress; practice tells you as you go">
         <div className="grid two">
           <button className="card focal" onClick={() => setMode("graded")}>
@@ -148,7 +173,7 @@ export function Quiz() {
     setAiBusy(true);
     setAiError((m) => ({ ...m, [q.id]: "" }));
     try {
-      const r = await aiScore({ topic: topic.title, question: q.prompt, ...padForAi(ans.pad), reference: q.explanation, stage: "conceptual" }, cfg);
+      const r = await aiScore({ topic: topicOf(q), question: q.prompt, ...padForAi(ans.pad), reference: q.explanation, stage: "conceptual" }, cfg);
       const o = outcomeFromAi(q, r, cfg.compositeCutoff);
       if (target === "first") {
         setFirst((m) => ({ ...m, [q.id]: o }));
@@ -197,7 +222,7 @@ export function Quiz() {
       for (const qq of todo) {
         if (done[qq.id]) continue;
         try {
-          done[qq.id] = outcomeFromAi(qq, await aiScore({ topic: topic.title, question: qq.prompt, ...padForAi(answers[qq.id].pad), reference: qq.explanation, stage: "conceptual" }, cfg), cfg.compositeCutoff);
+          done[qq.id] = outcomeFromAi(qq, await aiScore({ topic: topicOf(qq), question: qq.prompt, ...padForAi(answers[qq.id].pad), reference: qq.explanation, stage: "conceptual" }, cfg), cfg.compositeCutoff);
         } catch (e) {
           failure = aiFailure(e);
           break;
@@ -234,33 +259,52 @@ export function Quiz() {
         sourceId: qq.sourceId,
         unanswered: !isAnswered,
         selfScored: o.selfScored,
+        ...(qq.topicId ? { topicId: qq.topicId } : {}),
         ...(o.ai && isAnswered ? { aiScored: true, criteria: o.ai.criteria, aiFeedback: o.ai.feedback } : {}),
       };
     });
     const score = Math.round(items.reduce((s, it) => s + (it.partial ?? 0), 0) * 10) / 10;
-    const percent = (score / questions.length) * 100;
-    const selfScored = items.some((it) => it.selfScored);
-    const aiScored = items.some((it) => it.aiScored);
-    // Written answers scored by the AI contribute their own criterion scores; everything else counts as its credit.
-    const criteria: CriterionScores = aiScored
-      ? (Object.fromEntries(
-          CRITERIA.map((k) => [k, Math.round(items.reduce((s, it) => s + (it.aiScored && it.criteria ? it.criteria[k] : (it.partial ?? 0) * 100), 0) / items.length)]),
-        ) as CriterionScores)
-      : uniformCriteria(percent);
+    const all = criteriaOf(items);
     const flagged = [...new Set(items.filter((it) => it.unanswered || it.correct === false).map((it) => it.concept))];
-    const res: QuizResult = { id: uid(), topicId: topic.id, at: new Date().toISOString(), score, total: questions.length, items, flaggedConcepts: flagged, selfScored };
+    const res: QuizResult = { id: uid(), topicId: scope.id, at: new Date().toISOString(), score, total: questions.length, items, flaggedConcepts: flagged, selfScored: all.selfScored };
     saveQuiz(res);
     // Only the first response counts. Retries are saved separately and never touch the initial-attempt metrics.
-    recordAttempt({ topicId: topic.id, kind: "quiz", counted: true, selfScored, aiScored, criteria, note: `${mode} quiz${selfScored ? " (self-scored)" : aiScored ? " (AI-scored)" : ""}` });
-    retryScores.forEach((r) => recordAttempt({ topicId: topic.id, kind: "quiz", counted: false, selfScored: r.selfScored, criteria: uniformCriteria(r.credit * 100), note: "Practice retry" }));
-    setSummary({ criteria, selfScored, aiScored });
+    // A quiz on one topic is one attempt on it; one across the course counts toward every topic it drew from, each
+    // from the questions on that topic.
+    const groups = general
+      ? [...new Set(items.map((it) => it.topicId).filter((t): t is string => !!t))].map((topicId) => ({ topicId, items: items.filter((it) => it.topicId === topicId) }))
+      : [{ topicId: scope.id, items }];
+    for (const g of groups) {
+      const s = criteriaOf(g.items);
+      const how = s.selfScored ? " (self-scored)" : s.aiScored ? " (AI-scored)" : "";
+      recordAttempt({
+        topicId: g.topicId,
+        kind: "quiz",
+        counted: true,
+        selfScored: s.selfScored,
+        aiScored: s.aiScored,
+        criteria: s.criteria,
+        note: general ? `${mode} quiz across the course: ${g.items.length} question${g.items.length === 1 ? "" : "s"} on this topic${how}` : `${mode} quiz${how}`,
+      });
+    }
+    retryScores.forEach((r) =>
+      recordAttempt({
+        topicId: questions.find((qq) => qq.id === r.qid)?.topicId ?? scope.id,
+        kind: "quiz",
+        counted: false,
+        selfScored: r.selfScored,
+        criteria: uniformCriteria(r.credit * 100),
+        note: "Practice retry",
+      }),
+    );
+    setSummary(all);
     setResult(res);
   };
 
   if (result) {
     return (
       <>
-        <Eyebrow>Quiz · {topic.title}</Eyebrow>
+        <Eyebrow>Quiz · {scope.title}</Eyebrow>
         <h1>Quiz <Scribble voice={false}>summary</Scribble></h1>
         <p className="eyebrow">{"// Score "}{result.score} / {result.total}</p>
         {summary && <ScoreBreakdown criteria={summary.criteria} cfg={cfg} selfScored={summary.selfScored} marked={!summary.selfScored && !summary.aiScored} />}
@@ -273,6 +317,7 @@ export function Quiz() {
             const src = it.sourceId ? sourceById(it.sourceId) : undefined;
             return (
               <li key={it.questionId}>
+                {general && it.topicId && <p className="eyebrow">{"// "}{sectionTitle(it.topicId)}</p>}
                 <p><RichText text={it.prompt} /></p>
                 <p className={it.correct ? "ok-text" : "bad-text"}>
                   {it.unanswered ? "Unanswered" : it.correct ? "Correct" : "Partial credit"}
@@ -294,7 +339,11 @@ export function Quiz() {
           })}
         </ol>
         <div className="row">
-          <Link className="button" to={`/topic/${topic.id}`}>Back to topic</Link>
+          {general ? (
+            <Link className="button" to="/practice">Back to Practice</Link>
+          ) : (
+            <Link className="button" to={`/topic/${scope.id}`}>Back to topic</Link>
+          )}
           <button className="ghost" onClick={() => location.reload()}>Retake quiz</button>
         </div>
       </>
@@ -359,10 +408,11 @@ export function Quiz() {
 
   const f = first[q.id];
   const rf = retryOutcome[q.id];
+  const section = general ? sectionTitle(q.topicId) : "";
   return (
     <>
-      <BackToTopic id={topic.id} title={topic.title} />
-      <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {topic.title}</Eyebrow>
+      {back}
+      <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {scope.title}{section && ` · ${section}`}</Eyebrow>
       <h1 className="h-mono">Question {i + 1} of {questions.length}</h1>
       <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
       <section className="panel focal">
@@ -378,7 +428,7 @@ export function Quiz() {
             ))}
           </fieldset>
         ) : (
-          <Pad key={q.id} group={`quiz:${topic.id}`} value={ans.pad} onChange={(pad) => setAns({ ...ans, pad })} label="Show your work" disabled={locked || !!rate} />
+          <Pad key={q.id} group={`quiz:${scope.id}`} value={ans.pad} onChange={(pad) => setAns({ ...ans, pad })} label="Show your work" disabled={locked || !!rate} />
         )}
 
         {aiError[q.id] && <p className="notice warn-box" role="alert">{aiError[q.id]} Your answer is kept.</p>}

@@ -99,6 +99,8 @@ export interface QuizQuestion {
   explanation: string;
   sourceId?: string;
   concept: string;
+  /** In a quiz across the course: the section this question came from, so its score counts toward that section. */
+  topicId?: string;
 }
 
 export interface ExamQuestion {
@@ -112,6 +114,8 @@ export interface ExamQuestion {
   keyPoints: string[];
   /** Written by an AI service for this exam, not authored; its solution can contain mistakes. */
   aiWritten?: boolean;
+  /** In an exam across the course: the section this question came from, so its score counts toward that section. */
+  topicId?: string;
 }
 
 export interface Attempt {
@@ -153,6 +157,8 @@ export interface QuizResult {
     aiScored?: boolean;
     criteria?: CriterionScores;
     aiFeedback?: CriterionFeedback[];
+    /** In a quiz across the course: the section the question came from. */
+    topicId?: string;
   }[];
   flaggedConcepts: string[];
   selfScored?: boolean;
@@ -182,6 +188,8 @@ export interface ExamRecord {
     /** When an AI service scored this answer: its criterion scores and comments. */
     criteria?: CriterionScores;
     aiFeedback?: CriterionFeedback[];
+    /** In an exam across the course: the section the question came from. */
+    topicId?: string;
   }[];
   sources: SourceRef[];
   selfScored?: boolean;

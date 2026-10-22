@@ -812,3 +812,24 @@ def test_the_tutor_says_when_a_local_model_could_not_read_the_drawing(client, ol
     r = client.post("/api/ai/tutor", json={"topic": "Maximum Likelihood Estimation", "stage": "probe", "history": [OPEN[0], {**OPEN[1], "drawing": drawing_png()}]})
     assert r.status_code == 200 and r.json()["drawingIgnored"] is True and len(ollama.requests) == 2
     assert "images" not in ollama.requests[1]["messages"][-1] and "It picks the parameter" in ollama.requests[1]["messages"][-1]["content"]
+
+
+def test_an_exam_across_the_course_spreads_over_the_sections_and_names_each_questions_section(client, fake):
+    connect(client)
+    sections = ["Posterior Distribution", "Maximum Likelihood Estimation", "Sampling Distributions"]
+    fake.replies = [json.dumps({"questions": [question(1, section="2"), question(2, section="sampling distributions"), question(3, section="Something else")]})]
+    r = client.post("/api/ai/exam", json=exam_body(count=3, topic="STAT 132, every topic of the course", sections=sections))
+    assert r.status_code == 200
+    qs = r.json()["questions"]
+    # a number or a name, however it was cased, maps to the section as given; anything else is left blank rather than guessed
+    assert [q["section"] for q in qs] == ["Maximum Likelihood Estimation", "Sampling Distributions", ""]
+    sent = fake.requests[0]["contents"][0]["parts"][0]["text"]
+    assert "1. Posterior Distribution" in sent and "3. Sampling Distributions" in sent and "Spread the questions over these sections" in sent
+
+
+def test_an_exam_on_one_topic_asks_for_no_sections(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"questions": [question(1), question(2)]})]
+    qs = client.post("/api/ai/exam", json=exam_body()).json()["questions"]
+    assert [q["section"] for q in qs] == ["", ""]
+    assert "Sections of the course" not in fake.requests[0]["contents"][0]["parts"][0]["text"]

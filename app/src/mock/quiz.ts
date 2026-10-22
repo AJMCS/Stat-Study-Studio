@@ -18,3 +18,21 @@ export function buildQuiz(topic: Topic): QuizQuestion[] {
   }
   return out.slice(0, 10);
 }
+
+/**
+ * Ten questions across every topic, for the quiz on the Practice page. The topics take turns, so each is asked at
+ * least once, and `rotation` (how many such quizzes were taken before) moves on to each topic's next questions, so
+ * a retake is not the same ten. Each question carries its topic, so its score counts toward that topic.
+ */
+export function buildCourseQuiz(topics: Topic[], rotation = 0): QuizQuestion[] {
+  const pools = topics.filter((t) => t.quiz.length > 0);
+  const total = pools.reduce((s, t) => s + t.quiz.length, 0);
+  const out: QuizQuestion[] = [];
+  for (let k = 0; out.length < Math.min(10, total); k++) {
+    const n = rotation * 10 + k;
+    const t = pools[n % pools.length];
+    const q = t.quiz[Math.floor(n / pools.length) % t.quiz.length];
+    if (!out.some((x) => x.id === q.id)) out.push({ ...q, topicId: t.id });
+  }
+  return out;
+}

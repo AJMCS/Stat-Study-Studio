@@ -108,6 +108,8 @@ class ExamBody(BaseModel):
     focus: str = Field(default="", max_length=500)
     count: int = Field(default=4, ge=1, le=6)
     examples: list[ExampleQuestion] = Field(default_factory=list, max_length=8)
+    # an exam across the whole course: the topics to spread the questions over; each question then names its own
+    sections: list[str] = Field(default_factory=list, max_length=12)
 
 
 class ImproveBody(BaseModel):
@@ -349,6 +351,7 @@ def create_app(
             count=body.count,
             examples=[e.model_dump() for e in body.examples],
             excerpts=excerpts,
+            sections=[s[:200] for s in body.sections],
         )
         for q in questions:
             q["sources"] = [sources[i - 1] for i in q.pop("cites")]

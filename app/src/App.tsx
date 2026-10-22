@@ -91,7 +91,8 @@ function Banners() {
 /** Which top-level section a path belongs to, so the nav stays lit inside a section (a topic is part of Learn). */
 function section(path: string): string {
   // Quizzes and exams (and their reviews) belong to Practice however you reached them; the back link returns you.
-  if (/^\/topic\/[^/]+\/(quiz|exam)$/.test(path)) return "practice";
+  // /exam and /quiz are the ones across the whole course.
+  if (/^(\/topic\/[^/]+)?\/(quiz|exam)$/.test(path)) return "practice";
   if (path.startsWith("/learn") || path.startsWith("/topic/") || path.startsWith("/paths")) return "learn";
   if (path.startsWith("/practice") || path.startsWith("/exams")) return "practice";
   if (path.startsWith("/progress")) return "progress";
@@ -177,6 +178,9 @@ export function App() {
           <Route path="/topic/:id/breakdown" element={<PerTopic><Breakdown /></PerTopic>} />
           <Route path="/topic/:id/quiz" element={<PerTopic><Quiz /></PerTopic>} />
           <Route path="/topic/:id/exam" element={<PerTopic><Exam /></PerTopic>} />
+          {/* across the whole course: no topic in the route */}
+          <Route path="/quiz" element={<Quiz />} />
+          <Route path="/exam" element={<Exam />} />
           <Route path="/paths/new" element={<PathNew />} />
           <Route path="/paths/:id" element={<PathPage />} />
           <Route path="/exams" element={<ExamHistory />} />

@@ -393,6 +393,8 @@ export interface AiExamQuestion {
   hint: string;
   keyPoints: string[];
   sources: (SearchHit | PersonalHit)[];
+  /** For an exam across the course: which of the topics given as `sections` the question is on ("" when unsure). */
+  section?: string;
 }
 
 export const api = {
@@ -402,8 +404,9 @@ export const api = {
   restoreReading: async (fileId: string): Promise<void> => {
     await call(`/api/files/${fileId}/restore-reading`, { method: "POST" });
   },
-  aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[]): Promise<{ questions: AiExamQuestion[] }> =>
-    (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples }) })).json(),
+  /** `sections`: for an exam across the course, the topics to spread the questions over; each question then names its own. */
+  aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[], sections?: string[]): Promise<{ questions: AiExamQuestion[] }> =>
+    (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples, ...(sections ? { sections } : {}) }) })).json(),
   aiTutor: async (topic: string, stage: TutorStage, history: TutorTurn[], focus = ""): Promise<TutorReply> =>
     (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history, focus }) })).json(),
   aiPath: async (ask: string, fileId: string | null, catalogue: CatalogueItem[]): Promise<AiPathProposal> =>

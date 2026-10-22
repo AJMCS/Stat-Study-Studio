@@ -3,7 +3,7 @@ import { Link } from "react-router-dom";
 import { useStore } from "../lib/store";
 import { useIncludeSelfScored } from "../lib/prefs";
 import { currentTopicId, journey } from "../lib/journey";
-import { topicById } from "../mock/topics";
+import { scopeTitle } from "../lib/exam";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { RowNode, StateLine } from "./Learn";
 
@@ -29,12 +29,25 @@ export function Practice() {
       <h1>
         Practice for the <Scribble>exam</Scribble>
       </h1>
-      <p className="lede">Sit an exam under real conditions, or warm up with a quiz first. Everything you submit feeds your progress.</p>
+      <p className="lede">Sit an exam across the whole course under real conditions, or warm up with a quiz. Everything you submit feeds your progress, topic by topic.</p>
+
+      <section className="card focal exam-card" aria-labelledby="exam-h">
+        <h2 id="exam-h">Exam</h2>
+        <p>
+          One question from every topic, like the real paper: full written solutions, timed or untimed. You compare each answer with a reference solution and score it, or
+          let a connected AI service score it on four criteria.
+        </p>
+        <div className="row exam-actions">
+          <Link className="button" to="/exam" state={{ from: "practice" }}>Start an exam</Link>
+          <Link className="button ghost" to="/quiz" state={{ from: "practice" }}>Take a quiz</Link>
+          <Note dir="left" className="focal-note">every topic, like the real thing</Note>
+        </div>
+      </section>
 
       <fieldset className={`topic-picker${openList ? " open" : ""}`}>
-        <legend className="sr-only">Topic</legend>
+        <legend className="sr-only">One topic at a time</legend>
         <div className="topic-line">
-          <span className="eyebrow inline">{"// Topic"}</span>
+          <span className="eyebrow inline">{"// One topic"}</span>
           <span className="topic-line-title">{sel.topic.title}</span>
           <StateLine r={sel} />
           <button type="button" className="link change-topic" aria-expanded={openList} onClick={() => setOpenList((o) => !o)}>
@@ -56,17 +69,11 @@ export function Practice() {
             );
           })}
         </div>
-      </fieldset>
-
-      <section className="card focal exam-card" aria-labelledby="exam-h">
-        <h2 id="exam-h">Exam</h2>
-        <p>Full written solutions, timed or untimed. You compare each answer with a reference solution and score it, or let a connected AI service score it on four criteria.</p>
-        <div className="row exam-actions">
-          <Link className="button" to={`/topic/${sel.topic.id}/exam`} state={{ from: "practice" }} onClick={() => mark("exam")}>Start an exam</Link>
-          <Link className="button ghost" to={`/topic/${sel.topic.id}/quiz`} state={{ from: "practice" }} onClick={() => mark("quiz")}>Take a quiz</Link>
-          <Note dir="left" className="focal-note">the closest thing to the real exam</Note>
+        <div className="row topic-actions">
+          <Link className="button ghost" to={`/topic/${sel.topic.id}/exam`} state={{ from: "practice" }} onClick={() => mark("exam")}>Exam on this topic</Link>
+          <Link className="button ghost" to={`/topic/${sel.topic.id}/quiz`} state={{ from: "practice" }} onClick={() => mark("quiz")}>Quiz on this topic</Link>
         </div>
-      </section>
+      </fieldset>
 
       <section aria-labelledby="recent-h" className="recent">
         <div className="row between">
@@ -84,7 +91,7 @@ export function Practice() {
               {recent.map((a) => (
                 <tr key={a.id}>
                   <td className="mono">{new Date(a.at).toLocaleDateString()}</td>
-                  <td>{topicById(a.topicId)?.title ?? a.topicId}</td>
+                  <td>{scopeTitle(a.topicId)}</td>
                   <td>{KIND[a.kind] ?? a.kind}{a.selfScored && <span className="chip">Self-scored</span>}</td>
                   <td className="num">
                     <b className="mono score-num">{a.composite}</b>

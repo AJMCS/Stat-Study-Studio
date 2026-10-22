@@ -1,29 +1,87 @@
 import { describe, expect, it } from "vitest";
-import { selectExam } from "./exam";
+import { COURSE_EXAM_MAX, COURSE_ID, COURSE_TITLE, scopeFor, scopeTitle, selectExam } from "./exam";
+import { buildCourseQuiz } from "../mock/quiz";
 import { TOPICS, topicById } from "../mock/topics";
 import { analyticsAttempts, applyRecall, selfScore, uniformCriteria } from "./scoring";
 import type { Attempt } from "../types";
 
 const mle = topicById("maximum-likelihood-estimation")!;
+const one = scopeFor(mle.id)!;
+const course = scopeFor(undefined)!;
 
 describe("exam selection without a model", () => {
   it("asks the whole bank when there is no focus", () => {
-    const d = selectExam(mle, "  ");
+    const d = selectExam(one, "  ");
     expect(d.questions).toHaveLength(mle.examBank.length);
     expect(d.focusMatched).toBeNull();
   });
 
   it("uses a focus only to choose existing questions, best match first", () => {
-    const d = selectExam(mle, "edge case on the boundary of the support");
+    const d = selectExam(one, "edge case on the boundary of the support");
     expect(d.focusMatched).toBe(true);
     expect(d.questions[0].id).toBe("ml-e1");
     expect(d.questions.every((q) => mle.examBank.some((b) => b.id === q.id))).toBe(true); // nothing invented
   });
 
   it("says so and falls back to the full exam when nothing matches", () => {
-    const d = selectExam(mle, "chocolate cake recipes");
+    const d = selectExam(one, "chocolate cake recipes");
     expect(d.focusMatched).toBe(false);
     expect(d.questions).toHaveLength(mle.examBank.length);
+  });
+});
+
+describe("an exam across the course", () => {
+  it("is one question from every topic, each carrying its topic", () => {
+    const d = selectExam(course, "");
+    expect(d.title).toBe("Exam across the course");
+    expect(d.questions).toHaveLength(TOPICS.length);
+    expect(d.questions.map((q) => q.topicId)).toEqual(TOPICS.map((t) => t.id));
+    for (const q of d.questions) expect(topicById(q.topicId!)!.examBank.some((b) => b.id === q.id)).toBe(true);
+  });
+
+  it("moves every topic on to its next question for the next sitting, and wraps round", () => {
+    const first = selectExam(course, "", 0).questions.map((q) => q.id);
+    const second = selectExam(course, "", 1).questions.map((q) => q.id);
+    expect(second).not.toEqual(first);
+    // every topic is back at its first question once the sitting count is a multiple of every bank's size
+    const gcd = (a: number, b: number): number => (b === 0 ? a : gcd(b, a % b));
+    const cycle = TOPICS.map((t) => t.examBank.length).reduce((a, b) => (a * b) / gcd(a, b));
+    const wrapped = selectExam(course, "", cycle).questions.map((q) => q.id);
+    expect(wrapped).toEqual(first);
+  });
+
+  it("a focus chooses across every topic's bank, kept to the length of a real paper", () => {
+    const d = selectExam(course, "likelihood");
+    expect(d.focusMatched).toBe(true);
+    expect(d.questions.length).toBeGreaterThan(1);
+    expect(d.questions.length).toBeLessThanOrEqual(COURSE_EXAM_MAX);
+    expect(new Set(d.questions.map((q) => q.topicId)).size).toBeGreaterThan(1);
+    expect(d.questions.every((q) => !!q.topicId)).toBe(true);
+  });
+
+  it("is saved under its own id and named for what it is", () => {
+    expect(course.id).toBe(COURSE_ID);
+    expect(TOPICS.some((t) => t.id === COURSE_ID)).toBe(false);
+    expect(scopeTitle(COURSE_ID)).toBe(COURSE_TITLE);
+    expect(scopeTitle(mle.id)).toBe(mle.title);
+    expect(scopeFor("no-such-topic")).toBeNull();
+  });
+});
+
+describe("a quiz across the course", () => {
+  it("is ten authored questions with the topics taking turns", () => {
+    const qs = buildCourseQuiz(TOPICS);
+    expect(qs).toHaveLength(10);
+    expect(new Set(qs.map((q) => q.id)).size).toBe(10);
+    expect(qs.slice(0, TOPICS.length).map((q) => q.topicId)).toEqual(TOPICS.map((t) => t.id));
+    for (const q of qs) expect(topicById(q.topicId!)!.quiz.some((b) => b.id === q.id)).toBe(true);
+  });
+
+  it("asks different questions at the next sitting", () => {
+    const a = buildCourseQuiz(TOPICS, 0).map((q) => q.id);
+    const b = buildCourseQuiz(TOPICS, 1).map((q) => q.id);
+    expect(b).toHaveLength(10);
+    expect(b.filter((id) => a.includes(id)).length).toBeLessThan(a.length);
   });
 });
 

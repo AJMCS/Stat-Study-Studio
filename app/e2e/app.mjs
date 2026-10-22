@@ -245,13 +245,16 @@ await step("intro: plays once per session, resolves into Learn and Practice, and
   await c3.close();
 });
 
-await step("practice hub offers an exam and a quiz for the chosen topic", async () => {
+await step("practice hub: the exam and quiz are across the whole course; one topic's are under the topic picker", async () => {
   await go("/practice");
-  await page.click("button:has-text('Change topic')"); // the picker shows the chosen topic; the full list opens on request
-  await page.click("label.pick:has-text('Maximum Likelihood Estimation')");
   const exam = await page.locator("a:has-text('Start an exam')").getAttribute("href");
   const quiz = await page.locator("a:has-text('Take a quiz')").getAttribute("href");
-  if (!exam.endsWith(`/topic/${T}/exam`) || !quiz.endsWith(`/topic/${T}/quiz`)) throw new Error(`wrong links: ${exam} ${quiz}`);
+  if (!exam.endsWith("#/exam") || !quiz.endsWith("#/quiz")) throw new Error(`the main buttons must not be tied to a topic: ${exam} ${quiz}`);
+  await page.click("button:has-text('Change topic')"); // the picker shows the chosen topic; the full list opens on request
+  await page.click("label.pick:has-text('Maximum Likelihood Estimation')");
+  const topicExam = await page.locator("a:has-text('Exam on this topic')").getAttribute("href");
+  const topicQuiz = await page.locator("a:has-text('Quiz on this topic')").getAttribute("href");
+  if (!topicExam.endsWith(`/topic/${T}/exam`) || !topicQuiz.endsWith(`/topic/${T}/quiz`)) throw new Error(`wrong topic links: ${topicExam} ${topicQuiz}`);
   await shot("practice");
 });
 
@@ -697,6 +700,84 @@ await step("exam timed hides aids", async () => {
   await page.waitForSelector("[role=timer]");
   if (await page.locator("button:has-text('Hint')").count()) throw new Error("hint visible in timed exam");
   if (await page.locator("button:has-text('source material')").count()) throw new Error("source toggle visible in timed exam");
+});
+
+await step("exam across the course: one question from every topic, each named; scores count toward each topic; history names it", async () => {
+  const topics = 7; // the course has seven topics, so the paper has seven questions
+  const before = (await apiGet("state")).state; // put back afterwards: later steps count this topic's attempts
+  await go("/");
+  await go("/exam");
+  await page.waitForSelector("text=Across the course");
+  await page.waitForSelector("text=One question from every topic");
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector(`text=Question 1 of ${topics}`);
+  const first = await page.locator(".q-count .eyebrow").textContent();
+  if (!first.includes("Probability")) throw new Error("the first question should name its topic in the eyebrow: " + first);
+  await shot("exam-course");
+  const seen = new Set();
+  for (let i = 0; i < topics; i++) {
+    seen.add((await page.locator(".q-count .eyebrow").textContent()).split("·").at(-1).trim());
+    if (i < 2) await page.fill("textarea", "Set up the likelihood, differentiate the log, solve, check the second derivative.");
+    if (await page.locator("button:has-text('Submit and score')").count()) break;
+    await page.click("button:has-text('Next')");
+  }
+  if (seen.size !== topics) throw new Error(`expected ${topics} different topics, saw ${[...seen].join(" | ")}`);
+  await page.click("button:has-text('Submit and score')");
+  await page.waitForSelector("text=Score your");
+  await page.click("button:has-text('Finish and save')");
+  await page.waitForSelector("text=Exam across the");
+  await page.waitForSelector("text=Retake exam");
+  if (!(await page.locator("a:has-text('Retake exam')").getAttribute("href")).endsWith("#/exam")) throw new Error("retaking an exam across the course must not pick a topic");
+  await page.waitForTimeout(700);
+  const st = (await apiGet("state")).state;
+  const exam = st.exams[0];
+  if (exam.topicId !== "course" || exam.items.length !== topics || !exam.items.every((it) => it.topicId)) throw new Error("the record should be across the course with each question's topic: " + JSON.stringify({ topicId: exam.topicId, n: exam.items.length }));
+  const mine = st.attempts.filter((a) => a.kind === "exam" && a.note?.startsWith("Exam across the course"));
+  if (mine.length !== topics || new Set(mine.map((a) => a.topicId)).size !== topics) throw new Error(`expected one exam attempt per topic, got ${mine.length}`);
+  await go("/exams");
+  await page.waitForSelector("a:has-text('Across the course')");
+  await go("/practice");
+  await page.waitForSelector("table.results");
+  if ((await page.locator("table.results td:has-text('Across the course')").count()) > 0) throw new Error("recent scores should name the topic each question was on, not the course");
+  await putSlice("attempts", before.attempts);
+  await putSlice("exams", before.exams);
+  await page.reload(); // so the page's own copy of the state is the restored one, not what it would save next
+  await page.waitForTimeout(400);
+});
+
+await step("quiz across the course: ten questions with the topics taking turns, scores count toward each topic", async () => {
+  const before = (await apiGet("state")).state; // put back afterwards: later steps count this topic's attempts
+  await go("/");
+  await go("/quiz");
+  await page.waitForSelector("text=Across the course");
+  await page.waitForSelector("text=every topic");
+  await page.click("button:has-text('Start graded quiz')");
+  await page.waitForSelector("text=Question 1 of 10");
+  const topics = new Set();
+  for (let i = 0; i < 10; i++) {
+    topics.add((await page.locator(".eyebrow").first().textContent()).split("·").at(-1).trim());
+    if ((await page.locator("input[type=radio]").count()) > 0) await page.click("label.choice >> nth=0");
+    if (i < 9) await page.click("button:has-text('Next')");
+  }
+  if (topics.size < 5) throw new Error("the ten questions should come from several topics: " + [...topics].join(" | "));
+  await page.click("button:has-text('Review answers')");
+  await page.click("button:has-text('Submit quiz')");
+  if (await page.locator("button:has-text('Finish and save')").count()) {
+    // written answers were asked: rate them, then save
+    for (const r of await page.locator("input[type=radio][value='got']").all()) await r.check();
+    await page.click("button:has-text('Finish and save')");
+  }
+  await page.waitForSelector("text=Quiz summary");
+  await page.waitForSelector("text=Back to Practice");
+  await page.waitForTimeout(700);
+  const st = (await apiGet("state")).state;
+  if (st.quizzes[0].topicId !== "course") throw new Error("the quiz should be saved as across the course");
+  const mine = st.attempts.filter((a) => a.kind === "quiz" && a.counted && a.note?.includes("across the course"));
+  if (mine.length < 5 || new Set(mine.map((a) => a.topicId)).size !== mine.length) throw new Error(`expected one quiz attempt per topic drawn from, got ${mine.length}`);
+  await putSlice("attempts", before.attempts);
+  await putSlice("quizzes", before.quizzes);
+  await page.reload();
+  await page.waitForTimeout(400);
 });
 
 await step("citation preview dialog", async () => {
