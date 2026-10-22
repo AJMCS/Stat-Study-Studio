@@ -1,8 +1,8 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
-import { ServiceRejected, type ProviderId } from "../lib/api";
+import { api, ServiceRejected, type ProviderId } from "../lib/api";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { AiConnect, BLURB, SERVICE_UNREACHABLE } from "../components/AiConnect";
 import { useAi } from "../lib/ai";
@@ -20,6 +20,21 @@ function AiPanel() {
 
   const selected: ProviderId = choice ?? info?.provider ?? "gemini";
   useEffect(() => setError(""), [selected]);
+
+  // Ollama: the models already installed on this computer, read from Ollama itself, so the model is picked from a
+  // list rather than typed. `null` until the first answer; `running: false` when Ollama is not up.
+  const [local, setLocal] = useState<{ running: boolean; models: string[] } | null>(null);
+  const findModels = useCallback(async () => {
+    try {
+      setLocal(await api.aiLocalModels());
+    } catch {
+      setLocal({ running: false, models: [] });
+    }
+  }, []);
+  const localInUse = !!info?.connected && !!info.local && selected === info.provider;
+  useEffect(() => {
+    if (localInUse) void findModels();
+  }, [localInUse, findModels]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -88,15 +103,43 @@ function AiPanel() {
             {info.local ? "It runs on this computer, so nothing is sent over the internet." : `Your key is stored ${info.keyLocation === "os" ? "in this computer's secure credential store" : "in a private file on this computer"}.`}
             {tested && " The connection works."}
           </p>
-          <label className="field">
-            <span>Model</span>
-            <input aria-label="Model" placeholder={info.defaultModel} value={info.local || !info.defaultModel ? (model ?? info.model) : shownModel} onChange={(e) => setModel(e.target.value)} />
-          </label>
+          {info.local ? (
+            <div className="row model-row">
+              <label className="field grow">
+                <span>Model</span>
+                {/* the model in use is always listed, even before Ollama has answered, so the control never shows a blank */}
+                <select aria-label="Model" value={info.model} disabled={busy} onChange={(e) => void run(() => ai.setModel(e.target.value))}>
+                  {[info.model, ...(local?.models ?? []).filter((m) => m !== info.model)].map((m) => (
+                    <option key={m} value={m}>
+                      {m}
+                    </option>
+                  ))}
+                </select>
+              </label>
+              <button className="ghost" disabled={busy} onClick={() => void findModels()}>
+                Check again
+              </button>
+            </div>
+          ) : (
+            <label className="field">
+              <span>Model</span>
+              <input aria-label="Model" placeholder={info.defaultModel} value={!info.defaultModel ? (model ?? info.model) : shownModel} onChange={(e) => setModel(e.target.value)} />
+            </label>
+          )}
           {info.provider === "gemini" && <p className="muted">Leave blank to use {info.defaultModel}, which Google keeps pointing at its current fast model.</p>}
           {info.provider !== "gemini" && !info.local && <p className="muted">This model was chosen from the ones your account can use. Type another model name to change it.</p>}
-          {info.local && <p className="muted">Bigger models score more consistently; smaller ones answer faster. Install another with <code>ollama pull &lt;name&gt;</code>, then type its name here.</p>}
+          {info.local && local && !local.running && (
+            <p className="notice warn-box" role="status">
+              Ollama is not running, so the models installed on this computer could not be listed. Open the Ollama app (or run <code>ollama serve</code>), then check again.
+            </p>
+          )}
+          {info.local && (
+            <p className="muted">
+              The list is what Ollama has installed on this computer; choosing one takes effect right away. Bigger models score more consistently; smaller ones answer faster. Install another with <code>ollama pull &lt;name&gt;</code>, then check again.
+            </p>
+          )}
           <div className="row">
-            <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(info.local || !info.defaultModel ? (model ?? info.model) : shownModel))}>Save model</button>
+            {!info.local && <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(!info.defaultModel ? (model ?? info.model) : shownModel))}>Save model</button>}
             <button className="ghost" disabled={busy} onClick={() => void run(async () => { await ai.test(); setTested(true); })}>Test connection</button>
             <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect{info.local ? "" : " and forget my key"}</button>
           </div>

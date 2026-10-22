@@ -1440,6 +1440,16 @@ await step("ai: a model on this computer (Ollama) can be chosen, says nothing le
   await page.click("button:has-text('Connect')");
   await page.waitForSelector("text=Connected to Ollama");
   await page.waitForSelector("text=It runs on this computer");
+  // once connected, the model is still picked from what Ollama has installed, never typed; choosing one saves it at once
+  await page.waitForSelector("select[aria-label='Model'] option:has-text('llama3.2:latest')", { state: "attached" });
+  if ((await page.locator("input[aria-label='Model']").count()) > 0) throw new Error("the local model must be a list of installed models, not a typed field");
+  if ((await page.locator("button:has-text('Save model')").count()) > 0) throw new Error("a chosen local model saves itself; no Save button");
+  await page.selectOption("select[aria-label='Model']", "llama3.2:latest");
+  await page.waitForFunction(() => /llama3\.2:latest/.test((document.querySelector(".ai-chip")?.textContent ?? "").trim()));
+  if ((await apiGet("ai")).model !== "llama3.2:latest") throw new Error("choosing from the list did not save the model");
+  await shot("ai-ollama-model-list");
+  await page.selectOption("select[aria-label='Model']", "qwen2.5:7b");
+  await page.waitForFunction(() => /qwen2\.5:7b/.test((document.querySelector(".ai-chip")?.textContent ?? "").trim()));
   await fresh(`/topic/${T}`);
   await page.click("button:has-text('Try a recall')");
   await page.fill("textarea", WRITTEN);
