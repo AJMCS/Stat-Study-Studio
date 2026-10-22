@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import type { SourceRef } from "../types";
 import { api, type PageInfo, type PersonalPageInfo } from "../lib/api";
+import { readLink } from "../lib/reader";
 import { PageView } from "./PageView";
 import { PlainText } from "./PlainText";
 
@@ -166,6 +168,12 @@ export function SourcePreview({ s, onClose }: { s: SourceRef; onClose: () => voi
 
       <div className="row">
         <button onClick={openFile}>Open complete source file</button>
+        {/* the same page in the Reader, with the guide beside it to ask what it means */}
+        {(isShared || isPersonal) && !s.unavailable && readLink(s) && (
+          <Link className="button ghost" to={readLink(s)!} onClick={onClose}>
+            Read and ask about it
+          </Link>
+        )}
         <button className="ghost" onClick={onClose}>
           Close
         </button>

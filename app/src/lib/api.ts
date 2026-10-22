@@ -310,6 +310,20 @@ export interface AiInfo {
   noticeVersion: number;
 }
 
+/** One turn of "Ask about this page": the learner's question, or the guide's answer. */
+export interface AskTurn {
+  role: "learner" | "guide";
+  text: string;
+}
+
+export interface AskReply {
+  text: string;
+  /** The passages the answer rests on; the page in view comes first when the answer rests on it. */
+  sources: (SearchHit | PersonalHit)[];
+  /** The page the question was about, as the service read it. */
+  page: { title: string; page: number; pages: number; warning: string | null };
+}
+
 /** What "Test connection" found: the model answered a one-word request, and how long it took. */
 export interface AiTestResult {
   ok: boolean;
@@ -415,6 +429,9 @@ export const api = {
   /** `sections`: for an exam across the course, the topics to spread the questions over; each question then names its own. */
   aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[], sections?: string[]): Promise<{ questions: AiExamQuestion[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples, ...(sections ? { sections } : {}) }) })).json(),
+  /** A question about the page in view of a course document (`source`) or one of the learner's files (`fileId`). */
+  aiAsk: async (body: { question: string; source?: string; fileId?: string; page: number; history: AskTurn[] }): Promise<AskReply> =>
+    (await call("/api/ai/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(),
   aiTutor: async (topic: string, stage: TutorStage, history: TutorTurn[], focus = ""): Promise<TutorReply> =>
     (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history, focus }) })).json(),
   aiPath: async (ask: string, fileId: string | null, catalogue: CatalogueItem[]): Promise<AiPathProposal> =>

@@ -2136,3 +2136,22 @@ main h1 + p.lede + .step-wrap { margin-top: 0 !important; }
 .path-wrap .concepts { margin: 0 0 12px; }
 .path-wrap .row { margin: 16px 0 0; }
 .topic-actions { margin-top: 16px; }
+
+/* A document with the guide beside it (lecture notes, the reader): the page on the left, the conversation on the right. */
+.reader { display: grid; grid-template-columns: minmax(0, 3fr) minmax(300px, 2fr); gap: 32px; align-items: start; margin-top: 24px; }
+.reader-doc { min-width: 0; }
+.reader .pdf { margin: 0; }
+.pager { margin: 12px 0; }
+.page-field { max-width: 140px; margin: 0; }
+.page-text { max-height: 60vh; overflow: auto; border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 4px 16px; background: var(--canvas); }
+.ask { position: sticky; top: 24px; min-width: 0; }
+.ask-chat { max-height: 52vh; overflow: auto; margin: 12px 0; }
+.ask-chat .bubble { max-width: 100%; }
+.ask-form { display: flex; gap: 12px; align-items: flex-end; }
+.ask-form .field { margin: 0; }
+.ask-form textarea { width: 100%; resize: vertical; }
+.bubble.learner .eyebrow { color: inherit; opacity: 0.75; margin: 0 0 4px; }
+@media (max-width: 900px) {
+  .reader { grid-template-columns: 1fr; }
+  .ask { position: static; }
+}

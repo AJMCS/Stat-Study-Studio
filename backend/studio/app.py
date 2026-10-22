@@ -112,6 +112,21 @@ class ExamBody(BaseModel):
     sections: list[str] = Field(default_factory=list, max_length=12)
 
 
+class AskTurn(BaseModel):
+    role: str = Field(pattern="^(learner|guide)$")
+    text: str = Field(max_length=6000)
+
+
+class AskBody(BaseModel):
+    """A question about the page in view: of a shared course document (source) or of one of the learner's files (fileId)."""
+
+    question: str = Field(min_length=1, max_length=2000)
+    source: str | None = Field(default=None, max_length=300)
+    fileId: str | None = Field(default=None, max_length=64)
+    page: int = Field(default=1, ge=1)
+    history: list[AskTurn] = Field(default_factory=list, max_length=20)
+
+
 class ImproveBody(BaseModel):
     accept: bool
     scope: str = Field(default="flagged", pattern="^(flagged|all)$")
@@ -288,6 +303,89 @@ def create_app(
         )
         cited = [sources[i - 1] for i in turn.pop("cites")]
         return {**turn, "sources": cited}
+
+    @app.post("/api/ai/ask")
+    def ai_ask(body: AskBody) -> dict[str, Any]:
+        """A question about the page in view of a course document or one of the learner's files, answered by the
+        model in use from that page first and the course library second. The page in view is cited as a source like
+        any other, so the answer's chips open it."""
+        provider = ai().provider()
+        pages: PageStore = app.state.library.pages
+        before = after = ""
+        if body.source:
+            found = pages.get(body.source, body.page)
+            if found is None:
+                raise HTTPException(404, "That page is not in the course library")
+            title, total, text, warning = found.title, found.pages, found.text, found.warning
+            prev_page, next_page = pages.get(body.source, body.page - 1), pages.get(body.source, body.page + 1)
+            before, after = (prev_page.text if prev_page else ""), (next_page.text if next_page else "")
+            here: dict[str, Any] = {
+                "id": f"page:{body.source}:{body.page}",
+                "scope": "shared",
+                "source": body.source,
+                "title": title,
+                "page": body.page,
+                "heading": "",
+                "kind": found.kind,
+                "text": text[:600],
+                "score": 1.0,
+                "verified": found.verified,
+                "lowConfidence": False,
+                "highlight": None,
+                "warning": warning,
+            }
+        elif body.fileId:
+            found = app.state.personal.get_page(body.fileId, body.page)
+            if found is None:
+                raise HTTPException(404, "That page is not available")
+            # a learner's file goes to an online service only from a collection they allowed; a model on this computer may read any
+            if not ai().is_local:
+                row = db().read("SELECT c.consent AS consent FROM files f JOIN collections c ON c.id = f.collection_id WHERE f.id = ?", (body.fileId,))
+                if not row or not row[0]["consent"]:
+                    raise HTTPException(409, "This file's collection is not allowed to be sent to an online AI service. Allow it in Course materials, or use a model on this computer.")
+            title, total, text, warning = found["filename"], found["pages"], found["text"], found["warning"]
+            prev_page = app.state.personal.get_page(body.fileId, body.page - 1) if body.page > 1 else None
+            next_page = app.state.personal.get_page(body.fileId, body.page + 1)
+            before, after = (prev_page["text"] if prev_page else ""), (next_page["text"] if next_page else "")
+            here = {
+                "id": f"page:{body.fileId}:{body.page}",
+                "scope": "personal",
+                "fileId": body.fileId,
+                "collectionId": "",
+                "collection": found["collection"],
+                "filename": found["filename"],
+                "title": found["filename"],
+                "page": body.page,
+                "heading": "",
+                "text": text[:600],
+                "score": 1.0,
+                "version": found["version"],
+                "uploadedAt": found["uploadedAt"],
+                "ocr": found["method"] == "ocr",
+                "lowConfidence": found["lowConfidence"],
+                "warning": warning,
+                "highlight": None,
+            }
+        else:
+            raise HTTPException(422, "Say which document the question is about.")
+        sources = grounding(f"{body.question} {title}"[:500], shared=4, personal=2)
+        # the page in view is excerpt 1 already; the same page found again by the search is not repeated
+        sources = [h for h in sources if not ((h.get("source") == body.source or h.get("fileId") == body.fileId) and h.get("page") == body.page)]
+        excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
+        turn = tasks.ask_about_page(
+            provider,
+            question=body.question,
+            history=[(t.role, t.text) for t in body.history],
+            title=title,
+            page=body.page,
+            pages=total,
+            page_text=text,
+            excerpts=excerpts,
+            before=before,
+            after=after,
+        )
+        cited = [here if i == 1 else sources[i - 2] for i in turn.pop("cites")]
+        return {**turn, "sources": cited, "page": {"title": title, "page": body.page, "pages": total, "warning": warning}}
 
     @app.post("/api/ai/path")
     def ai_path(body: PathBody) -> dict[str, Any]:

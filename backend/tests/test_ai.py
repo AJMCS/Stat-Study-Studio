@@ -844,3 +844,76 @@ def test_the_connection_test_is_a_real_round_trip_that_reports_the_model_and_its
     assert t["ok"] is True and t["reply"] == "OK" and t["model"] and isinstance(t["ms"], int) and t["ms"] >= 0
     assert "Are you there?" in fake.requests[-1]["contents"][0]["parts"][0]["text"]
     assert r.json()["connected"] is True  # the usual status comes with it
+
+
+# ---------------------------------------------------------------- asking about a page
+LECTURE_5 = "lecture-notes/lecture-05-maximum-likelihood-estimation.pdf"
+
+
+def ask(client, question, **extra):
+    return client.post("/api/ai/ask", json={"question": question, "source": LECTURE_5, "page": 1, "history": [], **extra})
+
+
+def test_asking_about_a_page_answers_from_that_page_and_cites_it_first(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"reply": "That line defines the likelihood as a function of the parameter with the data held fixed.", "cites": [1, 2]})]
+    r = ask(client, "What does the second formula mean?")
+    assert r.status_code == 200, r.text
+    out = r.json()
+    assert out["text"].startswith("That line defines") and out["page"]["page"] == 1 and out["page"]["pages"] >= 1
+    # the page in view is the first source, as a chip that opens that very page
+    assert out["sources"][0]["scope"] == "shared" and out["sources"][0]["source"] == LECTURE_5 and out["sources"][0]["page"] == 1
+    sent = fake.requests[0]
+    system = sent["systemInstruction"]["parts"][0]["text"]
+    assert "[S1]" in system and "page 1 of" in system and "the page in view" in system
+    assert sent["contents"][-1]["parts"][0]["text"] == "What does the second formula mean?"
+
+
+def test_a_conversation_about_a_page_carries_its_earlier_turns(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"reply": "Because the data are fixed, it is a function of the parameter alone.", "cites": [1]})]
+    history = [{"role": "learner", "text": "What is L of theta?"}, {"role": "guide", "text": "The likelihood of the sample."}]
+    r = ask(client, "Why is it not a density?", history=history)
+    assert r.status_code == 200
+    contents = fake.requests[0]["contents"]
+    assert [c["role"] for c in contents] == ["user", "model", "user"]
+    assert contents[1]["parts"][0]["text"] == "The likelihood of the sample."
+
+
+def test_a_score_sheet_answer_about_a_page_is_sent_back_once(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"reply": "## Core idea\n- core: 90/100\n- depth: 80/100", "cites": [1]}), json.dumps({"reply": "It means the data are fixed.", "cites": [1]})]
+    r = ask(client, "What does this mean?")
+    assert r.status_code == 200 and r.json()["text"] == "It means the data are fixed." and len(fake.requests) == 2
+
+
+def test_asking_about_an_unknown_page_or_no_document_is_refused_plainly(client, fake):
+    connect(client)
+    assert ask(client, "Hello?", page=999).status_code == 404
+    assert client.post("/api/ai/ask", json={"question": "Hello?", "page": 1}).status_code == 422
+
+
+def test_asking_about_a_learners_file_needs_the_collections_permission_for_an_online_service(client, fake):
+    connect(client)
+    client.post("/api/uploads", files={"file": ("my-notes.txt", b"My note: the estimator of the likelihood is zebra-based.", "text/plain")}, data={"collectionId": "general"})
+    import time
+
+    file_id = None
+    for _ in range(50):
+        found = [f for f in client.get("/api/files").json() if f["filename"] == "my-notes.txt"]
+        if found:
+            file_id = found[0]["id"]
+            break
+        time.sleep(0.1)
+    time.sleep(1.0)
+    assert file_id
+    r = client.post("/api/ai/ask", json={"question": "What is zebra-based?", "fileId": file_id, "page": 1, "history": []})
+    assert r.status_code == 409 and "not allowed" in r.json()["detail"]
+    state = client.get("/api/state").json()["state"]
+    cols = [{**c, "consent": True} if c["id"] == "general" else c for c in state["collections"]]
+    assert client.put("/api/state/collections", json=cols).status_code in (200, 204)
+    fake.replies = [json.dumps({"reply": "Your note calls the estimator zebra-based.", "cites": [1]})]
+    r = client.post("/api/ai/ask", json={"question": "What is zebra-based?", "fileId": file_id, "page": 1, "history": []})
+    assert r.status_code == 200, r.text
+    assert "zebra-based" in fake.requests[-1]["systemInstruction"]["parts"][0]["text"]
+    assert r.json()["sources"][0]["scope"] == "personal" and r.json()["sources"][0]["fileId"] == file_id

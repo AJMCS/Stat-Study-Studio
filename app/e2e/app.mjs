@@ -1162,6 +1162,30 @@ await step("ai: Test connection makes a real request and says plainly that it wo
   await shot("ai-test-connection");
 });
 
+await step("ai: the lecture notes have the guide beside them; a question about the page in view is answered and cites that page", async () => {
+  await fresh("/notes");
+  await page.waitForSelector("section[aria-label='Ask about this page']");
+  await page.fill("input[aria-label='Page you are on']", "3");
+  await page.fill("textarea[aria-label='Your question about this page']", "What does the second formula mean?");
+  await page.click("button:has-text('Ask')");
+  await page.waitForSelector(".ask .bubble.tutor:has-text('treats the data as fixed')", { timeout: 15000 });
+  const sent = (await geminiLog()).at(-1);
+  const system = sent.systemInstruction.parts[0].text;
+  if (!system.includes("[S1]") || !system.includes("page 3 of")) throw new Error("the page in view should be the first excerpt: " + system.slice(0, 200));
+  await page.waitForSelector(".ask .bubble.tutor button.cite:has-text('L01 · p3')");
+  await shot("notes-ask");
+  // the chip opens that page, and from there the Reader shows the page as text with the guide beside it
+  await page.click(".ask .bubble.tutor button.cite:has-text('L01 · p3')");
+  await page.waitForSelector("dialog[open] >> text=page 3");
+  await page.click("dialog[open] a:has-text('Read and ask about it')");
+  await page.waitForURL(/#\/read\?source=.*page=3/);
+  await page.waitForSelector("[aria-label='Text of the page']");
+  await page.waitForSelector("section[aria-label='Ask about this page']");
+  await page.click("button:has-text('Next page')");
+  await page.waitForURL(/page=4/);
+  await shot("reader");
+});
+
 await step("ai: a recall with a drawing is scored on four criteria, with comments, the drawing goes with the text, and it is saved as AI-scored", async () => {
   await fresh(`/topic/${T}`);
   await page.click("button:has-text('Try a recall')");

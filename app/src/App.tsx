@@ -14,6 +14,7 @@ import { Glossary } from "./pages/Glossary";
 import { Quiz } from "./pages/Quiz";
 import { Exam } from "./pages/Exam";
 import { ExamHistory, ExamReview } from "./pages/ExamHistory";
+import { Reader } from "./pages/Reader";
 import { Progress } from "./pages/Progress";
 import { Materials } from "./pages/Materials";
 import { Notes } from "./pages/Notes";
@@ -96,7 +97,7 @@ function section(path: string): string {
   if (path.startsWith("/learn") || path.startsWith("/topic/") || path.startsWith("/paths")) return "learn";
   if (path.startsWith("/practice") || path.startsWith("/exams")) return "practice";
   if (path.startsWith("/progress")) return "progress";
-  if (path.startsWith("/library") || path.startsWith("/notes") || path.startsWith("/materials") || path.startsWith("/glossary")) return "library";
+  if (path.startsWith("/library") || path.startsWith("/notes") || path.startsWith("/materials") || path.startsWith("/glossary") || path.startsWith("/read")) return "library";
   if (path.startsWith("/settings")) return "settings";
   return "";
 }
@@ -128,7 +129,8 @@ function ThemeToggle() {
   );
 }
 
-const WIDE = new Set(["/", "/learn", "/practice", "/library", "/progress", "/exams"]);
+// /notes and /read show a document with the guide beside it, so they take the wide column
+const WIDE = new Set(["/", "/learn", "/practice", "/library", "/progress", "/exams", "/notes", "/read"]);
 const MID = new Set(["/settings"]);
 
 export function App() {
@@ -189,6 +191,7 @@ export function App() {
           <Route path="/progress" element={<Progress />} />
           <Route path="/materials" element={<Materials />} />
           <Route path="/notes" element={<Notes />} />
+          <Route path="/read" element={<Reader />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="*" element={<p>Page not found.</p>} />
         </Routes>

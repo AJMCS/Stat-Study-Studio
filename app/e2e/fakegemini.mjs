@@ -88,13 +88,20 @@ const pathScript = (body) => {
   });
 };
 
+// The study guide for "Ask about this page": answers about the page in view (excerpt 1) and names what it was asked.
+const askScript = (_body, lastUser) =>
+  JSON.stringify({
+    reply: `About "${lastUser.slice(0, 60)}": on this page the likelihood treats the data as fixed and the parameter as the variable, so it is not a density in $\\theta$.`,
+    cites: [1],
+  });
+
 const transcribeScript = () =>
   JSON.stringify({
     text: "Nebulous quokka identity: the posterior is proportional to the likelihood times the prior, $p(\\theta \\mid x) \\propto p(x \\mid \\theta)\\,p(\\theta)$.",
     unclear: ["a smudged subscript"],
   });
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript, "single word OK": () => "OK" }) {
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript, "single word OK": () => "OK", "study guide": askScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

@@ -9,6 +9,7 @@ import { ImproveWithAi } from "../components/ImproveWithAi";
 import { useAi } from "../lib/ai";
 import { megabytes, useLibrary } from "../lib/library";
 import { api, hitToSource, personalHitToSource, ServiceRejected, ServiceUnavailable, type UploadReport } from "../lib/api";
+import { readLink } from "../lib/reader";
 import type { PersonalFile, SourceRef } from "../types";
 
 const ACCEPTED = ".pdf,.docx,.txt,.png,.jpg,.jpeg,.tif,.tiff,.bmp,.webp";
@@ -249,7 +250,10 @@ export function Materials() {
                 <ol className="excerpts">
                   {results.sources.map((s) => (
                     <li key={s.id}>
-                      <p className="muted small">{s.title}{s.page ? ` · p. ${s.page}` : ""}</p>
+                      <p className="muted small">
+                        {s.title}{s.page ? ` · p. ${s.page}` : ""}
+                        {readLink(s) && <> · <Link to={readLink(s)!}>Read and ask</Link></>}
+                      </p>
                       {s.kind === "Shared" && s.excerpt ? <PageView text={s.excerpt} highlight={s.highlight} /> : <PlainText text={s.excerpt ?? ""} highlight={s.highlight} />}
                     </li>
                   ))}
@@ -388,6 +392,7 @@ export function Materials() {
                             Use automatic reading
                           </button>
                         )}
+                        <Link className="button ghost btn-sm" to={`/read?file=${encodeURIComponent(f.id)}&page=1`}>Read and ask</Link>
                         <button className="ghost btn-sm" onClick={() => { setReplacing(f); replaceInput.current?.click(); }}>Replace</button>
                         {confirmRemove === f.id ? (
                           <>
