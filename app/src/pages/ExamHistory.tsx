@@ -9,8 +9,8 @@ import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { PageView } from "../components/PageView";
 import { CRITERION_LABELS, type ExamRecord } from "../types";
 
-/** What an exam was on: its topic, or "Across the course". */
-const titleOf = (e: ExamRecord) => scopeTitle(e.topicId);
+/** What an exam was on: its topic, "Across the course", or a custom one named for its ask. */
+const titleOf = (e: ExamRecord) => (e.topicId === COURSE_ID && e.focus ? `Custom exam: ${e.focus}` : scopeTitle(e.topicId));
 /** Where to sit the same exam again. */
 const retakeLink = (e: ExamRecord) => (e.topicId === COURSE_ID ? "/exam" : `/topic/${e.topicId}/exam`);
 
@@ -95,7 +95,7 @@ export function ExamReview() {
     <>
       <p className="back"><Link to="/exams">← Exam history</Link></p>
       <Eyebrow>Exam review · attempt {e.attempt} · {new Date(e.at).toLocaleString()} · {e.timed ? "timed" : "untimed"}</Eyebrow>
-      <h1>{general ? <>Exam across the <Scribble>course</Scribble></> : <>{titleOf(e)} <Scribble>exam</Scribble></>}</h1>
+      <h1>{general && e.focus ? <>Custom <Scribble>exam</Scribble></> : general ? <>Exam across the <Scribble>course</Scribble></> : <>{titleOf(e)} <Scribble>exam</Scribble></>}</h1>
       {e.focus && <p className="muted">Focus: {e.focus}</p>}
       <ScoreBreakdown criteria={e.criteria} cfg={data.config} selfScored={e.selfScored && !e.aiScored} />
       <ol className="review-list">

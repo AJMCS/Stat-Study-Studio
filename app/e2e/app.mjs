@@ -780,6 +780,29 @@ await step("quiz across the course: ten questions with the topics taking turns, 
   await page.waitForTimeout(400);
 });
 
+await step("practice: a custom exam and a custom quiz around your own ask, chosen from the bank by your words", async () => {
+  await go("/practice");
+  await page.fill("input[aria-label='What do you want to be tested on?']", "likelihood edge case");
+  await page.click("button:has-text('Custom exam')");
+  await page.waitForURL(/#\/exam\?ask=likelihood/);
+  await page.waitForSelector("text=Your custom exam");
+  if ((await page.inputValue("label:has-text('What to be tested on') input")) !== "likelihood edge case") throw new Error("the ask should prefill what to be tested on");
+  await page.click("button:has-text('Start exam')");
+  await page.waitForSelector("text=that match your focus");
+  await page.waitForSelector("text=Custom exam: likelihood edge case");
+  await shot("exam-custom");
+  await go("/practice");
+  await page.fill("input[aria-label='What do you want to be tested on?']", "likelihood");
+  await page.click("button:has-text('Custom quiz')");
+  await page.waitForURL(/#\/quiz\?ask=likelihood/);
+  await page.waitForSelector("text=Your custom quiz");
+  await page.waitForSelector("text=match your ask");
+  await page.click("button:has-text('Start graded quiz')");
+  await page.waitForSelector("text=Question 1 of");
+  const eyebrow = await page.locator("p.eyebrow").first().textContent();
+  if (!eyebrow.includes("Custom quiz")) throw new Error("the quiz should say it is custom: " + eyebrow);
+});
+
 await step("citation preview dialog", async () => {
   await go(`/topic/${T}`);
   await page.click(".cite >> nth=0");
@@ -1184,6 +1207,20 @@ await step("ai: the lecture notes have the guide beside them; a question about t
   await page.click("button:has-text('Next page')");
   await page.waitForURL(/page=4/);
   await shot("reader");
+});
+
+await step("ai: a custom quiz is written around the ask, spread over the topics, and marked AI-written", async () => {
+  await fresh(`/quiz?ask=${encodeURIComponent("the MLE of a Poisson rate")}`);
+  await page.waitForSelector("text=Your custom quiz");
+  if (!(await page.isChecked("input[name=qsrc] >> nth=1"))) throw new Error("with an AI service, a custom quiz defaults to written questions");
+  await page.click("button:has-text('Start graded quiz')");
+  await page.waitForSelector("text=Question 1 of 10", { timeout: 15000 });
+  await page.waitForSelector(".panel.focal .chip:has-text('AI-written')");
+  const prompt = await page.locator(".panel.focal .prompt").textContent();
+  if (!prompt.includes("the MLE of a Poisson rate")) throw new Error("the ask should reach the model: " + prompt);
+  const eyebrow = await page.locator("p.eyebrow").first().textContent();
+  if (!eyebrow.includes("Probability")) throw new Error("each written question should carry its topic: " + eyebrow);
+  await shot("ai-quiz-custom");
 });
 
 await step("ai: a recall with a drawing is scored on four criteria, with comments, the drawing goes with the text, and it is saved as AI-scored", async () => {

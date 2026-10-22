@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from "react";
-import { Link, useNavigate, useParams } from "react-router-dom";
+import { Link, useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { sourceById } from "../mock/topics";
 import { COURSE_ID, examTitle, scopeFor, sectionTitle, selectExam, type DraftExam } from "../lib/exam";
 import { api, hitToSource, personalHitToSource, ServiceRejected } from "../lib/api";
@@ -24,11 +24,14 @@ const written = (a: PadValue | undefined) => !!a && (a.text.trim().length > 0 ||
 /** An exam on one topic (/topic/:id/exam) or, with no topic in the route (/exam), across every topic of the course. */
 export function Exam() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const scope = scopeFor(id);
+  /** /exam?ask=…: a custom exam around the learner's own words (the Practice page's "Your own ask"). */
+  const ask = scope?.general ? (params.get("ask") ?? "").trim().slice(0, 500) : "";
   const nav = useNavigate();
   const { data, saveExam, recordAttempt } = useStore();
   const [timed, setTimed] = useState(false);
-  const [focus, setFocus] = useState("");
+  const [focus, setFocus] = useState(ask);
   const [exam, setExam] = useState<DraftExam | null>(null);
   const [stage, setStage] = useState<"work" | "check">("work");
   const [answers, setAnswers] = useState<Record<string, PadValue>>({});
@@ -43,7 +46,8 @@ export function Exam() {
   const [aiRes, setAiRes] = useState<Record<string, AiScored>>({});
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
-  const [writeNew, setWriteNew] = useState(false);
+  // a custom ask is best served by questions written around it, when a service is there to write them
+  const [writeNew, setWriteNew] = useState(!!ask);
   const [count, setCount] = useState(4);
   const [genBusy, setGenBusy] = useState(false);
   const [genError, setGenError] = useState("");
@@ -70,6 +74,9 @@ export function Exam() {
 
   if (!scope) return <p>Topic not found.</p>;
   const general = scope.general;
+  const custom = general && !!ask;
+  /** What this paper is called in titles: a topic's exam, the course's, or a custom one around the ask. */
+  const label = custom ? "Custom exam" : examTitle(scope);
   const back = general ? (
     <p className="back"><Link to="/practice">← Practice</Link></p>
   ) : (
@@ -81,6 +88,11 @@ export function Exam() {
   const begin = (d: DraftExam) => {
     setExam(d);
     setLeft(d.questions.length * SECONDS_PER_QUESTION);
+  };
+  /** The paper from the question bank; a custom one is named for the ask whether or not a question matched it. */
+  const fromBank = () => {
+    const d = selectExam(scope, focus, rotation);
+    begin(custom ? { ...d, title: `Custom exam: ${focus.trim() || ask}` } : d);
   };
 
   /** Ask the AI service for new questions around the focus. If that fails nothing is lost: the question bank is one click away. */
@@ -119,7 +131,7 @@ export function Exam() {
           ...(topicId ? { topicId } : {}),
         };
       });
-      begin({ title: `${examTitle(scope)} (AI-written${focus.trim() ? `: ${focus.trim()}` : ""})`, questions, focusMatched: null, sources });
+      begin({ title: `${label} (AI-written${focus.trim() ? `: ${focus.trim()}` : ""})`, questions, focusMatched: null, sources });
     } catch (e) {
       setGenError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service to write the questions.");
     } finally {
@@ -133,10 +145,10 @@ export function Exam() {
     return (
       <>
         {back}
-        <Eyebrow>Exam · {scope.unit}</Eyebrow>
-        <h1><KeyTitle text={scope.title} /></h1>
+        <Eyebrow>Exam · {custom ? "your own ask" : scope.unit}</Eyebrow>
+        <h1><KeyTitle text={custom ? "Your custom exam" : scope.title} /></h1>
         <p className="lede">
-          {general && "One question from every topic, like the real paper. "}
+          {custom ? "Around what you asked to be tested on. " : general && "One question from every topic, like the real paper. "}
           Write complete, multi-step solutions: set up the problem, justify your choices, and show the work. When you finish, you compare with a full reference solution and score yourself.
         </p>
         <fieldset className="panel">
@@ -145,8 +157,8 @@ export function Exam() {
           <label className="choice"><input type="radio" name="mode" checked={timed} onChange={() => setTimed(true)} /> <span>Timed: no in-exam aids; moves to scoring when time runs out</span></label>
         </fieldset>
         <label className="field">
-          <span>Focus (optional)</span>
-          <input value={focus} onChange={(e) => setFocus(e.target.value)} placeholder="e.g. edge cases, bias, or the posterior mean" />
+          <span>{custom ? "What to be tested on" : "Focus (optional)"}</span>
+          <input value={focus} onChange={(e) => setFocus(e.target.value)} maxLength={500} placeholder="e.g. edge cases, bias, or the posterior mean" />
         </label>
         {ai.connected ? (
           <fieldset className="panel">
@@ -170,10 +182,10 @@ export function Exam() {
         )}
         {genError && <p className="notice warn-box" role="alert">{genError}</p>}
         <div className="row">
-          <button onClick={() => (ai.connected && writeNew ? void generate() : begin(selectExam(scope, focus, rotation)))} disabled={genBusy}>
+          <button onClick={() => (ai.connected && writeNew ? void generate() : fromBank())} disabled={genBusy}>
             {genBusy ? "Writing your exam…" : genError ? "Try again" : ai.connected && writeNew ? "Write my exam" : "Start exam"}
           </button>
-          {genError && <button className="ghost" onClick={() => begin(selectExam(scope, focus, rotation))}>Use the question bank instead</button>}
+          {genError && <button className="ghost" onClick={fromBank}>Use the question bank instead</button>}
           {!genError && <Note dir="left" className="focal-note">untimed is fine for a first go</Note>}
         </div>
       </>
@@ -263,7 +275,9 @@ export function Exam() {
         selfScored: s.selfScored,
         aiScored: s.aiScored,
         criteria: s.criteria,
-        note: general ? `Exam across the course, attempt ${record.attempt}: ${g.set.length} question${g.set.length === 1 ? "" : "s"} on this topic (${how})` : `Exam attempt ${record.attempt} (${how})`,
+        note: general
+          ? `${custom ? `Custom exam ("${focus.trim() || ask}")` : "Exam across the course"}, attempt ${record.attempt}: ${g.set.length} question${g.set.length === 1 ? "" : "s"} on this topic (${how})`
+          : `Exam attempt ${record.attempt} (${how})`,
       });
     }
     nav(`/exams/${record.id}`);
@@ -277,7 +291,7 @@ export function Exam() {
     const unscored = answered.filter((q) => !aiRes[q.id]).length;
     return (
       <>
-        <Eyebrow>Exam · {scope.title} · {answered.length} of {exam.questions.length} answered</Eyebrow>
+        <Eyebrow>Exam · {custom ? "Custom" : scope.title} · {answered.length} of {exam.questions.length} answered</Eyebrow>
         <h1>Score your <Scribble>exam</Scribble></h1>
         <p className="lede">
           Compare each answer with the reference solution, then tick the key points your work covered. This is scored by you, so be honest: it is what shows you where to study next.
@@ -333,7 +347,7 @@ export function Exam() {
 
   return (
     <>
-      <Eyebrow>{timed ? "Timed exam" : "Exam"} · {scope.title}</Eyebrow>
+      <Eyebrow>{timed ? "Timed exam" : "Exam"} · {custom ? "Custom" : scope.title}</Eyebrow>
       <h1><KeyTitle text={exam.title} /></h1>
       {exam.focusMatched === true && <p className="muted">Chose the {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"} that match your focus.</p>}
       {exam.focusMatched === false && <p className="notice warn-box" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}

@@ -112,6 +112,14 @@ class ExamBody(BaseModel):
     sections: list[str] = Field(default_factory=list, max_length=12)
 
 
+class QuizBody(BaseModel):
+    """A quiz written around what the learner asks to be tested on; `sections` spreads it over the course's topics."""
+
+    ask: str = Field(min_length=1, max_length=500)
+    count: int = Field(default=10, ge=3, le=12)
+    sections: list[str] = Field(default_factory=list, max_length=12)
+
+
 class AskTurn(BaseModel):
     role: str = Field(pattern="^(learner|guide)$")
     text: str = Field(max_length=6000)
@@ -303,6 +311,18 @@ def create_app(
         )
         cited = [sources[i - 1] for i in turn.pop("cites")]
         return {**turn, "sources": cited}
+
+    @app.post("/api/ai/quiz")
+    def ai_quiz(body: QuizBody) -> dict[str, Any]:
+        """Write quiz questions around what the learner asks to be tested on, grounded in course pages. Each question
+        carries the sources it relied on and, when sections were given, the one it is on."""
+        provider = ai().provider()
+        sources = grounding(body.ask[:500], shared=5, personal=3)
+        excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
+        questions = tasks.generate_quiz(provider, ask=body.ask, count=body.count, excerpts=excerpts, sections=[s[:200] for s in body.sections])
+        for q in questions:
+            q["sources"] = [sources[i - 1] for i in q.pop("cites")]
+        return {"questions": questions, "model": getattr(provider, "model", "")}
 
     @app.post("/api/ai/ask")
     def ai_ask(body: AskBody) -> dict[str, Any]:

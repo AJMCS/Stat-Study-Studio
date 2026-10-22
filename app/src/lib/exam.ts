@@ -1,5 +1,5 @@
 import { TOPICS, topicById } from "../mock/topics";
-import type { ExamQuestion, SourceRef, Topic } from "../types";
+import type { ExamQuestion, QuizQuestion, SourceRef, Topic } from "../types";
 
 /** The id an exam or quiz across every topic is saved under. No topic has it. */
 export const COURSE_ID = "course";
@@ -80,4 +80,25 @@ export function selectExam(scope: Scope, focus: string, rotation = 0): DraftExam
   if (scored.length === 0) return { title, questions: paper, focusMatched: false };
   const chosen = scored.map((r) => r.q);
   return { title: `${title}: ${focus.trim()}`, questions: scope.general ? chosen.slice(0, COURSE_EXAM_MAX) : chosen, focusMatched: true };
+}
+
+/**
+ * A custom quiz without a model: the authored quiz questions across every topic whose concept, wording or
+ * explanation matches what the learner asks to be tested on, best matches first, at most `max`, each carrying its
+ * topic. Empty when nothing matches, so the caller can say so and fall back.
+ */
+export function selectQuiz(topics: Topic[], ask: string, max = 10): QuizQuestion[] {
+  const wanted = terms(ask);
+  if (wanted.size === 0) return [];
+  return topics
+    .flatMap((t) =>
+      t.quiz.map((q) => {
+        const have = terms(`${q.concept} ${q.prompt} ${q.explanation}`);
+        return { q: { ...q, topicId: t.id }, hits: [...wanted].filter((w) => have.has(w)).length };
+      }),
+    )
+    .filter((r) => r.hits > 0)
+    .sort((a, b) => b.hits - a.hits)
+    .slice(0, max)
+    .map((r) => r.q);
 }

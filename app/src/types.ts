@@ -101,6 +101,8 @@ export interface QuizQuestion {
   concept: string;
   /** In a quiz across the course: the section this question came from, so its score counts toward that section. */
   topicId?: string;
+  /** Written by an AI service around the learner's own ask, not authored; its explanation can contain mistakes. */
+  aiWritten?: boolean;
 }
 
 export interface ExamQuestion {
@@ -159,6 +161,8 @@ export interface QuizResult {
     aiFeedback?: CriterionFeedback[];
     /** In a quiz across the course: the section the question came from. */
     topicId?: string;
+    /** The question was written by an AI service for this quiz. */
+    aiWritten?: boolean;
   }[];
   flaggedConcepts: string[];
   selfScored?: boolean;

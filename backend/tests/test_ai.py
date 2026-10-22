@@ -917,3 +917,44 @@ def test_asking_about_a_learners_file_needs_the_collections_permission_for_an_on
     assert r.status_code == 200, r.text
     assert "zebra-based" in fake.requests[-1]["systemInstruction"]["parts"][0]["text"]
     assert r.json()["sources"][0]["scope"] == "personal" and r.json()["sources"][0]["fileId"] == file_id
+
+
+# ---------------------------------------------------------------- quiz generation (a custom quiz)
+def mc(n=1, **extra):
+    return {"kind": "mc", "prompt": f"Which is maximized in case {n}?", "choices": ["The prior", "The likelihood", "n", "The loss"], "answer": 1, "explanation": "The MLE maximizes the likelihood.", "concept": "MLE", "cites": [1], **extra}
+
+
+def open_q(n=1, **extra):
+    return {"kind": "open", "prompt": f"Explain case {n}.", "explanation": "The data are held fixed.", "concept": "Likelihood", "cites": [1], **extra}
+
+
+def test_a_custom_quiz_is_written_around_the_ask_with_sections_and_sources(client, fake):
+    connect(client)
+    sections = ["Posterior Distribution", "Maximum Likelihood Estimation"]
+    fake.replies = [json.dumps({"questions": [mc(1, section="2"), open_q(2, section="posterior distribution"), mc(3, section="elsewhere", answer="0")]})]
+    r = client.post("/api/ai/quiz", json={"ask": "the MLE of a Poisson rate and conjugate priors", "count": 3, "sections": sections})
+    assert r.status_code == 200, r.text
+    qs = r.json()["questions"]
+    assert [q["kind"] for q in qs] == ["mc", "open", "mc"]
+    assert [q["section"] for q in qs] == ["Maximum Likelihood Estimation", "Posterior Distribution", ""]
+    assert qs[0]["choices"][qs[0]["answer"]] == "The likelihood" and qs[2]["answer"] == 0 and "choices" not in qs[1]
+    assert qs[0]["sources"] and qs[0]["sources"][0]["scope"] == "shared"
+    sent = fake.requests[0]["contents"][0]["parts"][0]["text"]
+    assert "the MLE of a Poisson rate" in sent and "1. Posterior Distribution" in sent and "Number of questions: 3" in sent
+
+
+def test_a_broken_multiple_choice_question_sends_the_quiz_back_once(client, fake):
+    connect(client)
+    bad = mc(1)
+    bad["answer"] = 9
+    fake.replies = [json.dumps({"questions": [bad, open_q(2), mc(3)]}), json.dumps({"questions": [mc(1), open_q(2), mc(3)]})]
+    r = client.post("/api/ai/quiz", json={"ask": "likelihood", "count": 3})
+    assert r.status_code == 200 and len(r.json()["questions"]) == 3 and len(fake.requests) == 2
+    assert "index of the right one" in fake.requests[1]["contents"][-1]["parts"][0]["text"]
+
+
+def test_a_custom_quiz_has_limits_and_needs_a_connection(client, fake):
+    assert client.post("/api/ai/quiz", json={"ask": "likelihood", "count": 5}).status_code == 409
+    connect(client)
+    assert client.post("/api/ai/quiz", json={"ask": "", "count": 5}).status_code == 422
+    assert client.post("/api/ai/quiz", json={"ask": "likelihood", "count": 50}).status_code == 422

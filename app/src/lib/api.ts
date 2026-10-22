@@ -310,6 +310,21 @@ export interface AiInfo {
   noticeVersion: number;
 }
 
+/** A quiz question written by the AI service around the learner's own ask. */
+export interface AiQuizQuestion {
+  kind: "mc" | "open";
+  prompt: string;
+  choices?: string[];
+  /** The index of the right choice, for "mc". */
+  answer?: number;
+  /** Why the right choice is right ("mc"), or the reference answer ("open"). */
+  explanation: string;
+  concept: string;
+  /** Which of the topics given as `sections` the question is on ("" when unsure). */
+  section?: string;
+  sources: (SearchHit | PersonalHit)[];
+}
+
 /** One turn of "Ask about this page": the learner's question, or the guide's answer. */
 export interface AskTurn {
   role: "learner" | "guide";
@@ -429,6 +444,9 @@ export const api = {
   /** `sections`: for an exam across the course, the topics to spread the questions over; each question then names its own. */
   aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[], sections?: string[]): Promise<{ questions: AiExamQuestion[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples, ...(sections ? { sections } : {}) }) })).json(),
+  /** Quiz questions written around what the learner asks to be tested on; `sections` spreads them over the course's topics. */
+  aiQuiz: async (ask: string, count: number, sections?: string[]): Promise<{ questions: AiQuizQuestion[] }> =>
+    (await call("/api/ai/quiz", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ask, count, ...(sections ? { sections } : {}) }) })).json(),
   /** A question about the page in view of a course document (`source`) or one of the learner's files (`fileId`). */
   aiAsk: async (body: { question: string; source?: string; fileId?: string; page: number; history: AskTurn[] }): Promise<AskReply> =>
     (await call("/api/ai/ask", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(body) })).json(),

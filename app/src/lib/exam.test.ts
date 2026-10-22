@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { COURSE_EXAM_MAX, COURSE_ID, COURSE_TITLE, scopeFor, scopeTitle, selectExam } from "./exam";
+import { COURSE_EXAM_MAX, COURSE_ID, COURSE_TITLE, scopeFor, scopeTitle, selectExam, selectQuiz } from "./exam";
 import { buildCourseQuiz } from "../mock/quiz";
 import { TOPICS, topicById } from "../mock/topics";
 import { analyticsAttempts, applyRecall, selfScore, uniformCriteria } from "./scoring";
@@ -82,6 +82,21 @@ describe("a quiz across the course", () => {
     const b = buildCourseQuiz(TOPICS, 1).map((q) => q.id);
     expect(b).toHaveLength(10);
     expect(b.filter((id) => a.includes(id)).length).toBeLessThan(a.length);
+  });
+});
+
+describe("a custom quiz from the bank", () => {
+  it("chooses the authored questions that match the ask, across topics, each carrying its topic", () => {
+    const qs = selectQuiz(TOPICS, "the likelihood and its maximum");
+    expect(qs.length).toBeGreaterThan(1);
+    expect(qs.length).toBeLessThanOrEqual(10);
+    expect(qs.every((q) => !!q.topicId && topicById(q.topicId!)!.quiz.some((b) => b.id === q.id))).toBe(true);
+    expect(new Set(qs.map((q) => q.topicId)).size).toBeGreaterThan(1);
+  });
+
+  it("is empty when nothing matches, so the caller can say so", () => {
+    expect(selectQuiz(TOPICS, "chocolate cake recipes")).toEqual([]);
+    expect(selectQuiz(TOPICS, "   ")).toEqual([]);
   });
 });
 

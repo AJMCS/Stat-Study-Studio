@@ -2155,3 +2155,8 @@ main h1 + p.lede + .step-wrap { margin-top: 0 !important; }
   .reader { grid-template-columns: 1fr; }
   .ask { position: static; }
 }
+
+/* Practice: the row for a custom exam or quiz around the learner's own ask, flat like the one-topic row above it. */
+.ask-row { margin-top: 40px; }
+.ask-row .field { max-width: 640px; margin-top: 16px; }
+.ask-row .muted.small { margin: 8px 0 0; }

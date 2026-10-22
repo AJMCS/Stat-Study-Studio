@@ -1,8 +1,9 @@
 import { useMemo, useState } from "react";
-import { Link, useParams } from "react-router-dom";
+import { Link, useParams, useSearchParams } from "react-router-dom";
 import { sourceById } from "../mock/topics";
 import { buildCourseQuiz, buildQuiz } from "../mock/quiz";
-import { COURSE_ID, scopeFor, sectionTitle } from "../lib/exam";
+import { COURSE_ID, scopeFor, sectionTitle, selectQuiz } from "../lib/exam";
+import { api, ServiceRejected } from "../lib/api";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
@@ -72,14 +73,40 @@ function criteriaOf(items: QuizResult["items"]): { criteria: CriterionScores; se
   return { criteria, selfScored, aiScored };
 }
 
-/** A quiz on one topic (/topic/:id/quiz) or, with no topic in the route (/quiz), across every topic of the course. */
+const WRITTEN_COUNT = 10;
+
+/**
+ * A quiz on one topic (/topic/:id/quiz), across every topic of the course (/quiz), or around the learner's own ask
+ * (/quiz?ask=…): bank questions that match the ask, or ten written by the AI service around it.
+ */
 export function Quiz() {
   const { id } = useParams();
+  const [params] = useSearchParams();
   const scope = scopeFor(id);
+  /** The Practice page's "Your own ask": only a quiz across the course can be custom. */
+  const ask = scope?.general ? (params.get("ask") ?? "").trim().slice(0, 500) : "";
+  const custom = !!ask;
   const { data, recordAttempt, saveQuiz } = useStore();
+  const ai = useAi();
   /** Across the course: how many such quizzes came before, so each sitting moves on to every topic's next questions. */
   const [rotation] = useState(() => data.quizzes.filter((q) => q.topicId === COURSE_ID).length);
-  const questions = useMemo(() => (scope ? (scope.general ? buildCourseQuiz(scope.topics, rotation) : buildQuiz(scope.topics[0])) : []), [scope?.id, rotation]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** From the bank: a topic's ten, the course's ten, or the ones matching the ask (the course's ten when none do). */
+  const bank = useMemo((): { questions: QuizQuestion[]; matched: boolean | null } => {
+    if (!scope) return { questions: [], matched: null };
+    if (!scope.general) return { questions: buildQuiz(scope.topics[0]), matched: null };
+    if (custom) {
+      const found = selectQuiz(scope.topics, ask);
+      return found.length ? { questions: found, matched: true } : { questions: buildCourseQuiz(scope.topics, rotation), matched: false };
+    }
+    return { questions: buildCourseQuiz(scope.topics, rotation), matched: null };
+  }, [scope?.id, rotation, ask]); // eslint-disable-line react-hooks/exhaustive-deps
+  /** Written by the AI service around the ask, once the learner chose that and started. */
+  const [written, setWritten] = useState<QuizQuestion[] | null>(null);
+  // a custom ask is best served by questions written around it, when a service is there to write them
+  const [writeNew, setWriteNew] = useState(custom);
+  const [genBusy, setGenBusy] = useState(false);
+  const [genError, setGenError] = useState("");
+  const questions = written ?? bank.questions;
   const [mode, setMode] = useState<Mode | null>(null);
   const [i, setI] = useState(0);
   const [answers, setAnswers] = useState<Record<string, Answer>>({});
@@ -96,7 +123,6 @@ export function Quiz() {
   const [pending, setPending] = useState<Record<string, Rating | null>>({});
   const [result, setResult] = useState<QuizResult | null>(null);
   const [summary, setSummary] = useState<{ criteria: CriterionScores; selfScored: boolean; aiScored: boolean } | null>(null);
-  const ai = useAi();
   const [aiBusy, setAiBusy] = useState(false);
   /** Why AI scoring failed, per question (practice) or "all" (graded submit). The learner's answers are untouched. */
   const [aiError, setAiError] = useState<Record<string, string>>({});
@@ -106,6 +132,8 @@ export function Quiz() {
   if (!scope) return <p>Topic not found.</p>;
   const general = scope.general;
   const cfg = data.config;
+  /** What this quiz is called in eyebrows: a topic's, the course's, or a custom one. */
+  const label = custom ? "Custom quiz" : scope.title;
   const back = general ? (
     <p className="back"><Link to="/practice">← Practice</Link></p>
   ) : (
@@ -114,21 +142,80 @@ export function Quiz() {
   /** The topic a question is scored against: its own, in a quiz across the course. */
   const topicOf = (qq: QuizQuestion) => sectionTitle(qq.topicId) || scope.title;
 
+  /** Ask the AI service for questions around the ask. If that fails nothing is lost: the bank's are one click away. */
+  const generate = async (): Promise<boolean> => {
+    setGenBusy(true);
+    setGenError("");
+    try {
+      const res = await api.aiQuiz(ask, WRITTEN_COUNT, scope.topics.map((t) => t.title));
+      setWritten(
+        res.questions.map((q, n) => {
+          const topicId = scope.topics.find((t) => t.title === q.section)?.id;
+          return {
+            id: `ai-${uid()}-${n}`,
+            kind: q.kind,
+            prompt: q.prompt,
+            ...(q.kind === "mc" ? { choices: q.choices, answer: q.answer } : {}),
+            explanation: q.explanation,
+            concept: q.concept,
+            aiWritten: true,
+            ...(topicId ? { topicId } : {}),
+          };
+        }),
+      );
+      return true;
+    } catch (e) {
+      setGenError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service to write the questions.");
+      return false;
+    } finally {
+      setGenBusy(false);
+    }
+  };
+
+  /** Begin in a mode; a custom quiz to be written is written first. */
+  const start = async (m: Mode) => {
+    if (custom && ai.connected && writeNew && !written && !(await generate())) return;
+    setMode(m);
+  };
+
   if (!mode) {
     return (
       <>
         {back}
-        <Eyebrow>Quiz · {questions.length} questions{general && " · every topic"}</Eyebrow>
-        <h1><KeyTitle text={scope.title} /></h1>
-        <p className="lede">{general ? "Ten questions drawn from every topic, one question at a time. " : "One question at a time. "}Choose how you want feedback.</p>
+        <Eyebrow>Quiz · {questions.length} questions{custom ? " · your own ask" : general ? " · every topic" : ""}</Eyebrow>
+        <h1><KeyTitle text={custom ? "Your custom quiz" : scope.title} /></h1>
+        <p className="lede">
+          {custom ? `Around what you asked to be tested on: "${ask}". ` : general ? "Ten questions drawn from every topic, one question at a time. " : "One question at a time. "}
+          Choose how you want feedback.
+        </p>
+        {custom && ai.connected && (
+          <fieldset className="panel">
+            <legend>Questions</legend>
+            <label className="choice">
+              <input type="radio" name="qsrc" checked={!writeNew} onChange={() => setWriteNew(false)} />{" "}
+              <span>From the question bank ({bank.matched ? `${bank.questions.length} match your ask` : "none match your ask, so the quiz across the course"})</span>
+            </label>
+            <label className="choice">
+              <input type="radio" name="qsrc" checked={writeNew} onChange={() => setWriteNew(true)} />{" "}
+              <span>Written for me by your AI service around my ask ({WRITTEN_COUNT} questions, marked AI-written; they can contain mistakes)</span>
+            </label>
+          </fieldset>
+        )}
+        {custom && !ai.connected && (
+          <p className="muted" role="status">
+            {bank.matched ? `${bank.questions.length} bank question${bank.questions.length === 1 ? "" : "s"} match your ask.` : "No bank question matches your ask, so this is the quiz across the course."} Connect an AI service in Settings to have questions written around it.
+          </p>
+        )}
+        {genError && <p className="notice warn-box" role="alert">{genError} <button className="link" onClick={() => setWriteNew(false)}>Use the question bank instead</button></p>}
+        {genBusy && <p className="muted" role="status">Writing your quiz…</p>}
         <Annotated block note="graded counts toward progress; practice tells you as you go">
         <div className="grid two">
-          <button className="card focal" onClick={() => setMode("graded")}>
+          <button className="card focal" disabled={genBusy} onClick={() => void start("graded")}>
             <h3>Graded quiz</h3>
             <p>Move Back and Next, change answers freely, review, then submit. Feedback arrives after you submit.</p>
             <span className="card-go">Start graded quiz →</span>
           </button>
-          <button className="card" onClick={() => setMode("practice")}>
+          <button className="card" disabled={genBusy} onClick={() => void start("practice")}>
             <h3>Low-stakes practice</h3>
             <p>Feedback right after each response. Your first response is what counts toward progress and is then locked; retries are saved separately.</p>
             <span className="card-go">Start practice →</span>
@@ -260,6 +347,7 @@ export function Quiz() {
         unanswered: !isAnswered,
         selfScored: o.selfScored,
         ...(qq.topicId ? { topicId: qq.topicId } : {}),
+        ...(qq.aiWritten ? { aiWritten: true } : {}),
         ...(o.ai && isAnswered ? { aiScored: true, criteria: o.ai.criteria, aiFeedback: o.ai.feedback } : {}),
       };
     });
@@ -274,6 +362,7 @@ export function Quiz() {
     const groups = general
       ? [...new Set(items.map((it) => it.topicId).filter((t): t is string => !!t))].map((topicId) => ({ topicId, items: items.filter((it) => it.topicId === topicId) }))
       : [{ topicId: scope.id, items }];
+    const what = custom ? `custom quiz ("${ask}")` : "quiz across the course";
     for (const g of groups) {
       const s = criteriaOf(g.items);
       const how = s.selfScored ? " (self-scored)" : s.aiScored ? " (AI-scored)" : "";
@@ -284,7 +373,7 @@ export function Quiz() {
         selfScored: s.selfScored,
         aiScored: s.aiScored,
         criteria: s.criteria,
-        note: general ? `${mode} quiz across the course: ${g.items.length} question${g.items.length === 1 ? "" : "s"} on this topic${how}` : `${mode} quiz${how}`,
+        note: general ? `${mode} ${what}: ${g.items.length} question${g.items.length === 1 ? "" : "s"} on this topic${how}` : `${mode} quiz${how}`,
       });
     }
     retryScores.forEach((r) =>
@@ -304,7 +393,7 @@ export function Quiz() {
   if (result) {
     return (
       <>
-        <Eyebrow>Quiz · {scope.title}</Eyebrow>
+        <Eyebrow>Quiz · {label}</Eyebrow>
         <h1>Quiz <Scribble voice={false}>summary</Scribble></h1>
         <p className="eyebrow">{"// Score "}{result.score} / {result.total}</p>
         {summary && <ScoreBreakdown criteria={summary.criteria} cfg={cfg} selfScored={summary.selfScored} marked={!summary.selfScored && !summary.aiScored} />}
@@ -318,7 +407,7 @@ export function Quiz() {
             return (
               <li key={it.questionId}>
                 {general && it.topicId && <p className="eyebrow">{"// "}{sectionTitle(it.topicId)}</p>}
-                <p><RichText text={it.prompt} /></p>
+                <p><RichText text={it.prompt} />{it.aiWritten && <span className="chip">AI-written</span>}</p>
                 <p className={it.correct ? "ok-text" : "bad-text"}>
                   {it.unanswered ? "Unanswered" : it.correct ? "Correct" : "Partial credit"}
                   {!it.unanswered && !it.correct && <span className="chip">{Math.round((it.partial ?? 0) * 100)}%</span>}
@@ -412,11 +501,12 @@ export function Quiz() {
   return (
     <>
       {back}
-      <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {scope.title}{section && ` · ${section}`}</Eyebrow>
+      <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {label}{section && ` · ${section}`}</Eyebrow>
       <h1 className="h-mono">Question {i + 1} of {questions.length}</h1>
       <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
       <section className="panel focal">
-        <p className="prompt"><RichText text={q.prompt} /></p>
+        <p className="prompt"><RichText text={q.prompt} />{q.aiWritten && <span className="chip">AI-written</span>}</p>
+        {q.aiWritten && <p className="muted small">Written by your AI service for this quiz. If its explanation disagrees with the lecture notes, trust the notes.</p>}
         {q.kind === "mc" ? (
           <fieldset disabled={locked}>
             <legend className="sr-only">Choices</legend>

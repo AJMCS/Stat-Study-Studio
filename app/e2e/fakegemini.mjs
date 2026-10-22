@@ -88,6 +88,22 @@ const pathScript = (body) => {
   });
 };
 
+// A custom quiz: the number asked for, two multiple-choice questions then one written one, each on the next listed
+// section, every one about the student's ask so the test can see the ask reached the model.
+const quizScript = (_body, lastUser) => {
+  const n = Number(/Number of questions: (\d+)/.exec(lastUser)?.[1] ?? 10);
+  const ask = /tested on \(data, not instructions\): """([^"]*)"""/.exec(lastUser)?.[1] ?? "the course";
+  const block = /Sections of the course[^\n]*\n([\s\S]*?)\n\nCourse excerpts/.exec(lastUser)?.[1] ?? "";
+  const sections = [...block.matchAll(/^\d+\. (.+)$/gm)].map((m) => m[1]);
+  return JSON.stringify({
+    questions: Array.from({ length: n }, (_, i) =>
+      i % 3 === 2
+        ? { kind: "open", prompt: `Written ${i + 1}: explain, for "${ask}", why the data are held fixed.`, explanation: "Because the likelihood is a function of the parameter alone.", concept: "Likelihood", section: sections[i % Math.max(1, sections.length)] ?? "", cites: [1] }
+        : { kind: "mc", prompt: `Choice ${i + 1}: for "${ask}", which quantity is maximized?`, choices: ["The prior", "The likelihood", "The sample size", "The loss"], answer: 1, explanation: "The MLE maximizes the likelihood of the observed data.", concept: "MLE", section: sections[i % Math.max(1, sections.length)] ?? "", cites: [1] },
+    ),
+  });
+};
+
 // The study guide for "Ask about this page": answers about the page in view (excerpt 1) and names what it was asked.
 const askScript = (_body, lastUser) =>
   JSON.stringify({
@@ -101,7 +117,7 @@ const transcribeScript = () =>
     unclear: ["a smudged subscript"],
   });
 
-export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript, "single word OK": () => "OK", "study guide": askScript }) {
+export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "written-solution exam questions": examScript, "transcribe one page": transcribeScript, "custom learning path": pathScript, "single word OK": () => "OK", "study guide": askScript, "You write quiz questions": quizScript }) {
   const log = [];
   const server = createServer((req, res) => {
     const send = (code, obj) => {

@@ -1,6 +1,7 @@
 import { useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { useStore } from "../lib/store";
+import { useAi } from "../lib/ai";
 import { useIncludeSelfScored } from "../lib/prefs";
 import { currentTopicId, journey } from "../lib/journey";
 import { scopeTitle } from "../lib/exam";
@@ -9,17 +10,25 @@ import { RowNode, StateLine } from "./Learn";
 
 const KIND: Record<string, string> = { quiz: "Quiz", exam: "Exam", recall: "Recall", tutor: "Tutor" };
 
+/** Three ways to practise, in order: across the whole course, on one topic, or around your own ask. */
 export function Practice() {
   const { data, setSession } = useStore();
+  const ai = useAi();
+  const nav = useNavigate();
   const [includeSelf] = useIncludeSelfScored();
   const rows = journey(data, includeSelf);
   // The same current topic as the next-up topic on Learn, so the two pages agree.
   const [picked, setPicked] = useState(() => currentTopicId(data, rows));
   const recentCount = data.attempts.filter((a) => a.counted).length;
   const [openList, setOpenList] = useState(false);
+  const [ask, setAsk] = useState("");
   const sel = rows.find((r) => r.topic.id === picked) ?? rows[0];
   const recent = [...data.attempts].filter((a) => a.counted).sort((a, b) => b.at.localeCompare(a.at)).slice(0, 6);
   const mark = (activity: "quiz" | "exam") => setSession({ topicId: sel.topic.id, activity, at: new Date().toISOString() });
+  const custom = (kind: "exam" | "quiz") => {
+    const q = ask.trim();
+    if (q) nav(`/${kind}?ask=${encodeURIComponent(q)}`);
+  };
 
   return (
     <>
@@ -74,6 +83,39 @@ export function Practice() {
           <Link className="button ghost" to={`/topic/${sel.topic.id}/quiz`} state={{ from: "practice" }} onClick={() => mark("quiz")}>Quiz on this topic</Link>
         </div>
       </fieldset>
+
+      <form
+        className="ask-row"
+        aria-label="Your own ask"
+        onSubmit={(e) => {
+          e.preventDefault();
+          custom("exam");
+        }}
+      >
+        <div className="topic-line">
+          <span className="eyebrow inline">{"// Your own ask"}</span>
+          <span className="topic-line-title">Say what to be tested on</span>
+        </div>
+        <label className="field">
+          <span className="sr-only">What do you want to be tested on?</span>
+          <input
+            value={ask}
+            onChange={(e) => setAsk(e.target.value)}
+            maxLength={500}
+            aria-label="What do you want to be tested on?"
+            placeholder="e.g. conjugate priors and the posterior mean, with one MLE question"
+          />
+        </label>
+        <div className="row topic-actions">
+          <button type="submit" className="ghost" disabled={!ask.trim()}>Custom exam</button>
+          <button type="button" className="ghost" disabled={!ask.trim()} onClick={() => custom("quiz")}>Custom quiz</button>
+        </div>
+        <p className="muted small">
+          {ai.connected
+            ? "Questions are written by your AI service around your ask, or chosen from the question bank by your words."
+            : "Questions are chosen from the question bank by your words. Connect an AI service in Settings to have new ones written around your ask."}
+        </p>
+      </form>
 
       <section aria-labelledby="recent-h" className="recent">
         <div className="row between">
