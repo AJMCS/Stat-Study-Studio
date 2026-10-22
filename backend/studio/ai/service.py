@@ -19,7 +19,7 @@ from .openai_provider import OpenAI
 from .provider import Provider
 
 # Bump when a notice changes in a way that matters; everyone is then asked again.
-CONSENT_VERSION = 1  # the notice names drawings as well as typed text; the pad says so at the point of use, so no re-consent
+CONSENT_VERSION = 2  # 2: the notice names the pad's drawings as well as typed text
 
 NOTICE = {
     "gemini": (
