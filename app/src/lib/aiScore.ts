@@ -8,6 +8,8 @@ export interface AiScored {
   composite: number;
   /** What a tutor would say first, in plain sentences; the criteria are the score sheet beneath it. */
   note: string;
+  /** The model could not read the pad's drawing, so only the typed text was scored. */
+  drawingIgnored: boolean;
 }
 
 /** Ask the connected AI service to score one written answer on the four criteria. */
@@ -19,6 +21,7 @@ export async function aiScore(req: AiScoreRequest, cfg: ScoringConfig): Promise<
     composite: composite(criteria, cfg),
     feedback: res.feedback.map((f) => ({ criterion: f.criterion, score: f.score, why: CRITERION_WHY[f.criterion], comment: f.feedback, suggestion: f.suggestion })),
     note: res.note ?? "",
+    drawingIgnored: res.drawingIgnored ?? false,
   };
 }
 

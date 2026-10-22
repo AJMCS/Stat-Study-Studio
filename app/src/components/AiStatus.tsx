@@ -8,8 +8,9 @@ const WHERE: Record<ProviderId, string> = { gemini: "Google", anthropic: "Anthro
 /**
  * The small chip fixed in the bottom corner that says which model the AI features use right now ("AI · nemotron",
  * or "AI · off"; where it runs is in the tooltip and the menu's header), and opens a menu of the saved services so
- * the learner can switch between them without going to Settings. It also asks a local model to warm up whenever a topic is opened, so the first question does not
- * wait for the model to load, and shows "loading" until it is ready.
+ * the learner can switch between them without going to Settings. It also asks a local model to warm up whenever a topic
+ * or a custom path is opened, so the first question does not wait for the model to load, and shows "loading" until it is
+ * ready.
  */
 export function AiStatus() {
   const ai = useAi();
@@ -21,9 +22,10 @@ export function AiStatus() {
   const local = !!info?.connected && info.local;
   const warmState = info?.warm?.state;
 
-  // A topic page (tutorial, checks, breakdown, quiz, exam, tutor) is where the AI gets used: load the local model now.
+  // A topic page (tutorial, checks, breakdown, quiz, exam, tutor) and the custom-path pages (building one, following
+  // one) are where the AI gets used: load the local model now.
   useEffect(() => {
-    if (local && pathname.startsWith("/topic/")) void ai.warm();
+    if (local && (pathname.startsWith("/topic/") || pathname.startsWith("/paths/"))) void ai.warm();
   }, [local, pathname, ai]);
 
   // While the local model loads, poll until it reports ready (or failed), so the chip's "loading" goes away.

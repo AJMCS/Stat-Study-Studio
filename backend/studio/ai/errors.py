@@ -10,6 +10,9 @@ MESSAGES = {
     "offline": (503, "Could not reach the AI service. Check your internet connection, then retry."),
     "blocked": (422, "The AI service declined to answer that request. Try rewording it."),
     "bad_response": (502, "The AI service sent back something unreadable. Retrying usually fixes this."),
+    "path_unusable": (502, "The model could not build a usable path from that ({detail}). Try again, or say more precisely what you want to be able to do."),
+    # The model was sent a picture (a drawing from the pad, a photo of homework) and said it cannot take one.
+    "image_unsupported": (422, "This model can't read images. Choose a model that can in Settings, or use typed text only."),
     "rejected": (502, "The AI service rejected the app's request, so retrying will not help. It said: {detail}"),
     "local_not_running": (503, "Ollama is not running on this computer. Open the Ollama app (or run 'ollama serve'), then retry."),
     "model_missing": (404, "That model is not available. For Ollama, install it first (ollama pull <model name>). For an online service, pick a model name your account can use."),

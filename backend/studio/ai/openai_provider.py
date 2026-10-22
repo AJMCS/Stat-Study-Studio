@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 
 import httpx
 
@@ -74,6 +75,11 @@ def _message(m: Message) -> dict:
     return {"role": m.role, "content": [*content, {"type": "text", "text": m.text}]}
 
 
+def _image_error(detail: str) -> bool:
+    """The service refused the request because of the picture in it (a drawing, a page photo)."""
+    return bool(re.search(r"image|vision", detail, re.IGNORECASE))
+
+
 def _from_status(r: httpx.Response) -> AiError:
     detail, code_name = "", ""
     try:
@@ -92,4 +98,6 @@ def _from_status(r: httpx.Response) -> AiError:
         return AiError("model_missing", detail)
     if code >= 500:
         return AiError("server", detail)
+    if 400 <= code < 500 and _image_error(detail):
+        return AiError("image_unsupported", detail)
     return AiError("bad_response", f"{code} {detail}")

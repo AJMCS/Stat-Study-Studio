@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { sourceById, topicById } from "../mock/topics";
 import { buildQuiz } from "../mock/quiz";
 import { uid, useStore } from "../lib/store";
-import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
+import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
@@ -148,7 +148,7 @@ export function Quiz() {
     setAiBusy(true);
     setAiError((m) => ({ ...m, [q.id]: "" }));
     try {
-      const r = await aiScore({ topic: topic.title, question: q.prompt, answer: padToText(ans.pad), reference: q.explanation, stage: "conceptual" }, cfg);
+      const r = await aiScore({ topic: topic.title, question: q.prompt, ...padForAi(ans.pad), reference: q.explanation, stage: "conceptual" }, cfg);
       const o = outcomeFromAi(q, r, cfg.compositeCutoff);
       if (target === "first") {
         setFirst((m) => ({ ...m, [q.id]: o }));
@@ -197,7 +197,7 @@ export function Quiz() {
       for (const qq of todo) {
         if (done[qq.id]) continue;
         try {
-          done[qq.id] = outcomeFromAi(qq, await aiScore({ topic: topic.title, question: qq.prompt, answer: padToText(answers[qq.id].pad), reference: qq.explanation, stage: "conceptual" }, cfg), cfg.compositeCutoff);
+          done[qq.id] = outcomeFromAi(qq, await aiScore({ topic: topic.title, question: qq.prompt, ...padForAi(answers[qq.id].pad), reference: qq.explanation, stage: "conceptual" }, cfg), cfg.compositeCutoff);
         } catch (e) {
           failure = aiFailure(e);
           break;
@@ -422,7 +422,7 @@ export function Quiz() {
                   {rf.selfScored && <span className="chip">Self-scored</span>}
                   {rf.ai && <span className="chip">AI-scored</span>}
                 </p>
-                {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} note={rf.ai.note} />}
+                {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} note={rf.ai.note} drawingIgnored={rf.ai.drawingIgnored} />}
                 <p><RichText text={rf.feedback} /></p>
                 <p className="muted">
                   First response: {f.correct ? "correct" : f.credit > 0 ? "partly right" : "needs work"}. It is locked and is what counts; a retry does not change your first-attempt score.
@@ -435,7 +435,7 @@ export function Quiz() {
                   {f.selfScored && <span className="chip">Self-scored</span>}
                   {f.ai && <span className="chip">AI-scored</span>}
                 </p>
-                {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} note={f.ai.note} />}
+                {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} note={f.ai.note} drawingIgnored={f.ai.drawingIgnored} />}
                 <p><RichText text={f.feedback} /></p>
               </>
             )}

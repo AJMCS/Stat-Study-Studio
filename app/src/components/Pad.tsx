@@ -177,5 +177,8 @@ export function Pad({
 }
 
 export const emptyPad = (): PadValue => ({ text: "", drawing: null });
+/** The pad for an AI request: the typed text and, when there is one, the drawing itself (a PNG data URL). */
+export const padForAi = (v: PadValue): { answer: string; drawing?: string } => (v.drawing ? { answer: v.text, drawing: v.drawing } : { answer: v.text });
+/** The pad as text, for records and self-checks, where the drawing itself does not travel: a note stands in for it. */
 export const padToText = (v: PadValue) => v.text + (v.drawing ? " [drawing attached]" : "");
 export { Tex };

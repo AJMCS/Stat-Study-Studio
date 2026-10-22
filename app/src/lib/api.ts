@@ -314,6 +314,8 @@ export interface AiScoreRequest {
   topic: string;
   question: string;
   answer: string;
+  /** The drawing pad's PNG as a data URL: part of the answer, sent with the typed text. */
+  drawing?: string;
   reference?: string;
   keyPoints?: string[];
   stage?: "conceptual" | "formal";
@@ -324,10 +326,19 @@ export interface AiScoreResponse {
   feedback: { criterion: "core" | "depth" | "relevance" | "application"; score: number; feedback: string; suggestion: string }[];
   /** What a tutor would say about this answer, in a few plain sentences; "" when the model gave none. */
   note: string;
+  /** True when the model could not read the drawing, so only the typed text was scored. */
+  drawingIgnored?: boolean;
   model: string;
 }
 
 export type TutorStage = "probe" | "diagnose" | "plan" | "build" | "bridge" | "done";
+
+export interface TutorTurn {
+  role: "tutor" | "learner";
+  text: string;
+  /** The pad's drawing (a PNG data URL) that goes with the learner's latest message. */
+  drawing?: string;
+}
 
 export interface TutorReply {
   text: string;
@@ -338,6 +349,8 @@ export interface TutorReply {
   gaps: string[];
   /** The course pages (or allowed personal excerpts) the reply relied on. */
   sources: (SearchHit | PersonalHit)[];
+  /** True when the model could not read the drawing sent with the message, so only the typed text was read. */
+  drawingIgnored?: boolean;
 }
 
 /** One activity the app can offer as a path step, as sent to the model (built by lib/paths.ts). */
@@ -391,7 +404,7 @@ export const api = {
   },
   aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[]): Promise<{ questions: AiExamQuestion[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples }) })).json(),
-  aiTutor: async (topic: string, stage: TutorStage, history: { role: "tutor" | "learner"; text: string }[], focus = ""): Promise<TutorReply> =>
+  aiTutor: async (topic: string, stage: TutorStage, history: TutorTurn[], focus = ""): Promise<TutorReply> =>
     (await call("/api/ai/tutor", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, stage, history, focus }) })).json(),
   aiPath: async (ask: string, fileId: string | null, catalogue: CatalogueItem[]): Promise<AiPathProposal> =>
     (await call("/api/ai/path", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ask, fileId, catalogue }) })).json(),

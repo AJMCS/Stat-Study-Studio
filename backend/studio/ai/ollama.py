@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 from urllib.parse import urlparse
 
 import httpx
@@ -13,6 +14,14 @@ BASE = "http://127.0.0.1:11434"
 # How long Ollama keeps the model in memory after a request. Its default is five minutes, which is shorter than a
 # study session, so the learner would pay the load time again after every pause.
 KEEP_ALIVE = "30m"
+# The context window asked for: Ollama's own default (2048) would silently cut the start off a long prompt such as the
+# path builder's catalogue, so it is sized to the request, between these bounds. Tokens are estimated at 3.5
+# characters each, plus room for the reply.
+MIN_CTX, MAX_CTX = 8192, 32768
+REPLY_TOKENS = 2048
+CHARS_PER_TOKEN = 3.5
+# A text-only model that is sent a picture answers an error that mentions images (or vision).
+_IMAGE_ERROR = re.compile(r"image|vision", re.IGNORECASE)
 
 
 def local_base(value: str | None = None) -> str:
@@ -22,6 +31,17 @@ def local_base(value: str | None = None) -> str:
     if host not in ("127.0.0.1", "localhost", "::1"):
         raise ValueError("Ollama must be running on this computer (127.0.0.1 or localhost).")
     return base
+
+
+def context_size(system: str, messages: list[Message]) -> int:
+    """The num_ctx for a request: the prompt's estimated tokens plus the reply, rounded up to a power of two and kept
+    between MIN_CTX and MAX_CTX. Short prompts keep MIN_CTX."""
+    chars = len(system) + sum(len(m.text) for m in messages)
+    need = chars / CHARS_PER_TOKEN + REPLY_TOKENS
+    size = MIN_CTX
+    while size < need and size < MAX_CTX:
+        size *= 2
+    return size
 
 
 def _message(m: Message) -> dict:
@@ -53,6 +73,8 @@ class Ollama:
             raise AiError("offline", str(e)) from e
         if r.status_code == 404:
             raise AiError("model_missing", r.text[:200])
+        if r.status_code >= 400 and _IMAGE_ERROR.search(r.text):
+            raise AiError("image_unsupported", r.text[:200])
         if r.status_code >= 400:
             raise AiError("server", f"{r.status_code} {r.text[:200]}")
         try:
@@ -80,8 +102,7 @@ class Ollama:
             "model": self.model,
             "stream": False,
             "messages": [{"role": "system", "content": system}, *(_message(m) for m in messages)],
-            # The default context window is small and would silently cut off the course excerpts.
-            "options": {"temperature": temperature, "num_ctx": 8192},
+            "options": {"temperature": temperature, "num_ctx": context_size(system, messages)},
             "keep_alive": KEEP_ALIVE,
         }
         if json_output:

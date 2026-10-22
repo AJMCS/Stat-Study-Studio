@@ -77,7 +77,7 @@ def test_deleting_all_data_also_disconnects(client):
 
 def test_an_old_notice_version_asks_again(client, monkeypatch):
     connect(client)
-    monkeypatch.setattr("studio.ai.service.CONSENT_VERSION", 2)
+    monkeypatch.setattr("studio.ai.service.CONSENT_VERSION", 99)
     s = client.get("/api/ai").json()
     assert s["connected"] is False and s["consented"] is False and s["keyStored"] is True
 
@@ -692,3 +692,123 @@ def test_a_tutor_reply_shaped_like_a_score_sheet_is_sent_back_for_a_rewrite(clie
     # ordinary conversation, including a percentage inside statistics, is not mistaken for a score sheet
     fake.replies = [reply("diagnose", "Good. If 95% of the intervals cover the parameter, what does that say about one interval?")]
     assert tutor(client, OPEN).json()["text"].startswith("Good. If 95%")
+
+
+# ---------------------------------------------------------------- the drawing pad's drawing goes with the answer
+import base64  # noqa: E402
+import io  # noqa: E402
+
+from PIL import Image, ImageDraw  # noqa: E402
+
+
+def drawing_png(width=200, height=100):
+    """What the pad saves: ink on a transparent PNG, as a data URL. One diagonal line from corner to corner."""
+    im = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    ImageDraw.Draw(im).line((10, 10, width - 10, height - 10), fill=(13, 15, 20, 255), width=4)
+    buf = io.BytesIO()
+    im.save(buf, "PNG")
+    return "data:image/png;base64," + base64.b64encode(buf.getvalue()).decode()
+
+
+def text_of(request):
+    return "".join(p.get("text", "") for p in request["contents"][-1]["parts"])
+
+
+def pictures_of(request):
+    return [p["inlineData"] for p in request["contents"][-1]["parts"] if "inlineData" in p]
+
+
+def test_a_recall_scored_with_a_drawing_sends_the_picture_flattened_on_white_with_the_text(client, fake):
+    connect(client)
+    fake.replies = [json.dumps(GOOD)]
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "drawing": drawing_png(2400, 600)})
+    assert r.status_code == 200, r.text
+    assert r.json()["criteria"]["core"] == 90 and r.json()["drawingIgnored"] is False
+    pictures = pictures_of(fake.requests[0])
+    assert len(pictures) == 1 and pictures[0]["mimeType"] == "image/png"
+    im = Image.open(io.BytesIO(base64.b64decode(pictures[0]["data"])))
+    assert im.mode == "RGB" and (im.width, im.height) == (1200, 300)  # at most 1200 wide
+    assert im.getpixel((0, 0)) == (255, 255, 255) and im.getpixel((600, 150))[0] < 200  # white where the pad was clear; ink where the line was
+    text = text_of(fake.requests[0])
+    assert "It combines prior and likelihood." in text and "handwritten work" in text and "part of their answer" in text
+    assert "drawing pad" in fake.requests[0]["systemInstruction"]["parts"][0]["text"]
+    # without a drawing nothing about one is said, and no picture goes
+    fake.requests.clear()
+    assert client.post("/api/ai/score", json=SCORE_BODY).json()["drawingIgnored"] is False
+    assert pictures_of(fake.requests[0]) == [] and "handwritten" not in text_of(fake.requests[0])
+
+
+def test_a_drawing_only_answer_is_scored_as_an_answer(client, fake):
+    connect(client)
+    fake.replies = [json.dumps(GOOD)]
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "answer": "   ", "drawing": drawing_png()})
+    assert r.status_code == 200 and r.json()["criteria"]["core"] == 90 and len(fake.requests) == 1
+    assert "nothing typed; the answer is in the attached drawing" in text_of(fake.requests[0]) and len(pictures_of(fake.requests[0])) == 1
+
+
+def test_a_drawing_that_is_not_an_image_is_refused_plainly_and_a_huge_one_too(client, fake):
+    connect(client)
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "drawing": "data:image/png;base64,AAAA"})
+    assert r.status_code == 422 and "drawing" in r.json()["detail"].lower()
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "drawing": "A" * 6_000_001})
+    assert r.status_code == 422
+    assert fake.requests == []
+
+
+def test_claude_gets_the_drawing_as_an_image_block_before_the_text(client, claude):
+    connect_with(client, "anthropic")
+    claude.replies = [json.dumps(GOOD)]
+    assert client.post("/api/ai/score", json={**SCORE_BODY, "drawing": drawing_png()}).status_code == 200
+    content = claude.requests[0]["messages"][0]["content"]
+    assert isinstance(content, list) and content[0]["type"] == "image" and content[0]["source"]["media_type"] == "image/png"
+    assert content[1]["type"] == "text" and "combines prior" in content[1]["text"] and "handwritten work" in content[1]["text"]
+
+
+def test_a_local_model_that_cannot_read_images_scores_the_text_alone_and_says_so(client, ollama):
+    connect_local(client)
+    ollama.reject_images = True
+    ollama.replies = [json.dumps(GOOD)]
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "drawing": drawing_png()})
+    assert r.status_code == 200, r.text
+    assert r.json()["drawingIgnored"] is True and r.json()["criteria"]["core"] == 90
+    assert len(ollama.requests) == 2  # once with the picture, then once more with the typed text only
+    assert ollama.requests[0]["messages"][-1]["images"] and "images" not in ollama.requests[1]["messages"][-1]
+    assert "handwritten" in ollama.requests[0]["messages"][-1]["content"] and "handwritten" not in ollama.requests[1]["messages"][-1]["content"]
+    # a drawing with nothing typed leaves nothing to score, and the feedback says why
+    ollama.requests.clear()
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "answer": "", "drawing": drawing_png()})
+    assert r.status_code == 200 and r.json()["drawingIgnored"] is True and set(r.json()["criteria"].values()) == {0}
+    assert len(ollama.requests) == 1 and "can't read drawings" in r.json()["feedback"][0]["feedback"]
+    # a model that reads images is asked once
+    ollama.reject_images = False
+    ollama.requests.clear()
+    r = client.post("/api/ai/score", json={**SCORE_BODY, "drawing": drawing_png()})
+    assert r.json()["drawingIgnored"] is False and len(ollama.requests) == 1 and ollama.requests[0]["messages"][-1]["images"]
+
+
+def test_the_tutor_turn_carries_the_drawing_with_the_learner_s_latest_message_only(client, fake):
+    connect(client)
+    fake.replies = [reply("diagnose", "I see your sketch.")]
+    history = [OPEN[0], {**OPEN[1], "drawing": drawing_png()}]
+    r = client.post("/api/ai/tutor", json={"topic": "Maximum Likelihood Estimation", "stage": "probe", "history": history})
+    assert r.status_code == 200, r.text
+    assert r.json()["drawingIgnored"] is False and "sketch" in r.json()["text"]
+    last = fake.requests[0]["contents"][-1]
+    assert last["role"] == "user" and len(pictures_of(fake.requests[0])) == 1
+    assert "It picks the parameter" in text_of(fake.requests[0]) and "drawing pad is attached" in text_of(fake.requests[0])
+    assert "drawing pad" in fake.requests[0]["systemInstruction"]["parts"][0]["text"]
+    # an earlier message's drawing is not sent again
+    fake.requests.clear()
+    fake.replies = [reply("diagnose")]
+    later = [*history, {"role": "tutor", "text": "Go on."}, {"role": "learner", "text": "It maximizes the likelihood."}]
+    r = client.post("/api/ai/tutor", json={"topic": "Maximum Likelihood Estimation", "stage": "diagnose", "history": later})
+    assert r.status_code == 200 and not any("inlineData" in p for c in fake.requests[0]["contents"] for p in c["parts"])
+
+
+def test_the_tutor_says_when_a_local_model_could_not_read_the_drawing(client, ollama):
+    connect_local(client)
+    ollama.reject_images = True
+    ollama.replies = [reply("diagnose")]
+    r = client.post("/api/ai/tutor", json={"topic": "Maximum Likelihood Estimation", "stage": "probe", "history": [OPEN[0], {**OPEN[1], "drawing": drawing_png()}]})
+    assert r.status_code == 200 and r.json()["drawingIgnored"] is True and len(ollama.requests) == 2
+    assert "images" not in ollama.requests[1]["messages"][-1] and "It picks the parameter" in ollama.requests[1]["messages"][-1]["content"]

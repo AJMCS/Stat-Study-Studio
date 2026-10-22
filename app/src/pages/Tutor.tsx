@@ -5,10 +5,10 @@ import { topicById } from "../mock/topics";
 import { api, hitToSource, personalHitToSource, ServiceRejected, type TutorStage } from "../lib/api";
 import { Citations } from "../components/Citation";
 import { useStore } from "../lib/store";
-import { Pad, emptyPad, padToText } from "../components/Pad";
+import { Pad, emptyPad } from "../components/Pad";
 import { RichText } from "../components/Math";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
-import { ScoreBreakdown } from "../components/Score";
+import { DrawingIgnored, ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
 import { CRITERIA, CRITERION_LABELS, type ChatMessage, type CriterionScores, type SourceRef } from "../types";
 
@@ -25,6 +25,8 @@ function usePathFocus() {
 
 interface Msg extends ChatMessage {
   sources?: SourceRef[];
+  /** The tutor's reply came back without reading the drawing sent with the message: this model cannot take pictures. */
+  drawingIgnored?: boolean;
 }
 
 function TutorChat() {
@@ -53,16 +55,17 @@ function TutorChat() {
 
   if (!topic) return <p>Topic not found.</p>;
 
-  /** Send the conversation so far plus the learner's new message. Nothing changes on screen unless the reply arrives,
-   * so a failure never loses what the learner wrote. */
-  const ask = async (learnerText: string, shown: string, from: TutorStage, clearPad: boolean) => {
+  /** Send the conversation so far plus the learner's new message (and the pad's drawing with it, when there is one).
+   * Nothing changes on screen unless the reply arrives, so a failure never loses what the learner wrote. */
+  const ask = async (learnerText: string, shown: string, from: TutorStage, clearPad: boolean, drawing: string | null = null) => {
     setBusy(true);
     setError("");
     const sent: Msg = { role: "learner", text: shown };
     try {
-      const turn = await api.aiTutor(topic.title, from, [...msgs, sent].map((m) => ({ role: m.role, text: m === sent ? learnerText : m.text })), focus);
+      const history = [...msgs, sent].map((m) => (m === sent ? { role: m.role, text: learnerText, ...(drawing ? { drawing } : {}) } : { role: m.role, text: m.text }));
+      const turn = await api.aiTutor(topic.title, from, history, focus);
       const sources = turn.sources.map((h) => (h.scope === "shared" ? hitToSource(h) : personalHitToSource(h)));
-      setMsgs((m) => [...m, sent, { role: "tutor", text: turn.text, sources }]);
+      setMsgs((m) => [...m, sent, { role: "tutor", text: turn.text, sources, ...(turn.drawingIgnored ? { drawingIgnored: true } : {}) }]);
       if (clearPad) setPad(emptyPad());
       setStage(turn.stage);
       setPlan(turn.plan);
@@ -89,9 +92,9 @@ function TutorChat() {
   };
 
   const send = () => {
-    const text = padToText(pad).trim();
-    if (!text || busy) return;
-    void ask(text, pad.text + (pad.drawing ? "\n[drawing attached; only the typed text is sent]" : ""), stage, true);
+    const text = pad.text.trim();
+    if ((!text && !pad.drawing) || busy) return;
+    void ask(text, pad.text + (pad.drawing ? "\n[drawing attached]" : ""), stage, true, pad.drawing);
   };
 
   const acceptPlan = () => void ask(adjust.trim() ? `Please adjust the plan: ${adjust.trim()}` : "That plan works for me. Let's start.", adjust.trim() ? `Adjustment: ${adjust.trim()}` : "Plan accepted", "plan", false);
@@ -119,6 +122,7 @@ function TutorChat() {
             <b className="sr-only">{m.role === "tutor" ? "Tutor: " : "You: "}</b>
             <RichText text={m.text} />
             {m.sources && m.sources.length > 0 && <Citations sources={m.sources} />}
+            {m.drawingIgnored && <DrawingIgnored did="read" />}
           </div>
         ))}
         {busy && <div className="bubble tutor muted">Thinking…</div>}
@@ -145,7 +149,7 @@ function TutorChat() {
       {!needsPlan && stage !== "done" && (
         <>
           <Pad value={pad} onChange={setPad} label={stage === "bridge" ? "Write the formal statement" : "Your reply"} disabled={busy} />
-          <button onClick={send} disabled={busy || !pad.text.trim()}>{error ? "Try again" : "Send"}</button>
+          <button onClick={send} disabled={busy || (!pad.text.trim() && !pad.drawing)}>{error ? "Try again" : "Send"}</button>
         </>
       )}
 

@@ -60,13 +60,14 @@ export const MLE_PATH = {
     "For waiting times $x_1,\\dots,x_n$ from an exponential with rate $\\lambda$, the log-likelihood is $\\ell(\\lambda)=n\\log\\lambda-\\lambda\\sum x_i$. Setting $\\ell'(\\lambda)=0$ gives $\\hat\\lambda = n/\\sum x_i = 1/\\bar x$: a long average wait means a small rate, which is exactly what a rate is. The second derivative, $-n/\\lambda^2$, is negative everywhere, so this is the maximum, and by invariance the MLE of the average wait is $1/\\hat\\lambda=\\bar x$.",
 };
 
-// The path builder: uses the catalogue ids the system prompt lists (so every ref exists in the app), writes one
+// The path builder: uses the catalogue ids the system prompt lists (numbered "12. id | kind | ..."; the app accepts
+// the id as well as the number, so every ref exists in the app), writes one
 // explanation that cites the course excerpt from a lecture on maximum likelihood (the first excerpt if none is), and
 // ends with the quiz. A file that was read gets a title saying so.
 const pathScript = (body) => {
   const system = body.systemInstruction?.parts?.[0]?.text ?? "";
   const user = [...body.contents].reverse().find((c) => c.role === "user")?.parts?.map((p) => p.text ?? "").join("") ?? "";
-  const ids = new Set([...system.matchAll(/^- ([a-z]+:[^ |]+) \| /gm)].map((m) => m[1]));
+  const ids = new Set([...system.matchAll(/^\d+\. ([a-z]+:[^ |]+) \| /gm)].map((m) => m[1]));
   const excerpts = [...system.matchAll(/^\[S(\d+)\] ([^\n]*)/gm)].map((m) => ({ n: Number(m[1]), head: m[2] }));
   const cite = excerpts.find((x) => /^Lecture \d+: Maximum Likelihood/i.test(x.head))?.n ?? excerpts[0]?.n;
   const file = /Text read from the student's file "([^"]+)"/.exec(user)?.[1];
@@ -110,7 +111,7 @@ export function startFakeGemini(handlers = { "adaptive tutor": tutorScript, "wri
       const body = JSON.parse(raw);
       log.push(body);
       const system = body.systemInstruction?.parts?.[0]?.text ?? "";
-      const lastUser = [...body.contents].reverse().find((c) => c.role === "user")?.parts?.[0]?.text ?? "";
+      const lastUser = [...body.contents].reverse().find((c) => c.role === "user")?.parts?.map((p) => p.text ?? "").join("") ?? "";
       if (lastUser.includes("FAILME")) return send(429, { error: { code: 429, message: "quota" } });
       let text;
       for (const [needle, make] of Object.entries(handlers)) if (system.includes(needle)) text = make(body, lastUser);

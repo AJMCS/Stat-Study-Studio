@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import base64
 import os
+import re
 
 import httpx
 
@@ -80,6 +81,11 @@ def _contents(messages: list[Message]) -> list[dict]:
     return out
 
 
+def _image_error(detail: str) -> bool:
+    """The service refused the request because of the picture in it (a drawing, a page photo)."""
+    return bool(re.search(r"image|vision", detail, re.IGNORECASE))
+
+
 def _from_status(r: httpx.Response) -> AiError:
     detail = ""
     try:
@@ -91,6 +97,8 @@ def _from_status(r: httpx.Response) -> AiError:
         return AiError("rate_limited", detail)
     if code in (401, 403) or (code == 400 and "api key" in detail.lower()):
         return AiError("invalid_key", detail)
+    if 400 <= code < 500 and _image_error(detail):
+        return AiError("image_unsupported", detail)
     if code >= 500:
         return AiError("server", detail)
     return AiError("bad_response", f"{code} {detail}")

@@ -10,6 +10,8 @@ class FakeOllama:
         self.models = list(models)
         self.requests: list[dict] = []
         self.replies: list = []
+        # a text-only model: a request that carries a picture is answered with Ollama's error
+        self.reject_images = False
         fake = self
 
         class Handler(BaseHTTPRequestHandler):
@@ -30,6 +32,8 @@ class FakeOllama:
             def do_POST(self):
                 body = json.loads(self.rfile.read(int(self.headers["Content-Length"])))
                 fake.requests.append(body)
+                if fake.reject_images and any(m.get("images") for m in body.get("messages", [])):
+                    return self._json(400, {"error": f"{body.get('model')} does not support images"})
                 reply = fake.replies[min(len(fake.requests) - 1, len(fake.replies) - 1)] if fake.replies else "ok"
                 if isinstance(reply, int):
                     self._json(reply, {"error": "scripted"})

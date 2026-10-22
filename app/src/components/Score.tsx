@@ -21,11 +21,23 @@ export function StreakIndicator({ streak, warn, flagged }: { streak: number; war
   );
 }
 
+/** Said beside a result when the model could not read the pad's drawing, so the score is read for what it is: the
+ * app's "!" treatment, never another box. `did` is what the typed text alone was: scored, or (for the tutor) read. */
+export function DrawingIgnored({ did = "scored" }: { did?: string }) {
+  return (
+    <p className="err-line drawing-ignored" role="status">
+      <span className="warn" aria-hidden="true">!</span>
+      <span>This model can't read drawings; only your typed text was {did}.</span>
+    </p>
+  );
+}
+
 export function ScoreBreakdown({
   criteria,
   cfg,
   feedback,
   note,
+  drawingIgnored = false,
   selfScored = false,
   marked = false,
 }: {
@@ -34,6 +46,8 @@ export function ScoreBreakdown({
   feedback?: CriterionFeedback[];
   /** What a tutor would say about the answer, shown first and in full sentences; the criteria below are the score sheet. */
   note?: string;
+  /** The model could not read the pad's drawing, so only the typed text was scored: said beside the result. */
+  drawingIgnored?: boolean;
   /** A self-score is one number from the learner, so no per-criterion breakdown is shown. */
   selfScored?: boolean;
   /** Marked automatically (multiple choice): one score, no per-criterion breakdown. */
@@ -71,6 +85,7 @@ export function ScoreBreakdown({
   }
   return (
     <div className="breakdown">
+      {drawingIgnored && <DrawingIgnored />}
       {note && (
         <>
           <p className="tutor-note">{note}</p>

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import base64
+import re
 
 import httpx
 
@@ -108,6 +109,11 @@ def _alternating(messages: list[Message]) -> list[dict]:
     return out
 
 
+def _image_error(detail: str) -> bool:
+    """The service refused the request because of the picture in it (a drawing, a page photo)."""
+    return bool(re.search(r"image|vision", detail, re.IGNORECASE))
+
+
 def _from_status(r: httpx.Response) -> AiError:
     detail = ""
     try:
@@ -135,6 +141,8 @@ def _from_status(r: httpx.Response) -> AiError:
         return AiError("rate_limited", detail)
     if code >= 500:
         return AiError("server", detail)
+    if code == 400 and _image_error(detail):
+        return AiError("image_unsupported", detail)
     if code == 400:
         # The service understood us and said no (a parameter it does not accept, an oversized image, ...). That is a
         # fault in the app's request, not a transient glitch: say what the service said instead of "retry".

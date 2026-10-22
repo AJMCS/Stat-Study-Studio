@@ -19,18 +19,18 @@ from .openai_provider import OpenAI
 from .provider import Provider
 
 # Bump when a notice changes in a way that matters; everyone is then asked again.
-CONSENT_VERSION = 1
+CONSENT_VERSION = 1  # the notice names drawings as well as typed text; the pad says so at the point of use, so no re-consent
 
 NOTICE = {
     "gemini": (
-        "When you use the AI features, the app sends Google Gemini what you typed (your answers and questions) and the "
+        "When you use the AI features, the app sends Google Gemini what you typed or drew (your answers, pad drawings and questions) and the "
         "few course or personal-file excerpts that match them. It never sends whole files or your progress history. "
         "Google's free tier may use what is sent to improve its products, and people may review it; "
         "paid accounts are not used that way. Do not type personal information. Your key stays on this computer. "
         "You can disconnect at any time and the app keeps working without AI."
     ),
     "anthropic": (
-        "When you use the AI features, the app sends Anthropic (Claude) what you typed (your answers and questions) and the "
+        "When you use the AI features, the app sends Anthropic (Claude) what you typed or drew (your answers, pad drawings and questions) and the "
         "few course or personal-file excerpts that match them, using your own Anthropic API account. It never sends whole "
         "files or your progress history. Each AI action uses a little of your API credit; a Claude chat subscription does "
         "not include API credit. How Anthropic may use API data depends on its current terms for your account, so read "
@@ -38,7 +38,7 @@ NOTICE = {
         "app keeps working without AI."
     ),
     "openai": (
-        "When you use the AI features, the app sends OpenAI what you typed (your answers and questions) and the few course "
+        "When you use the AI features, the app sends OpenAI what you typed or drew (your answers, pad drawings and questions) and the few course "
         "or personal-file excerpts that match them, using your own OpenAI API account. It never sends whole files or your "
         "progress history. Each AI action uses a little of your API credit; a ChatGPT subscription does not include API "
         "credit. How OpenAI may use API data depends on its current terms for your account, so read them. Do not type "
@@ -46,7 +46,7 @@ NOTICE = {
         "without AI."
     ),
     "ollama": (
-        "The AI features will use a model running on this computer through Ollama. What you type, your course excerpts "
+        "The AI features will use a model running on this computer through Ollama. What you type or draw, your course excerpts "
         "and your personal-file excerpts go only to Ollama on this computer; nothing is sent over the internet. "
         "Smaller local models can be slower and less consistent than online ones, especially at scoring: treat their "
         "scores as a rough guide. You can disconnect at any time and the app keeps working without AI."

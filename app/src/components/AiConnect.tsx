@@ -30,10 +30,10 @@ const PLAIN_NAME: Record<ProviderId, string> = { gemini: "Google Gemini", anthro
 
 /** Two-line versions of each service's data notice, for first-run setup; the full notice is one click away. */
 const SUMMARY: Record<ProviderId, string> = {
-  gemini: "Your typed answers and a few matching course excerpts go to Google; on the free tier Google may use them to improve its products. Your key stays on this computer.",
-  anthropic: "Your typed answers and a few matching course excerpts go to Anthropic, using your API credit. Your key stays on this computer.",
-  openai: "Your typed answers and a few matching course excerpts go to OpenAI, using your API credit. Your key stays on this computer.",
-  ollama: "Your typed answers and course excerpts go only to Ollama on this computer; nothing is sent over the internet.",
+  gemini: "Your typed answers, your pad drawings and a few matching course excerpts go to Google; on the free tier Google may use them to improve its products. Your key stays on this computer.",
+  anthropic: "Your typed answers, your pad drawings and a few matching course excerpts go to Anthropic, using your API credit. Your key stays on this computer.",
+  openai: "Your typed answers, your pad drawings and a few matching course excerpts go to OpenAI, using your API credit. Your key stays on this computer.",
+  ollama: "Your typed answers, your pad drawings and course excerpts go only to Ollama on this computer; nothing is sent over the internet.",
 };
 
 export function AiConnect({

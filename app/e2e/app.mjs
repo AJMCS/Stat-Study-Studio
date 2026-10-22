@@ -1038,6 +1038,16 @@ const FAKE = process.env.FAKE_GEMINI;
 const GOOD_KEY = "good-key-123";
 const geminiLog = async () => (await fetch(`${FAKE}/__log`)).json();
 const settleSaves = () => page.waitForTimeout(800);
+/** Open the drawing pad and draw one stroke on it, the way a learner would. */
+const drawOnPad = async () => {
+  await page.click("button:has-text('Open a drawing pad')");
+  const box = await page.locator("canvas.canvas").boundingBox();
+  await page.locator("canvas.canvas").hover({ position: { x: 40, y: 40 } });
+  await page.waitForTimeout(100);
+  await page.mouse.down();
+  await page.mouse.move(box.x + 160, box.y + 90, { steps: 8 });
+  await page.mouse.up();
+};
 const lastAttempt = async (kind) => (await apiGet("state")).state.attempts.filter((a) => a.kind === kind).at(-1);
 const WRITTEN = "The MLE maximizes the likelihood because it makes the observed data most probable. It matters since it gives a point estimate, for example n=10.";
 
@@ -1061,10 +1071,12 @@ await step("ai: connecting needs the data notice accepted; a wrong key is refuse
   if (exported.includes(GOOD_KEY)) throw new Error("the key leaked into the data export");
 });
 
-await step("ai: a recall is scored on four criteria, with comments, and saved as AI-scored", async () => {
+await step("ai: a recall with a drawing is scored on four criteria, with comments, the drawing goes with the text, and it is saved as AI-scored", async () => {
   await fresh(`/topic/${T}`);
   await page.click("button:has-text('Try a recall')");
   await page.fill("textarea", WRITTEN);
+  await drawOnPad();
+  await page.waitForSelector("text=Your drawing goes to the AI service"); // the note says the drawing is sent, not that it is left out
   await page.click("button:has-text('Score with AI')");
   await page.waitForSelector(".criteria li", { timeout: 15000 });
   // the tutor's note comes first, as conversation; the four criteria are the score sheet beneath it
@@ -1082,6 +1094,11 @@ await step("ai: a recall is scored on four criteria, with comments, and saved as
   if (new Set(Object.values(a.criteria)).size < 2) throw new Error("an AI score must keep four different criterion scores");
   const sent = JSON.stringify((await geminiLog()).at(-1));
   if (sent.includes(GOOD_KEY)) throw new Error("key sent in the body");
+  // the drawing went with the typed text as a picture, and a model that reads pictures is not said to have ignored it
+  const parts = (await geminiLog()).at(-1).contents[0].parts;
+  if (!parts.some((p) => p.inlineData?.mimeType === "image/png")) throw new Error("the drawing did not go with the answer");
+  if (!parts.some((p) => p.text?.includes(WRITTEN))) throw new Error("the typed text did not go with the drawing");
+  if ((await page.locator(".drawing-ignored").count()) > 0) throw new Error("a model that reads drawings must not say it cannot");
 });
 
 await step("ai: when scoring fails the answer is kept, the reason is plain, and self-scoring still works", async () => {
@@ -1463,6 +1480,31 @@ await step("ai: a model on this computer (Ollama) can be chosen, says nothing le
   await page.click("button:has-text('Disconnect')");
   await page.waitForSelector("text=What gets sent");
   if ((await apiGet("ai")).connected) throw new Error("still connected");
+});
+
+await step("ai: a local model that cannot read drawings scores the typed text alone and says so", async () => {
+  // a text-only model (most local models are): the fake Ollama refuses the picture, and the app asks again without it
+  const r = await page.request.post(`${ORIGIN_URL}/api/ai/connect`, { data: { provider: "ollama", model: "qwen2.5:7b", accept: true }, headers: { Origin: ORIGIN_URL } });
+  if (!r.ok()) throw new Error(`connecting Ollama failed: ${r.status()}`);
+  await page.reload(); // the page read its AI status before that connect; a reload picks the local model up
+  const ollamaLog = async () => (await (await fetch(`${process.env.FAKE_OLLAMA}/__log`)).json()).filter((q) => Array.isArray(q.messages) && q.messages.length > 0);
+  const before = (await ollamaLog()).length;
+  await fresh(`/topic/${T}`);
+  await page.click("button:has-text('Try a recall')");
+  await page.fill("textarea", WRITTEN);
+  await drawOnPad();
+  await page.click("button:has-text('Score with AI')");
+  await page.waitForSelector("text=The local model saw the central idea.", { timeout: 15000 });
+  await page.waitForSelector(".drawing-ignored:has-text(\"can't read drawings\")"); // beside the result, with the app's "!" mark
+  if ((await page.locator(".drawing-ignored .warn").count()) !== 1) throw new Error("the note should carry the ! mark");
+  await shot("ai-ollama-drawing-ignored");
+  const sent = (await ollamaLog()).slice(before);
+  if (sent.length !== 2) throw new Error(`expected one request with the picture and one without, got ${sent.length}`);
+  if (!sent[0].messages.at(-1).images?.length) throw new Error("the first request should carry the drawing");
+  if (sent[1].messages.at(-1).images) throw new Error("the retry should carry the typed text only");
+  const gone = await page.request.delete(`${ORIGIN_URL}/api/ai?provider=ollama`, { headers: { Origin: ORIGIN_URL } });
+  if (!gone.ok()) throw new Error(`forgetting Ollama failed: ${gone.status()}`);
+  await page.reload(); // so the page's AI status matches the service again (no service connected) for the next step
 });
 
 await step("ai: several services stay saved; the corner chip shows the one in use, switches between them, and opening a topic warms the local model", async () => {

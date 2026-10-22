@@ -1993,6 +1993,8 @@ button.bd-pick-item.on { color: var(--ink); text-decoration: underline; text-dec
 
 /* ---- what a tutor would say first; the four criteria are the score sheet beneath it ---- */
 .breakdown .tutor-note { margin: 0 0 16px; max-width: 64ch; }
+.drawing-ignored { margin: 0 0 12px; }
+.bubble .drawing-ignored { margin: 8px 0 0; }
 .breakdown > .eyebrow { margin: 0 0 8px; }
 .short-version .sv-head { font-weight: 600; margin: 0 0 4px; }
 .short-version ul { margin: 0 0 16px; padding-left: 20px; }

@@ -26,6 +26,7 @@ from pydantic import BaseModel, Field, ValidationError
 
 from . import __version__
 from .ai import AiError, AiService, WorkspaceChoice, tasks
+from .ai.drawing import BadDrawing, decode_drawing
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
 from .db import Database
 from .embedder import DEFAULT_MODEL, Embedder
@@ -57,9 +58,15 @@ class SwitchBody(BaseModel):
     provider: str
 
 
+# A drawing from the pad: a PNG data URL (or bare base64), at most about 4 MB of image.
+DRAWING_CHARS = 6_000_000
+
+
 class Turn(BaseModel):
     role: str = Field(pattern="^(tutor|learner)$")
     text: str = Field(max_length=6000)
+    # the pad's drawing that goes with this message; only the learner's latest turn's is sent to the model
+    drawing: str | None = Field(default=None, max_length=DRAWING_CHARS)
 
 
 class TutorBody(BaseModel):
@@ -115,6 +122,18 @@ class ScoreBody(BaseModel):
     reference: str = Field(default="", max_length=8000)
     keyPoints: list[str] = Field(default_factory=list, max_length=20)
     stage: str = Field(default="conceptual", pattern="^(conceptual|formal)$")
+    # the pad's drawing, part of the answer
+    drawing: str | None = Field(default=None, max_length=DRAWING_CHARS)
+
+
+def drawing_image(data: str | None) -> tuple[bytes, str] | None:
+    """The pad's drawing as (PNG bytes, media type) for the model, or None when there is none."""
+    if not data or not data.strip():
+        return None
+    try:
+        return decode_drawing(data)
+    except BadDrawing as e:
+        raise HTTPException(422, "The drawing could not be read. Clear the drawing pad, draw again, and retry.") from e
 
 
 def default_data_dir() -> Path:
@@ -229,10 +248,19 @@ def create_app(
 
     @app.post("/api/ai/score")
     def ai_score(body: ScoreBody) -> dict[str, Any]:
-        """Score one written answer on the four criteria. Sends only the question, the answer and the reference text."""
+        """Score one written answer on the four criteria. Sends the question, the answer (typed text and the pad's
+        drawing, which is part of it) and the reference text. "drawingIgnored" is true when the model cannot take
+        pictures, so only the typed text was scored."""
         provider = ai().provider()
         scored = tasks.score_answer(
-            provider, topic=body.topic, question=body.question, answer=body.answer, reference=body.reference, key_points=body.keyPoints, stage=body.stage
+            provider,
+            topic=body.topic,
+            question=body.question,
+            answer=body.answer,
+            reference=body.reference,
+            key_points=body.keyPoints,
+            stage=body.stage,
+            image=drawing_image(body.drawing),
         )
         scores = scored["criteria"]
         return {
@@ -240,6 +268,7 @@ def create_app(
             "feedback": [{"criterion": k, **v} for k, v in scores.items()],
             # what a tutor would say first; the four criteria are the score sheet beneath it
             "note": scored["note"],
+            "drawingIgnored": scored["drawingIgnored"],
             "model": getattr(provider, "model", ""),
         }
 
@@ -247,10 +276,14 @@ def create_app(
     def ai_tutor(body: TutorBody) -> dict[str, Any]:
         """The tutor's next reply, grounded in course pages. The conversation lives in the browser; this holds nothing."""
         provider = ai().provider()
-        last = next((t.text for t in reversed(body.history) if t.role == "learner"), "")
-        sources = grounding(f"{body.topic} {last}"[:500])
+        latest = next((t for t in reversed(body.history) if t.role == "learner"), None)
+        sources = grounding(f"{body.topic} {latest.text if latest else ''}"[:500])
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
-        turn = tasks.tutor_turn(provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts, focus=body.focus)
+        # the drawing goes with the learner's latest message only (the one the model is replying to)
+        image = drawing_image(latest.drawing) if latest is not None and latest is body.history[-1] else None
+        turn = tasks.tutor_turn(
+            provider, topic=body.topic, stage=body.stage, history=[(t.role, t.text) for t in body.history], excerpts=excerpts, focus=body.focus, image=image
+        )
         cited = [sources[i - 1] for i in turn.pop("cites")]
         return {**turn, "sources": cited}
 

@@ -3,7 +3,7 @@ import { Link, useParams } from "react-router-dom";
 import { topicById } from "../mock/topics";
 import { useStore } from "../lib/store";
 import { StreakIndicator, ScoreBreakdown } from "../components/Score";
-import { Pad, emptyPad, padToText } from "../components/Pad";
+import { Pad, emptyPad, padForAi, padToText } from "../components/Pad";
 import { Citations } from "../components/Citation";
 import { SelfCheck } from "../components/SelfCheck";
 import { RichText } from "../components/Math";
@@ -153,7 +153,7 @@ export function TopicPage() {
     setAiError("");
     try {
       const r = await aiScore(
-        { topic: topic.title, question: topic.recall.prompt, answer: padToText(pad), reference: topic.recall.reference, keyPoints: topic.recall.keyPoints, stage: "conceptual" },
+        { topic: topic.title, question: topic.recall.prompt, ...padForAi(pad), reference: topic.recall.reference, keyPoints: topic.recall.keyPoints, stage: "conceptual" },
         data.config,
       );
       recordAttempt({ topicId: topic.id, kind: "recall", counted: true, aiScored: true, criteria: r.criteria, note: "Revisit recall (AI-scored)" });
@@ -204,7 +204,7 @@ export function TopicPage() {
           </>
         ) : aiResult ? (
           <>
-            <ScoreBreakdown criteria={aiResult.criteria} cfg={data.config} feedback={aiResult.feedback as CriterionFeedback[]} note={aiResult.note} />
+            <ScoreBreakdown criteria={aiResult.criteria} cfg={data.config} feedback={aiResult.feedback as CriterionFeedback[]} note={aiResult.note} drawingIgnored={aiResult.drawingIgnored} />
             <p className="muted">
               {aiResult.composite >= data.config.compositeCutoff
                 ? "Qualifying recall added to your streak."
@@ -229,7 +229,7 @@ export function TopicPage() {
             {aiError && <p className="notice warn-box" role="alert">{aiError}</p>}
             <div className="row">
               {ai.connected && (
-                <button onClick={() => void scoreWithAi()} disabled={scoring || !pad.text.trim()}>
+                <button onClick={() => void scoreWithAi()} disabled={scoring || (!pad.text.trim() && !pad.drawing)}>
                   {scoring ? "Scoring…" : aiError ? "Retry AI scoring" : "Score with AI"}
                 </button>
               )}
@@ -237,7 +237,7 @@ export function TopicPage() {
                 {ai.connected ? "Score it myself instead" : "Compare with the reference"}
               </button>
             </div>
-            {ai.connected && pad.drawing && <p className="muted small">Only what you typed is sent for AI scoring, not drawings. Self-score if your work is mostly a drawing.</p>}
+            {ai.connected && pad.drawing && <p className="muted small">Your drawing goes to the AI service with what you typed, as part of your answer.</p>}
           </>
         )}
       </section>

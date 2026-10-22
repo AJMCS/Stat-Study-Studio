@@ -1,5 +1,6 @@
 // A stand-in for a local Ollama so the browser tests can drive the "model on this computer" option.
-// GET /__log returns every chat request. A learner text containing FAILME makes it answer 500.
+// GET /__log returns every chat request. A learner text containing FAILME makes it answer 500. Like most local models
+// it is text-only: a request that carries a picture gets Ollama's 400, and the app asks again without it.
 import { createServer } from "node:http";
 
 const scores = () => ({
@@ -24,6 +25,7 @@ export function startFakeOllama() {
     req.on("end", () => {
       const body = JSON.parse(raw);
       log.push(body);
+      if (body.messages.some((m) => m.images?.length)) return send(400, { error: `${body.model} does not support images` });
       const last = body.messages.at(-1)?.content ?? "";
       if (last.includes("FAILME")) return send(500, { error: "boom" });
       send(200, { message: { role: "assistant", content: JSON.stringify(scores()) }, done: true });

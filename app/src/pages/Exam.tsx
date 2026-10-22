@@ -4,7 +4,7 @@ import { sourceById, topicById } from "../mock/topics";
 import { selectExam, type DraftExam } from "../lib/exam";
 import { api, hitToSource, personalHitToSource, ServiceRejected } from "../lib/api";
 import { uid, useStore } from "../lib/store";
-import { Pad, emptyPad, padToText, type PadValue } from "../components/Pad";
+import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
 import { Annotated, Eyebrow, KeyTitle, Scribble, Note } from "../components/Hand";
 import { StepTrack } from "../components/StepTrack";
@@ -154,7 +154,7 @@ export function Exam() {
       for (const q of exam.questions) {
         if (!written(answers[q.id]) || next[q.id]) continue;
         next[q.id] = await aiScore(
-          { topic: topic.title, question: q.prompt, answer: padToText(answers[q.id]), reference: q.solution, keyPoints: q.keyPoints, stage: "formal" },
+          { topic: topic.title, question: q.prompt, ...padForAi(answers[q.id]), reference: q.solution, keyPoints: q.keyPoints, stage: "formal" },
           data.config,
         );
         setAiRes({ ...next });
@@ -227,7 +227,7 @@ export function Exam() {
         </p>
         {ai.connected && (
           <div className="panel">
-            <p>Your AI service can score the written answers on the four criteria instead. Only your typed answers and the question text are sent; drawings are not.</p>
+            <p>Your AI service can score the written answers on the four criteria instead. Your typed answers, your drawings and the question text are sent.</p>
             {aiError && <p className="notice warn-box" role="alert">{aiError} Your answers are kept; retry, or score yourself below.</p>}
             <button onClick={() => void scoreAllWithAi()} disabled={aiBusy || unscored === 0}>
               {aiBusy ? "Scoring…" : unscored === 0 ? "All answers scored" : aiError ? "Retry AI scoring" : "Score my answers with AI"}
@@ -242,7 +242,7 @@ export function Exam() {
               <>
                 <h3>Your answer</h3>
                 <pre className="answer">{padToText(answers[q.id]) || "(drawing only)"}</pre>
-                <ScoreBreakdown criteria={aiRes[q.id].criteria} cfg={data.config} feedback={aiRes[q.id].feedback} note={aiRes[q.id].note} />
+                <ScoreBreakdown criteria={aiRes[q.id].criteria} cfg={data.config} feedback={aiRes[q.id].feedback} note={aiRes[q.id].note} drawingIgnored={aiRes[q.id].drawingIgnored} />
                 <button className="ghost" onClick={() => setAiRes((m) => { const { [q.id]: _gone, ...rest } = m; return rest; })}>Score this one myself instead</button>
               </>
             ) : written(answers[q.id]) ? (
