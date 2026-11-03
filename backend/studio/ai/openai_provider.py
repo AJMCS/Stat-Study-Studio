@@ -12,6 +12,10 @@ from .provider import Message
 BASE = "https://api.openai.com"
 # Tried in this order against the models the learner's account can use; the newest match wins.
 PREFERRED = (r"^gpt-[\d.]+-mini$", r"^gpt-[\d.]+$", r"^gpt-4o-mini$")
+# OpenAI lists everything the key may use, most of which cannot chat here (speech, pictures, video, embeddings,
+# moderation, old completion models, and the realtime/codex/pro/deep-research ones that need another endpoint).
+# These are left out of the list offered to the learner.
+NOT_CHAT = re.compile(r"whisper|tts|dall-e|embedding|moderation|babbage|davinci|realtime|transcribe|audio|image|sora|codex|computer-use|instruct|-pro(\b|-)|deep-research", re.IGNORECASE)
 
 
 class OpenAI:
@@ -36,7 +40,11 @@ class OpenAI:
             raise AiError("bad_response", "not JSON") from e
 
     def models(self) -> list[str]:
-        return [m["id"] for m in self._send("GET", "/v1/models").get("data", [])]
+        return [m["id"] for m in self._send("GET", "/v1/models").get("data", []) if isinstance(m, dict) and m.get("id")]
+
+    def chat_models(self) -> list[dict]:
+        """The models the key may use that can hold a chat, as [{"id", "name"}] (OpenAI gives no display names)."""
+        return [{"id": i, "name": i} for i in self.models() if not NOT_CHAT.search(i)]
 
     def check_key(self) -> None:
         ids = self.models()

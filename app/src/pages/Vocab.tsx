@@ -324,7 +324,12 @@ export function GlossaryRows({ terms, known }: { terms: VocabTerm[]; known: Set<
             />
           </dt>
           <dd>
-            <RichText text={v.plain} />
+            {v.origin === "notes" ? <PageView text={v.plain} /> : <RichText text={v.plain} />}
+            {v.origin && (
+              <p className="muted small g-origin">
+                {v.origin === "notes" ? "Read from the lecture notes' definition, as written there." : "Read from a definition in your own upload."}
+              </p>
+            )}
             <Citations sources={[v.source]} />
           </dd>
         </div>

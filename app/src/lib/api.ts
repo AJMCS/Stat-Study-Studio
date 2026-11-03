@@ -225,6 +225,38 @@ export interface LibraryStatus {
   justUpdated: boolean;
 }
 
+/** A term read from the course material itself: one numbered definition in the lecture notes, cited to its page. */
+export interface SharedGlossaryEntry {
+  id: string;
+  term: string;
+  /** The notes' definition, Markdown with LaTeX. */
+  definition: string;
+  source: string;
+  page: number;
+  heading: string;
+  lecture: number | null;
+  /** The lecture's title from the library manifest ("" when the manifest does not list it). */
+  title: string;
+  verified: boolean;
+}
+
+/** A definition found in one of the learner's own uploads. */
+export interface PersonalGlossaryEntry {
+  id: string;
+  term: string;
+  definition: string;
+  fileId: string;
+  filename: string;
+  collectionId: string;
+  collection: string;
+  page: number;
+}
+
+export interface GlossaryResponse {
+  shared: SharedGlossaryEntry[];
+  personal: PersonalGlossaryEntry[];
+}
+
 export const personalHitToSource = (h: PersonalHit): SourceRef => ({
   id: h.id,
   kind: "Personal",
@@ -276,6 +308,12 @@ export interface AiAccount {
   local: boolean;
   /** The one every AI feature uses right now. */
   active: boolean;
+}
+
+/** One model an online account may use, with the service's own name for it (the id when it has none). */
+export interface AiModel {
+  id: string;
+  name: string;
 }
 
 export interface AiInfo {
@@ -458,6 +496,9 @@ export const api = {
     (await call("/api/ai/score", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(req) })).json(),
   aiStatus: async (provider?: string): Promise<AiInfo> => (await call(`/api/ai${provider ? `?provider=${provider}` : ""}`)).json(),
   aiLocalModels: async (): Promise<{ running: boolean; models: string[] }> => (await call("/api/ai/local-models")).json(),
+  /** The chat models a saved online service's account may use (the given one, or the one in use), newest first. */
+  aiModels: async (provider?: ProviderId): Promise<{ provider: ProviderId; model: string; models: AiModel[] }> =>
+    (await call(`/api/ai/models${provider ? `?provider=${provider}` : ""}`)).json(),
   /** `workspace` is for Anthropic only: a key made for the whole organisation must say which workspace to use. Without
    * it the service answers 409 workspace_choice (with the list to pick from) or workspace_needed (paste the ID). */
   aiConnect: async (apiKey: string, accept: boolean, model?: string, provider: ProviderId = "gemini", workspace?: string): Promise<AiInfo> =>
@@ -494,6 +535,8 @@ export const api = {
     form.append("file", file);
     await call(`/api/files/${id}/reconnect`, { method: "POST", body: form });
   },
+  /** Every numbered definition in the lecture notes and in the learner's uploads, read fresh from the material. */
+  glossary: async (): Promise<GlossaryResponse> => (await call("/api/glossary")).json(),
   personalPage: async (fileId: string, page: number): Promise<PersonalPageInfo> =>
     (await call(`/api/files/${fileId}/pages/${page}`)).json(),
   page: async (source: string, page: number): Promise<PageInfo> =>

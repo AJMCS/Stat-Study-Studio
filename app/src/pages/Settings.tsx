@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from "react";
 import { useStore } from "../lib/store";
 import { CRITERIA, CRITERION_LABELS } from "../types";
 import { DEFAULT_CONFIG } from "../lib/scoring";
-import { api, ServiceRejected, type AiTestResult, type ProviderId } from "../lib/api";
+import { api, ServiceRejected, type AiModel, type AiTestResult, type ProviderId } from "../lib/api";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { AiConnect, BLURB, SERVICE_UNREACHABLE } from "../components/AiConnect";
 import { useAi } from "../lib/ai";
@@ -15,27 +15,40 @@ function AiPanel() {
   const [choice, setChoice] = useState<ProviderId | null>(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const [model, setModel] = useState<string | null>(null);
   /** The last "Test connection" that came back: the model answered, and how long it took. Cleared by any other action. */
   const [tested, setTested] = useState<AiTestResult | null>(null);
 
   const selected: ProviderId = choice ?? info?.provider ?? "gemini";
   useEffect(() => setError(""), [selected]);
 
-  // Ollama: the models already installed on this computer, read from Ollama itself, so the model is picked from a
-  // list rather than typed. `null` until the first answer; `running: false` when Ollama is not up.
+  // The models the service in use can run, read from the service itself, so the model is picked from a list rather
+  // than typed. Ollama: what is installed on this computer (`running: false` when Ollama is not up). Online services:
+  // what the learner's own account may use, with the service's names for them (`failed` when the list could not be
+  // read just now). Each is `null` until the first answer.
   const [local, setLocal] = useState<{ running: boolean; models: string[] } | null>(null);
+  const [hosted, setHosted] = useState<{ models: AiModel[]; failed: boolean } | null>(null);
+  const inUse = !!info?.connected && selected === info.provider;
+  const isLocal = !!info?.local;
   const findModels = useCallback(async () => {
-    try {
-      setLocal(await api.aiLocalModels());
-    } catch {
-      setLocal({ running: false, models: [] });
+    if (isLocal) {
+      try {
+        setLocal(await api.aiLocalModels());
+      } catch {
+        setLocal({ running: false, models: [] });
+      }
+      return;
     }
-  }, []);
-  const localInUse = !!info?.connected && !!info.local && selected === info.provider;
+    setHosted(null);
+    try {
+      setHosted({ models: (await api.aiModels()).models, failed: false });
+    } catch {
+      setHosted({ models: [], failed: true });
+    }
+  }, [isLocal]);
   useEffect(() => {
-    if (localInUse) void findModels();
-  }, [localInUse, findModels]);
+    setHosted(null);
+    if (inUse) void findModels();
+  }, [inUse, info?.provider, findModels]);
 
   const run = async (fn: () => Promise<void>) => {
     setBusy(true);
@@ -53,7 +66,11 @@ function AiPanel() {
   if (!info) return <section className="panel"><h2>AI service</h2><p className="muted">Loading…</p></section>;
 
   const connectedHere = info.connected && selected === info.provider;
-  const shownModel = model ?? (info.model === info.defaultModel ? "" : info.model);
+  // What the Model list offers: the model in use is always listed first, even before the service has answered, so the
+  // control never shows a blank; then the rest of the list.
+  const options: AiModel[] = info.local
+    ? [info.model, ...(local?.models ?? []).filter((m) => m !== info.model)].map((m) => ({ id: m, name: m }))
+    : [hosted?.models.find((m) => m.id === info.model) ?? { id: info.model, name: info.model }, ...(hosted?.models ?? []).filter((m) => m.id !== info.model)];
   /** The chosen service is saved and ready but not the one in use: offer to switch rather than ask for its key again. */
   const savedHere = info.accounts.find((a) => a.id === selected && !a.active);
   const others = info.accounts.filter((a) => a.id !== selected);
@@ -109,31 +126,21 @@ function AiPanel() {
               {tested.reply && <> (it said <span className="mono">{tested.reply}</span>)</>}.
             </p>
           )}
-          {info.local ? (
-            <div className="row model-row">
-              <label className="field grow">
-                <span>Model</span>
-                {/* the model in use is always listed, even before Ollama has answered, so the control never shows a blank */}
-                <select aria-label="Model" value={info.model} disabled={busy} onChange={(e) => void run(() => ai.setModel(e.target.value))}>
-                  {[info.model, ...(local?.models ?? []).filter((m) => m !== info.model)].map((m) => (
-                    <option key={m} value={m}>
-                      {m}
-                    </option>
-                  ))}
-                </select>
-              </label>
-              <button className="ghost" disabled={busy} onClick={() => void findModels()}>
-                Check again
-              </button>
-            </div>
-          ) : (
-            <label className="field">
+          <div className="row model-row">
+            <label className="field grow">
               <span>Model</span>
-              <input aria-label="Model" placeholder={info.defaultModel} value={!info.defaultModel ? (model ?? info.model) : shownModel} onChange={(e) => setModel(e.target.value)} />
+              <select aria-label="Model" value={info.model} disabled={busy} onChange={(e) => void run(() => ai.setModel(e.target.value))}>
+                {options.map((m) => (
+                  <option key={m.id} value={m.id}>
+                    {m.name === m.id ? m.id : `${m.name} · ${m.id}`}
+                  </option>
+                ))}
+              </select>
             </label>
-          )}
-          {info.provider === "gemini" && <p className="muted">Leave blank to use {info.defaultModel}, which Google keeps pointing at its current fast model.</p>}
-          {info.provider !== "gemini" && !info.local && <p className="muted">This model was chosen from the ones your account can use. Type another model name to change it.</p>}
+            <button className="ghost" disabled={busy} onClick={() => void findModels()}>
+              Check again
+            </button>
+          </div>
           {info.local && local && !local.running && (
             <p className="notice warn-box" role="status">
               Ollama is not running, so the models installed on this computer could not be listed. Open the Ollama app (or run <code>ollama serve</code>), then check again.
@@ -144,8 +151,19 @@ function AiPanel() {
               The list is what Ollama has installed on this computer; choosing one takes effect right away. Bigger models score more consistently; smaller ones answer faster. Install another with <code>ollama pull &lt;name&gt;</code>, then check again.
             </p>
           )}
+          {!info.local && hosted === null && <p className="muted" role="status">Reading the models your {info.providerName} account can use…</p>}
+          {!info.local && hosted?.failed && (
+            <p className="notice warn-box" role="status">
+              Couldn't read the list of models from {info.providerName} just now, so only the model in use is listed. Check again in a moment.
+            </p>
+          )}
+          {!info.local && hosted && !hosted.failed && (
+            <p className="muted">
+              The list is what your {info.providerName} account can use right now, read from {info.providerName} itself; the one chosen for you when you connected is selected, and choosing another takes effect right away.
+              {info.provider === "gemini" && <> <span className="mono">{info.defaultModel}</span> always points at Google's current fast model.</>}
+            </p>
+          )}
           <div className="row">
-            {!info.local && <button className="ghost" disabled={busy} onClick={() => void run(() => ai.setModel(!info.defaultModel ? (model ?? info.model) : shownModel))}>Save model</button>}
             <button className="ghost" disabled={busy} onClick={() => void run(async () => setTested(await ai.test()))}>{busy ? "Testing…" : "Test connection"}</button>
             <button className="ghost danger" disabled={busy} onClick={() => void run(ai.disconnect)}>Disconnect{info.local ? "" : " and forget my key"}</button>
           </div>

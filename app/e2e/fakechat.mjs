@@ -56,7 +56,11 @@ export function startFakeChat() {
         return send(200, { data: ws.workspaces.filter((w) => withDefault || !w.default).map((w) => ({ archived_at: null, ...w })), has_more: false });
       }
       if (!workspaceOk()) return;
-      return send(200, { data: (anthropic ? ["claude-opus-5-5", "claude-haiku-4-5"] : ["gpt-5.4-mini", "gpt-5.5"]).map((id) => ({ id })) });
+      // Anthropic names its models; OpenAI lists everything the key may use, chat model or not
+      const rows = anthropic
+        ? [{ id: "claude-opus-5-5", display_name: "Claude Opus 5.5" }, { id: "claude-haiku-4-5", display_name: "Claude Haiku 4.5" }]
+        : [{ id: "gpt-5.4-mini" }, { id: "gpt-5.5" }, { id: "whisper-1" }];
+      return send(200, { data: rows, has_more: false });
     }
     const raw = await readBody(req);
     if (!workspaceOk()) return;

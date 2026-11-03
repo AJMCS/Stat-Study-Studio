@@ -271,6 +271,9 @@ export interface VocabTerm {
   /** "You'll see it as…": a tiny example of the term in use. Markdown with LaTeX. */
   seeIt: string;
   source: SourceRef;
+  /** Set on terms read from the material itself (a numbered definition in the notes, or in the learner's own
+   * upload) rather than written by hand for the vocabulary lessons. */
+  origin?: "notes" | "upload";
 }
 
 export interface CheckChoice {

@@ -9,6 +9,7 @@ Lowercase, hyphenated, zero-padded numbers, so files sort in course order.
 | Folder | Pattern | Contents |
 | --- | --- | --- |
 | `lecture-notes/` | `lecture-NN-<title>.pdf` | Professor's lecture notes (the grounding source for tutorials) |
+| `lecture-transcripts/` | `lecture-NN-<title>.pdf` | Captions of the recorded lecture, same number and title as its notes (automatic speech-to-text, not verified) |
 | `discussion-sections/` | `disc-NN.pdf`, `disc-NN-annotated.pdf` | Problem sets and worked/annotated versions |
 | `homework/` | `homework-NN.pdf` | Problem sets, used as exam question sources |
 | `quizzes/` | `quiz-NN-<title>.pdf` | Quiz question sets with answers |

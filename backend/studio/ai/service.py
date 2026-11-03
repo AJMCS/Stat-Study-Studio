@@ -76,14 +76,26 @@ class WorkspaceChoice(Exception):
         super().__init__(self.message)
 
 
+def newest_first(ids: list[str]) -> list[str]:
+    """Model names ordered newest first (by the version in the name, then the shorter, undated name first)."""
+    return sorted(ids, key=lambda i: (_version(i), -len(i)), reverse=True)
+
+
 def pick_model(ids: list[str], patterns: tuple[str, ...]) -> str | None:
     """The newest model matching the first pattern that matches anything. Names change often, so we choose from the
     account's own list instead of hard-coding one."""
     for pattern in patterns:
         found = [i for i in ids if re.search(pattern, i)]
         if found:
-            return sorted(found, key=lambda i: (_version(i), -len(i)), reverse=True)[0]
+            return newest_first(found)[0]
     return None
+
+
+def chat_catalogue(client: Provider) -> list[dict]:
+    """The chat models a hosted account may use, as [{"id", "name"}] newest first (the service's own list; nothing is
+    hard-coded, so renamed and new models appear by themselves)."""
+    rows = {r["id"]: r for r in client.chat_models()}  # type: ignore[attr-defined]
+    return [rows[i] for i in newest_first(list(rows))]
 
 
 class AiService:
@@ -224,10 +236,13 @@ class AiService:
                 if model and model not in ids:
                     raise AiError("model_missing", model)
                 if not model:
+                    # A sensible small model first; failing that, the newest chat model the account has (the learner
+                    # can pick any other from the list in Settings afterwards).
                     prefs = anthropic_api.PREFERRED if provider == "anthropic" else openai_api.PREFERRED
-                    model = pick_model(ids, prefs)
+                    chat = [r["id"] for r in chat_catalogue(client)]
+                    model = pick_model(chat, prefs) or (chat[0] if chat else None)
                     if not model:
-                        raise ValueError("The key works, but no suitable model was found on your account. Type the name of the model you want to use and connect again.")
+                        raise ValueError("The key works, but no chat model was found on your account.")
         with self._lock:
             s = self._read()
             if provider in self.stores:
@@ -268,6 +283,21 @@ class AiService:
             if e.kind == "local_not_running":
                 return {"running": False, "models": []}
             raise
+
+    def hosted_models(self, provider: str | None = None) -> dict[str, Any]:
+        """The chat models a saved online service's account may use, read from the service with the stored key, so
+        Settings can offer a list instead of a typed name: {"provider", "model": the one in use, "models": [{"id",
+        "name"}] newest first}. The given service, or the active one. For Ollama use local_models()."""
+        s = self._read()
+        p = provider if provider in PROVIDER_NAMES else s["provider"]
+        a = s["accounts"].get(p or "")
+        if not p or a is None or p in LOCAL:
+            raise AiError("not_connected", p or "none")
+        key = self.stores[p].get() if p in self.stores else None
+        if key is None:
+            raise AiError("not_connected", p)
+        client = self._build(p, key, a.get("model"), a.get("workspace"))
+        return {"provider": p, "model": a.get("model") or DEFAULT_MODELS.get(p, ""), "models": chat_catalogue(client)}
 
     def set_model(self, model: str | None) -> dict[str, Any]:
         """Change the active service's model."""

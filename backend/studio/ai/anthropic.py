@@ -43,8 +43,20 @@ class Claude:
         except ValueError as e:
             raise AiError("bad_response", "not JSON") from e
 
+    def chat_models(self) -> list[dict]:
+        """Every model the key may use, as [{"id", "name"}] (Anthropic lists only chat models). Follows the pages."""
+        rows: list[dict] = []
+        params: dict = {"limit": 100}
+        while True:
+            page = self._send("GET", "/v1/models", params=params)
+            data = [m for m in page.get("data", []) if isinstance(m, dict) and m.get("id")]
+            rows.extend({"id": m["id"], "name": m.get("display_name") or m["id"]} for m in data)
+            if not page.get("has_more") or not data:
+                return rows
+            params["after_id"] = data[-1]["id"]
+
     def models(self) -> list[str]:
-        return [m["id"] for m in self._send("GET", "/v1/models", params={"limit": 100}).get("data", [])]
+        return [m["id"] for m in self.chat_models()]
 
     def workspaces(self) -> list[dict]:
         """The organisation's workspaces this key may use, as [{"id", "name"}] without the archived ones. A key that is

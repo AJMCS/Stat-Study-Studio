@@ -36,7 +36,11 @@ class FakeGemini:
                 if not self._authorized():
                     return
                 fake.listed += 1
-                self._json(200, {"models": [{"name": "models/gemini-flash-latest"}]})
+                self._json(200, {"models": [
+                    {"name": "models/gemini-flash-latest", "displayName": "Gemini Flash Latest", "supportedGenerationMethods": ["generateContent"]},
+                    {"name": "models/gemini-2.5-pro", "displayName": "Gemini 2.5 Pro", "supportedGenerationMethods": ["generateContent"]},
+                    {"name": "models/gemini-embedding-001", "displayName": "Gemini Embedding", "supportedGenerationMethods": ["embedContent"]},
+                ]})
 
             def do_POST(self):
                 if not self._authorized():

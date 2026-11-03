@@ -76,7 +76,10 @@ def index() -> SharedIndex:
         ("absolute error loss posterior median", "lecture-04-loss-functions-and-bayes-estimators", {5}),
         ("invariance property of the MLE", "lecture-06-maximum-likelihood-properties", {2}),
         ("what is a sampling distribution", "lecture-07-sampling-distributions", {2}),
-        ("is the likelihood a probability distribution", "lecture-02-frequentist-vs-bayesian-inference", {6}),
+        ("is the likelihood a probability distribution", "lecture-02-frequentist-vs-bayesian-inference", {5, 6}),  # the definition, or the note that it is not one
+        ("definition of the t distribution", "lecture-10-the-t-distribution", {2}),
+        ("pivotal quantity confidence interval", "lecture-11-interval-estimation", {7}),
+        ("mean squared error bias variance", "lecture-12-unbiased-estimators", {4, 5}),
     ],
 )
 def test_lecture_questions_find_the_lecture_page(index, query, source_stem, pages):

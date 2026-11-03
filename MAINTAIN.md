@@ -33,6 +33,16 @@ Push the repo to GitHub on branch `main` (`AJMCS/Stat-Study-Studio`, set in `bac
 6. **Topics and citations** (if the material changes what is taught): edit `app/src/mock/topics.ts` and
    `app/src/mock/learning.ts`. Citation highlights must be a verbatim run of plain text on the cited page;
    `npx vitest run` checks every one.
+   The **glossary needs no editing**: every numbered definition in a lecture transcript (`**Definition 1.1** (Name).` or
+   `**Definition 1.1.** ... is said to be **unbiased** if ...`) is read from the transcript by `backend/studio/glossary.py`
+   and shown on the Glossary page, cited to its page, with the lecture's title from `manifest.json`. Keep that
+   form when transcribing and the new lecture's terms appear by themselves (the same goes for definitions in a
+   student's own uploads).
+6b. **Lecture recordings:** put the captions export (one PDF per recording) under `course-library/lecture-transcripts/`
+   named exactly like the lecture's notes (`lecture-NN-<title>.pdf`); the recap at the start of each recording says
+   which lecture it is. `transcribe-missing` (step 2) turns it into a page-aligned transcript with the caption lines
+   joined into paragraphs and the lecture's title from `manifest.json`. Recordings are searchable but ranked below
+   the notes; a recording whose export is empty (two words) is not worth adding.
 7. **Commit and push to `main`.** Announce in Discord; students click "Check for updates" (the app also checks
    itself on start).
 
@@ -62,16 +72,19 @@ a real key** (make a free one at aistudio.google.com/apikey):
    the dialog asks you to agree, the page is transcribed with sensible LaTeX, and **Use automatic reading** undoes it.
    Page images are the biggest thing sent anywhere, so try this with one short file first.
 6. Repeat 1 to 5 with a real Anthropic key and a real OpenAI key if you have them (each needs a little API credit).
-   Check that the model it picked on its own (shown in Settings) is a sensible, current one. These two pick the newest
-   model matching `PREFERRED` in `backend/studio/ai/anthropic.py` / `openai_provider.py`; if Anthropic or OpenAI
-   rename their models and the picked one is wrong, adjust those patterns.
+   Check that the model it picked on its own (shown in Settings) is a sensible, current one, and that the Model list
+   under it offers the account's own models by name (OpenAI's speech, image and embedding models should be absent).
+   These two pick the newest model matching `PREFERRED` in `backend/studio/ai/anthropic.py` / `openai_provider.py`,
+   or failing that the newest chat model the account has; if Anthropic or OpenAI rename their models and the picked
+   one is wrong, adjust those patterns (and `NOT_CHAT` in `openai_provider.py` if a non-chat model shows up).
 7. With Ollama installed and a model pulled (for example `ollama pull llama3.2`): Settings > Ollama > pick the model >
    connect, then repeat steps 2 to 4. Small models sometimes return malformed JSON or odd scores; if that is common
    with the model you tried, say so in the README for classmates (a larger model scores better, a smaller one is faster).
 
 If a step fails with "bad response", look at what Google returned (`studio/ai/gemini.py`); Google changes model
 behavior and names. The default model is the alias `gemini-flash-latest`; if it ever stops working, students can
-type another model name in Settings, and you can change `DEFAULT_MODEL` in `backend/studio/ai/gemini.py`.
+pick another model from the list in Settings (read from their own Google account), and you can change
+`DEFAULT_MODEL` in `backend/studio/ai/gemini.py`.
 
 Things you own here:
 - **The data notice** (`NOTICE` in `backend/studio/ai/service.py`) says Google's free tier may use submitted content

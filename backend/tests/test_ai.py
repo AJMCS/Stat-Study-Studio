@@ -536,13 +536,44 @@ def test_no_credit_is_explained_as_billing_not_as_a_bad_key(client, claude, gpt)
     assert client.post("/api/ai/score", json=SCORE_BODY).json()["kind"] == "rate_limited"
 
 
-def test_a_model_the_account_lacks_is_rejected_and_an_account_with_no_usable_model_asks_for_one(client, claude, gpt):
+def test_a_model_the_account_lacks_is_rejected_and_an_account_with_no_chat_model_says_so(client, claude, gpt):
     assert connect_with(client, "anthropic", model="claude-imaginary").json()["kind"] == "model_missing"
     gpt.models[:] = ["whisper-1", "dall-e-3"]
     r = connect_with(client, "openai")
-    assert r.status_code == 422 and "Type the name" in r.json()["detail"]
+    assert r.status_code == 422 and "no chat model" in r.json()["detail"]
     assert connect_with(client, "openai", model="whisper-1").json()["connected"]  # an explicit choice is respected
     assert client.get("/api/ai").json()["keyStored"]
+
+
+def test_an_account_with_no_preferred_model_gets_its_newest_chat_model(client, claude, gpt):
+    claude.models[:] = ["claude-opus-4-8", "claude-opus-5-5"]
+    assert connect_with(client, "anthropic").json()["model"] == "claude-opus-5-5"
+    gpt.models[:] = ["o3", "o4-mini", "whisper-1"]
+    assert connect_with(client, "openai").json()["model"] == "o4-mini"
+
+
+def test_the_models_an_online_account_may_use_are_listed_with_names_newest_first_and_without_the_non_chat_ones(client, claude, gpt):
+    r = client.get("/api/ai/models")
+    assert r.status_code == 409 and r.json()["kind"] == "not_connected"
+    connect_with(client, "anthropic")
+    got = client.get("/api/ai/models").json()
+    assert got["provider"] == "anthropic" and got["model"] == "claude-haiku-4-5"
+    assert [m["id"] for m in got["models"]] == ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-4-5", "claude-haiku-4-5-20251001"]
+    assert got["models"][0]["name"] == "Claude Opus 5.5"  # the service's own display name
+    gpt.models[:] = ["gpt-5.5", "whisper-1", "gpt-5.4-mini", "text-embedding-3-small", "o3-pro", "dall-e-3"]
+    connect_with(client, "openai")
+    assert [m["id"] for m in client.get("/api/ai/models").json()["models"]] == ["gpt-5.5", "gpt-5.4-mini"]
+    # the list of a saved service that is not the one in use, by name; the key is never in the answer
+    other = client.get("/api/ai/models", params={"provider": "anthropic"})
+    assert other.json()["provider"] == "anthropic" and KEY not in other.text
+    assert client.get("/api/ai/models", params={"provider": "ollama"}).status_code == 409
+
+
+def test_gemini_lists_only_the_models_that_can_answer_a_chat(client):
+    connect(client)
+    got = client.get("/api/ai/models").json()
+    assert got["model"] == "gemini-flash-latest"
+    assert got["models"] == [{"id": "gemini-2.5-pro", "name": "Gemini 2.5 Pro"}, {"id": "gemini-flash-latest", "name": "Gemini Flash Latest"}]
 
 
 def test_every_connected_service_keeps_its_own_key_until_it_is_forgotten(client, claude, fake):

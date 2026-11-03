@@ -24,7 +24,7 @@ from fastapi.staticfiles import StaticFiles
 from platformdirs import user_data_dir
 from pydantic import BaseModel, Field, ValidationError
 
-from . import __version__
+from . import __version__, glossary
 from .ai import AiError, AiService, WorkspaceChoice, tasks
 from .ai.drawing import BadDrawing, decode_drawing
 from .config import INDEX_DIR, LIBRARY, REPO_ROOT
@@ -237,6 +237,12 @@ def create_app(
     def ai_local_models() -> dict[str, Any]:
         """The models installed in Ollama on this computer (and whether Ollama is running)."""
         return ai().local_models()
+
+    @app.get("/api/ai/models")
+    def ai_models(provider: str | None = Query(default=None, max_length=20)) -> dict[str, Any]:
+        """The chat models a saved online service's account may use (its own list, with display names), so the model
+        is picked from a list. The given service, or the one in use."""
+        return ai().hosted_models(provider)
 
     @app.post("/api/ai/connect")
     def ai_connect(body: ConnectBody) -> dict[str, Any]:
@@ -549,6 +555,12 @@ def create_app(
             raise HTTPException(503, "The course library index is missing. Ask the maintainer to rebuild it.")
         mode = "semantic" if app.state.embedder.available else "keyword"
         return {"query": q, "mode": mode, "results": results, "personal": personal}
+
+    @app.get("/api/glossary")
+    def glossary_terms() -> dict[str, Any]:
+        """Key terms read from the material itself: every numbered definition in the lecture notes (cited to its
+        page) and in the learner's uploads. Read fresh each time, so new material brings its terms with it."""
+        return {"shared": glossary.shared_terms(app.state.library.root), "personal": glossary.personal_terms(app.state.db)}
 
     @app.get("/api/page")
     def get_page(source: str = Query(max_length=300), page: int = Query(ge=1)) -> dict[str, Any]:

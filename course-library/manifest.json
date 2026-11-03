@@ -1,6 +1,6 @@
 {
   "course": "STAT 132",
-  "note": "Single source of truth mapping topics to shared-library files. Paths are relative to course-library/. Update via pull request.",
+  "note": "Single source of truth mapping topics to shared-library files. Paths are relative to course-library/. Update via pull request. lectureTranscript is the captions of that lecture's recording (null when none was recorded or the recording is unusable).",
   "topics": [
     {
       "id": "probability-review-and-inference",
@@ -16,7 +16,8 @@
         "prerequisites-stat131/notes-01-classic-probability-theory.pdf",
         "prerequisites-stat131/common-distributions-table.pdf"
       ],
-      "homework": []
+      "homework": [],
+      "lectureTranscript": null
     },
     {
       "id": "frequentist-vs-bayesian",
@@ -32,7 +33,8 @@
       "prerequisites": [],
       "homework": [
         "homework/homework-01.pdf"
-      ]
+      ],
+      "lectureTranscript": "lecture-transcripts/lecture-02-frequentist-vs-bayesian-inference.pdf"
     },
     {
       "id": "posterior-distribution",
@@ -52,7 +54,8 @@
       ],
       "homework": [
         "homework/homework-02.pdf"
-      ]
+      ],
+      "lectureTranscript": "lecture-transcripts/lecture-03-the-posterior-distribution.pdf"
     },
     {
       "id": "loss-functions-bayes-estimators",
@@ -74,7 +77,8 @@
       ],
       "homework": [
         "homework/homework-02.pdf"
-      ]
+      ],
+      "lectureTranscript": null
     },
     {
       "id": "maximum-likelihood-estimation",
@@ -94,7 +98,8 @@
       ],
       "homework": [
         "homework/homework-02.pdf"
-      ]
+      ],
+      "lectureTranscript": "lecture-transcripts/lecture-05-maximum-likelihood-estimation.pdf"
     },
     {
       "id": "maximum-likelihood-properties",
@@ -112,7 +117,8 @@
       "prerequisites": [
         "prerequisites-stat131/notes-08-variance-and-higher-moments.pdf"
       ],
-      "homework": []
+      "homework": [],
+      "lectureTranscript": "lecture-transcripts/lecture-06-maximum-likelihood-properties.pdf"
     },
     {
       "id": "sampling-distributions",
@@ -129,7 +135,95 @@
       "prerequisites": [
         "prerequisites-stat131/notes-09-normal-distribution.pdf"
       ],
-      "homework": []
+      "homework": [],
+      "lectureTranscript": "lecture-transcripts/lecture-07-sampling-distributions.pdf"
+    },
+    {
+      "id": "chi-squared-distribution",
+      "title": "The χ² Distribution",
+      "lecture": 8,
+      "lectureNotes": "lecture-notes/lecture-08-the-chi-squared-distribution.pdf",
+      "relatedDiscussion": [
+        "discussion-sections/disc-05.pdf"
+      ],
+      "readings": [
+        "readings/reading-ch08-the-chi-square-distribution.pdf"
+      ],
+      "quizzes": [],
+      "prerequisites": [
+        "prerequisites-stat131/notes-09-normal-distribution.pdf",
+        "prerequisites-stat131/common-distributions-table.pdf"
+      ],
+      "homework": [
+        "homework/homework-03.pdf"
+      ],
+      "lectureTranscript": "lecture-transcripts/lecture-08-the-chi-squared-distribution.pdf"
+    },
+    {
+      "id": "sample-mean-and-variance",
+      "title": "The Joint Distribution of the Sample Mean and Variance",
+      "lecture": 9,
+      "lectureNotes": "lecture-notes/lecture-09-joint-distribution-of-the-sample-mean-and-variance.pdf",
+      "relatedDiscussion": [
+        "discussion-sections/disc-05.pdf"
+      ],
+      "readings": [
+        "readings/reading-ch09-the-sample-mean-and-variance-together.pdf"
+      ],
+      "quizzes": [],
+      "prerequisites": [
+        "prerequisites-stat131/notes-09-normal-distribution.pdf"
+      ],
+      "homework": [
+        "homework/homework-03.pdf"
+      ],
+      "lectureTranscript": "lecture-transcripts/lecture-09-joint-distribution-of-the-sample-mean-and-variance.pdf"
+    },
+    {
+      "id": "t-distribution",
+      "title": "The t Distribution",
+      "lecture": 10,
+      "lectureNotes": "lecture-notes/lecture-10-the-t-distribution.pdf",
+      "relatedDiscussion": [
+        "discussion-sections/disc-06.pdf"
+      ],
+      "readings": [],
+      "quizzes": [],
+      "prerequisites": [
+        "prerequisites-stat131/notes-09-normal-distribution.pdf"
+      ],
+      "homework": [],
+      "lectureTranscript": "lecture-transcripts/lecture-10-the-t-distribution.pdf"
+    },
+    {
+      "id": "interval-estimation",
+      "title": "Interval Estimation",
+      "lecture": 11,
+      "lectureNotes": "lecture-notes/lecture-11-interval-estimation.pdf",
+      "relatedDiscussion": [
+        "discussion-sections/disc-06.pdf"
+      ],
+      "readings": [
+        "readings/reading-ch11-interval-estimation.pdf"
+      ],
+      "quizzes": [],
+      "prerequisites": [],
+      "homework": [],
+      "lectureTranscript": null
+    },
+    {
+      "id": "unbiased-estimators",
+      "title": "Unbiased Estimators",
+      "lecture": 12,
+      "lectureNotes": "lecture-notes/lecture-12-unbiased-estimators.pdf",
+      "relatedDiscussion": [],
+      "readings": [],
+      "quizzes": [],
+      "prerequisites": [
+        "prerequisites-stat131/notes-08-variance-and-higher-moments.pdf"
+      ],
+      "homework": [],
+      "lectureTranscript": null
     }
   ]
 }

@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": 1,
-  "built_at": "2026-10-18T04:24:57Z",
+  "version": 2,
+  "built_at": "2026-11-03T21:35:54Z",
   "files": {
     "discussion-sections/disc-01-annotated.pdf": {
       "sha256": "8aa1820e383e83153a6fd450fe30f7f3c6799b13b834f5b4f85c99d94ca4496f",
@@ -31,6 +31,14 @@
       "sha256": "36c6ecf9426b942115012a473217b07794c3f7791a4fad4e1b6b50f941ee9c39",
       "size": 101747
     },
+    "discussion-sections/disc-05.pdf": {
+      "sha256": "0701aee6337901f0a98070317f675dd6ae8cf23a2db7755cfddc2b963eee1dba",
+      "size": 83329
+    },
+    "discussion-sections/disc-06.pdf": {
+      "sha256": "1fb2162f2e86faf01902a918a566606fad5b988db8f72d82a570380027b7f467",
+      "size": 99445
+    },
     "homework/homework-01.pdf": {
       "sha256": "bf37898af3453c9d76d262c83f1882da96cbd5d5cf020f6c62967d9b2960104c",
       "size": 51255
@@ -39,17 +47,21 @@
       "sha256": "38689a102f4018f412edd81a2016dbac7d21921da3c18e76cb9b75a5fcdc7ab1",
       "size": 119335
     },
+    "homework/homework-03.pdf": {
+      "sha256": "8b16782ced38e500469c5c61b3ef9939465e424660b63ca5686f8cec8aaebd5a",
+      "size": 81398
+    },
     "index/chunks.jsonl": {
-      "sha256": "d7636619eea17281c15debfa77e6eb77c8adb5d5b607e23530366097418b1dd8",
-      "size": 278169
+      "sha256": "00dc4ee8d70fbaac0b75a5cd58f5309481dc88b39aa7ce17cc59699b3b7854b5",
+      "size": 936259
     },
     "index/embeddings.npy": {
-      "sha256": "b718bd9d6b9f48e1cbd0ec1ff54fd404f67cff8e2b1131a3fad45608f71577fc",
-      "size": 194432
+      "sha256": "a898da4e2fe2e91626aada4de51f3c1850aa3ce9a42547e8af558ced9b5fca2f",
+      "size": 529280
     },
     "index/index.json": {
-      "sha256": "a13c5c717f26631781f2e2b8a9f394c3d4ca3cf46d762c23bf2bc2435a2ad69e",
-      "size": 2703
+      "sha256": "521c0ec500dbce258c4141fc8819bc3f4f60bbb8529783124a0072a3159a1c46",
+      "size": 4485
     },
     "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf": {
       "sha256": "fc1977f4f679758ed72b24f27742554fca7bace53dd1e7cdc4ae08421b76d2a0",
@@ -79,9 +91,61 @@
       "sha256": "65099b32a0cbb5ae92a4120893b9ca4f2f134bb6fd7857726f6b9315d228cbef",
       "size": 2076262
     },
+    "lecture-notes/lecture-08-the-chi-squared-distribution.pdf": {
+      "sha256": "59e74375aaf804559dfb4629d35e74a28c466b4196f043eeab7c85ae25109405",
+      "size": 1571456
+    },
+    "lecture-notes/lecture-09-joint-distribution-of-the-sample-mean-and-variance.pdf": {
+      "sha256": "6039eaeb3e4a02e5a2cf7a6f0e0236007463d54494495348a6caedd727fc54ae",
+      "size": 521746
+    },
+    "lecture-notes/lecture-10-the-t-distribution.pdf": {
+      "sha256": "6b36bb120d7a26accd7cb5655698ca0903135bec81eefc71d4482a61e8edbaf4",
+      "size": 902570
+    },
+    "lecture-notes/lecture-11-interval-estimation.pdf": {
+      "sha256": "0e55cb9b9bdd5d1b81839e4b5140c4e47c63ec9564978eb6a5abdda94a55fd03",
+      "size": 489132
+    },
+    "lecture-notes/lecture-12-unbiased-estimators.pdf": {
+      "sha256": "d62a9f61c9721b9e635abb0f9d627b6263a3da4b21dcbe606344a2ae0cf6563f",
+      "size": 336422
+    },
+    "lecture-transcripts/lecture-02-frequentist-vs-bayesian-inference.pdf": {
+      "sha256": "b8127b78b262e0ceb1d142d0f97af07eeebaea3e2735cf195728c885b73c8846",
+      "size": 88834
+    },
+    "lecture-transcripts/lecture-03-the-posterior-distribution.pdf": {
+      "sha256": "3a73c9502758999ff47ea1b740e4710a1e7dbc0f2c2bc42b9b2ef623b1669f20",
+      "size": 78025
+    },
+    "lecture-transcripts/lecture-05-maximum-likelihood-estimation.pdf": {
+      "sha256": "a57f38416c4e60415b6bf95bb762a7825703154373172e864b774bdf4aafac89",
+      "size": 75476
+    },
+    "lecture-transcripts/lecture-06-maximum-likelihood-properties.pdf": {
+      "sha256": "75bc8f19e44fe5f7243383df658c1b5d977555148d8b21342afa5159d06bd454",
+      "size": 62790
+    },
+    "lecture-transcripts/lecture-07-sampling-distributions.pdf": {
+      "sha256": "4403be133e13f361d751a71f4a4c17e0dca14b91be4ed242efc8f6e76307c06d",
+      "size": 78330
+    },
+    "lecture-transcripts/lecture-08-the-chi-squared-distribution.pdf": {
+      "sha256": "f54e6c8f0a7681f0935511ef7e9913c36dcfd9c31bbea70e9fb4b57df26ffa6e",
+      "size": 74804
+    },
+    "lecture-transcripts/lecture-09-joint-distribution-of-the-sample-mean-and-variance.pdf": {
+      "sha256": "d4341491e549239336a77e16c5f1635cdfdc2e09d9dc63ddc2fa360cf4ff76c2",
+      "size": 67126
+    },
+    "lecture-transcripts/lecture-10-the-t-distribution.pdf": {
+      "sha256": "b3ffce4945e3e4cfda8d118593076762d3c2f30a4ac1d4d112465ba4292523f6",
+      "size": 72684
+    },
     "manifest.json": {
-      "sha256": "f179008de528230df1fb192e99980e65ece7d63abb90bf717ebd089278cf0ae6",
-      "size": 4243
+      "sha256": "1e99f8a692a8929275066fd51a3bc5b475ea63f138463aa78962ab3426985f19",
+      "size": 7708
     },
     "prerequisites-stat131/common-distributions-table.pdf": {
       "sha256": "18b6868e654673451f0555b7f54902ced62722d2ae172893f24530051d246b76",
@@ -143,6 +207,18 @@
       "sha256": "7b5b68e1663113179daff59365ae3b0fc5e530702865f9816af3c0690c07313f",
       "size": 297923
     },
+    "readings/reading-ch08-the-chi-square-distribution.pdf": {
+      "sha256": "944be3b5f209b41fab1eae99c2f892e9fbb9f6679c8f49cd8fab36964a66b420",
+      "size": 235221
+    },
+    "readings/reading-ch09-the-sample-mean-and-variance-together.pdf": {
+      "sha256": "c84838fef4be0ef14eff54458da33dcb00a585243758d130544f81b007a21293",
+      "size": 305524
+    },
+    "readings/reading-ch11-interval-estimation.pdf": {
+      "sha256": "879eed86093937b9ee626bd6980211edf172c1d91819195aad27ff3f6ab3f5df",
+      "size": 283296
+    },
     "transcripts/discussion-sections/disc-01-annotated.md": {
       "sha256": "c27dfe9e9f2bbfac290f401dc83c2cdc9d58bc6f83195d4da8b94f062cf0aac3",
       "size": 2586
@@ -171,6 +247,14 @@
       "sha256": "f1f00724365ffe1911ca117a1225b928672318dabca13ca22ced05fbe80e0070",
       "size": 1381
     },
+    "transcripts/discussion-sections/disc-05.md": {
+      "sha256": "865bed3efc91425ebfecbfad2b56483c863104a8c097f5c30493fa03d2cc0228",
+      "size": 1644
+    },
+    "transcripts/discussion-sections/disc-06.md": {
+      "sha256": "69bd20c78d2d2342120a64665ee995135f7e64feb32808295722cb20da09005f",
+      "size": 1564
+    },
     "transcripts/homework/homework-01.md": {
       "sha256": "067b7c8bec5bf0e5594927a3049f9369e36c8ad3d1c2b8a9e978d8524293619c",
       "size": 1464
@@ -178,6 +262,10 @@
     "transcripts/homework/homework-02.md": {
       "sha256": "b7ebf619608563965b2f054f4c3b3c188c0d64f86364856e9a4641c6d81eb787",
       "size": 2732
+    },
+    "transcripts/homework/homework-03.md": {
+      "sha256": "bfc33b1aa390fccec68d2ed14fe19e9bde9a0520807f792135690f1f217128c3",
+      "size": 1492
     },
     "transcripts/lecture-notes/lecture-01-probability-review-and-intro-to-inference.md": {
       "sha256": "eb4effc839cfadf78e37e085dd379c0c29524f0263bcdd6af5d62a774ab1d9d4",
@@ -206,6 +294,58 @@
     "transcripts/lecture-notes/lecture-07-sampling-distributions.md": {
       "sha256": "dc92d72732853a0bda28f9cc6008a0d8e1c08aa11fbb0d1dd8efa365ee55dbc7",
       "size": 4866
+    },
+    "transcripts/lecture-notes/lecture-08-the-chi-squared-distribution.md": {
+      "sha256": "ffaf61104f489bd3c1d878da10a1cb6e38ecac0ffb757d2509924cf8ee262caf",
+      "size": 12023
+    },
+    "transcripts/lecture-notes/lecture-09-joint-distribution-of-the-sample-mean-and-variance.md": {
+      "sha256": "4d74c24a7cad6bf9de5360626a4c209e722fb510d4fb9d6eac502b51b9317585",
+      "size": 6295
+    },
+    "transcripts/lecture-notes/lecture-10-the-t-distribution.md": {
+      "sha256": "922cc870d1810326b5c4337ed35804d7748ff5283182cf72daf8313efcd30f1f",
+      "size": 7740
+    },
+    "transcripts/lecture-notes/lecture-11-interval-estimation.md": {
+      "sha256": "440c469eba044a3cc385bcc75a06475a71218307ad8be233b73c7e279d89bebb",
+      "size": 8930
+    },
+    "transcripts/lecture-notes/lecture-12-unbiased-estimators.md": {
+      "sha256": "ca41e714ed0e79ac0ced18e353ebaa640f95bbe810dc1e0e5eaec2530e14f30b",
+      "size": 4221
+    },
+    "transcripts/lecture-transcripts/lecture-02-frequentist-vs-bayesian-inference.md": {
+      "sha256": "871c06c40225772148d9be5d8dd7ea2a307fb1332ce30b98436acd6afe74b7d9",
+      "size": 62033
+    },
+    "transcripts/lecture-transcripts/lecture-03-the-posterior-distribution.md": {
+      "sha256": "b1eb983046ae04439d4e50c6253d3b19f58016a4ffabbc943475d649bdda1bae",
+      "size": 54898
+    },
+    "transcripts/lecture-transcripts/lecture-05-maximum-likelihood-estimation.md": {
+      "sha256": "e16a7077dbf79ff49bbac6a2f21c511d0cc11484285b609a5ffa73421da4d38a",
+      "size": 48599
+    },
+    "transcripts/lecture-transcripts/lecture-06-maximum-likelihood-properties.md": {
+      "sha256": "7c502cdb2ff750708a4223c585ca606e4a6522fbf20afd4b768245781a5fe69a",
+      "size": 43433
+    },
+    "transcripts/lecture-transcripts/lecture-07-sampling-distributions.md": {
+      "sha256": "1ad51c3c0b4707337d72a229e4e2233bdba06c543f34ab2e5be2bc2bb878621d",
+      "size": 55534
+    },
+    "transcripts/lecture-transcripts/lecture-08-the-chi-squared-distribution.md": {
+      "sha256": "6262655e923b585cab5de91d609a00749b08cfd97ab0434997eed5063674ea09",
+      "size": 46797
+    },
+    "transcripts/lecture-transcripts/lecture-09-joint-distribution-of-the-sample-mean-and-variance.md": {
+      "sha256": "f47f0f7edd7011e0cd6481543e87b3847509308eed2e2dde9ee9cf0b1ee40568",
+      "size": 38729
+    },
+    "transcripts/lecture-transcripts/lecture-10-the-t-distribution.md": {
+      "sha256": "6b74413c7676a1554c218d431071ea333b7c0d8c5a10c8d13d7951adc74ebad5",
+      "size": 48958
     },
     "transcripts/prerequisites-stat131/common-distributions-table.md": {
       "sha256": "a641c4a0a3a3f8c92e65995c3f7dc1f05fe17bf6d60fb64a0fb1f37537a6c508",
@@ -266,6 +406,18 @@
     "transcripts/readings/reading-ch04-loss-functions-and-bayes-estimators.md": {
       "sha256": "0a8b24f1e9b1c293cc194b7223859f43bfd90e925e977ae020d7a14a477a7d63",
       "size": 34279
+    },
+    "transcripts/readings/reading-ch08-the-chi-square-distribution.md": {
+      "sha256": "de916061e20e4ce4f9bf5e219d9d9ee7cab8087625320871d63cf04a5e732b3d",
+      "size": 21780
+    },
+    "transcripts/readings/reading-ch09-the-sample-mean-and-variance-together.md": {
+      "sha256": "4156c982b341f03ef587fffaba06c22d5b4c94ed9b33297a98c6278ed415780f",
+      "size": 32321
+    },
+    "transcripts/readings/reading-ch11-interval-estimation.md": {
+      "sha256": "e058220d9d4f74ac282af1163ef27d501c2395f21a2385793f865fbd4bbb30d1",
+      "size": 41542
     }
   }
 }

@@ -26,6 +26,8 @@ KIND_WEIGHT = {
     "problem-set": 0.95,
     "reading": 0.90,
     "prerequisite": 0.85,
+    # what the professor said in the recording: useful colour, but the notes are the authority
+    "lecture-transcript": 0.80,
 }
 RRF_K = 60
 

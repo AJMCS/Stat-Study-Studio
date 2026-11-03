@@ -495,6 +495,15 @@ await step("glossary: every term, searchable, linked from Learn and the Library"
   if ((await page.locator(".g-row").count()) >= all) throw new Error("search did not filter");
   await page.fill("input[aria-label='Search the glossary']", "θ");
   await page.waitForSelector(".g-row:has-text('Parameter')");
+  // terms the notes define are read from the notes themselves, so lectures the app has no topic for are here too
+  await page.fill("input[aria-label='Search the glossary']", "pivotal");
+  await page.waitForSelector(".g-row:has-text('Pivotal quantity')");
+  const row = page.locator(".g-row:has-text('Pivotal quantity')").first();
+  if (!(await row.innerText()).includes("Read from the lecture notes")) throw new Error("a term read from the notes should say so");
+  if ((await page.locator(".glossary-group:has-text('Interval Estimation') :text('From the lecture notes')").count()) === 0) throw new Error("a lecture without a topic should be labelled as read from the notes");
+  await row.locator("button.cite").first().click();
+  await page.waitForSelector("dialog[open] :text('pivotal quantity')");
+  await page.keyboard.press("Escape");
   await go("/library");
   await page.waitForSelector("a.card[href$='/glossary']");
 });
@@ -947,10 +956,18 @@ await step("search: real passage, citation, highlight and PDF page", async () =>
   await go("/materials");
   await page.fill("input[placeholder*='sampling']", "what is a conjugate prior");
   await page.click("button:has-text('Search')");
+  // the list may still show the previous step's results for a moment: wait for this question's answer to arrive
+  await page.waitForFunction(() => /conjugate/i.test(document.querySelector("ol.excerpts li")?.textContent ?? ""), null, { timeout: 15000 }).catch(() => {});
   await page.waitForSelector("ol.excerpts li");
   const first = page.locator("ol.excerpts li").first();
   const txt = await first.innerText();
-  if (!/Lecture 3/.test(txt) || !/conjugate/i.test(txt)) throw new Error("top result is not Lecture 3 on conjugate priors: " + txt.slice(0, 120));
+  if (!/Lecture 3/.test(txt) || !/conjugate/i.test(txt)) {
+    // say what the service itself answered, so a ranking change and a page-rendering change can be told apart
+    const api = await apiGet("search?q=" + encodeURIComponent("what is a conjugate prior") + "&k=3");
+    const lib = await apiGet("library");
+    const seen = api.results.map((h) => `${h.source} p${h.page} (${h.title})`).join("; ");
+    throw new Error(`top result is not Lecture 3 on conjugate priors: ${txt.replace(/\s+/g, " ").slice(0, 120)} | service (${api.mode}): ${seen} | library v${lib.installed?.version} from ${lib.installed?.source}`);
+  }
   if (!(await first.locator("mark").count())) throw new Error("no highlighted passage in the top result");
   await shot("search-results");
   await page.click(".cite >> nth=0");
@@ -1724,8 +1741,11 @@ await step("ai: several services stay saved; the corner chip shows the one in us
 });
 for (const id of ["gemini", "ollama"]) await page.request.delete(`${BASE.split("#")[0]}api/ai?provider=${id}`).catch(() => {}); // in case the step failed midway
 
-for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claude-haiku-4-5", "anthropic"], ["openai", "OpenAI", "gpt-5.4-mini", "openai"]]) {
-  await step(`ai: ${label} connects with a pasted key, picks a model the account has, warns about API credit, and scores a recall`, async () => {
+for (const [id, label, model, kind, other, otherLabel] of [
+  ["anthropic", "Anthropic Claude", "claude-haiku-4-5", "anthropic", "claude-opus-5-5", "Claude Opus 5.5"],
+  ["openai", "OpenAI", "gpt-5.4-mini", "openai", "gpt-5.5", "gpt-5.5"],
+]) {
+  await step(`ai: ${label} connects with a pasted key, picks a model the account has, offers the account's own list, warns about API credit, and scores a recall`, async () => {
     await fresh("/settings");
     await page.check(`label:has-text('${label}') input`);
     await page.waitForSelector("text=does not include API credit");
@@ -1736,7 +1756,20 @@ for (const [id, label, model, kind] of [["anthropic", "Anthropic Claude", "claud
     await page.fill("input[aria-label='API key']", "sk-good-key");
     await page.click("button:has-text('Connect')");
     await page.waitForSelector(`text=Connected to ${label}`);
-    if ((await page.inputValue("input[aria-label='Model']")) !== model) throw new Error("the model was not chosen from the account's list");
+    if ((await page.inputValue("select[aria-label='Model']")) !== model) throw new Error("the model was not chosen from the account's list");
+    // the model is picked from what the account can use, read from the service itself, never typed; the service's own
+    // names are shown, models that cannot chat are left out, and choosing one saves it at once
+    if ((await page.locator("input[aria-label='Model']").count()) > 0) throw new Error("the model must be a list of the account's models, not a typed field");
+    if ((await page.locator("button:has-text('Save model')").count()) > 0) throw new Error("a chosen model saves itself; no Save button");
+    await page.waitForSelector(`select[aria-label='Model'] option:has-text('${otherLabel}')`, { state: "attached" });
+    if ((await page.locator("select[aria-label='Model'] option:has-text('whisper')").count()) > 0) throw new Error("a speech model is not a chat model and must not be offered");
+    await page.selectOption("select[aria-label='Model']", other);
+    await page.waitForFunction((m) => document.querySelector("select[aria-label='Model']")?.value === m, other);
+    if ((await apiGet("ai")).model !== other) throw new Error("choosing from the list did not save the model");
+    await shot(`ai-${id}-model-list`);
+    await page.selectOption("select[aria-label='Model']", model);
+    await page.waitForFunction((m) => document.querySelector("select[aria-label='Model']")?.value === m, model);
+    if ((await apiGet("ai")).model !== model) throw new Error("choosing the first model again did not save it");
     await fresh(`/topic/${T}`);
     await page.click("button:has-text('Try a recall')");
     await page.fill("textarea", WRITTEN);

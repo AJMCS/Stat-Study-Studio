@@ -6,6 +6,6 @@ TRANSCRIPTS = LIBRARY / "transcripts"
 INDEX_DIR = LIBRARY / "index"
 
 # Kinds of transcript, set in each transcript's frontmatter.
-#  lecture, problem-set, worked-solutions, reading, prerequisite: searchable
+#  lecture, lecture-transcript, problem-set, worked-solutions, reading, prerequisite: searchable
 #  answer-key: question + answer together, never shown by general search
-SEARCHABLE_KINDS = {"lecture", "problem-set", "worked-solutions", "reading", "prerequisite"}
+SEARCHABLE_KINDS = {"lecture", "lecture-transcript", "problem-set", "worked-solutions", "reading", "prerequisite"}

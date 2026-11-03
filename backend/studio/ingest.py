@@ -13,6 +13,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import time
 from pathlib import Path
 
@@ -28,6 +29,7 @@ INDEX_VERSION = 1
 
 KIND_BY_FOLDER = {
     "lecture-notes": "lecture",
+    "lecture-transcripts": "lecture-transcript",  # captions of the recorded lectures
     "discussion-sections": "problem-set",
     "homework": "problem-set",
     "quizzes": "answer-key",
@@ -47,6 +49,67 @@ def library_pdfs() -> list[Path]:
     return sorted(p for p in LIBRARY.rglob("*.pdf") if p.relative_to(LIBRARY).parts[0] not in skip)
 
 
+def _paragraphs(text: str) -> str:
+    """Caption exports wrap their lines at about 80 characters. A line that ends a sentence well short of the wrap
+    width ends a paragraph; every other line is a wrapped one and is joined to the next."""
+    out: list[str] = []
+    cur: list[str] = []
+    for line in text.splitlines():
+        s = line.strip()
+        if not s:
+            continue
+        cur.append(s)
+        if s[-1] in ".?!" and len(s) < 62:
+            out.append(" ".join(cur))
+            cur = []
+    if cur:
+        out.append(" ".join(cur))
+    return "\n\n".join(out)
+
+
+def lecture_titles() -> dict[int, str]:
+    """Lecture number -> title, from the topic manifest."""
+    try:
+        topics = json.loads((LIBRARY / "manifest.json").read_text(encoding="utf-8")).get("topics", [])
+    except (OSError, ValueError):
+        return {}
+    return {t["lecture"]: t.get("title", "") for t in topics if isinstance(t.get("lecture"), int)}
+
+
+def captions_transcript(pdf: Path, rel: Path) -> str:
+    """A lecture recording's captions export (one PDF per recording, under lecture-transcripts/, named like the
+    lecture's notes) as a page-aligned transcript: the wrapped caption lines joined back into paragraphs, with a
+    heading that says which lecture it records."""
+    import pymupdf
+
+    m = re.search(r"lecture-(\d+)", rel.stem)
+    n = int(m.group(1)) if m else 0
+    title = lecture_titles().get(n, "")
+    pages = [_paragraphs(p.get_text()) for p in pymupdf.open(pdf)]
+    head = [
+        "---",
+        f"source: {rel.as_posix()}",
+        'method: automatic speech-to-text captions of the lecture recording, page-aligned; not hand-verified (names of distributions and symbols are often misheard, e.g. "kai squared" for chi-squared)',
+        f"pages: {len(pages)}",
+        f"kind: {kind_for(rel)}",
+        f"lecture: {n}",
+        "---",
+        "",
+    ]
+    body: list[str] = []
+    for i, text in enumerate(pages, 1):
+        body.append(f"<!-- page {i} -->")
+        if i == 1:
+            body += [
+                f"# Lecture {n} recording: {title}".rstrip(": "),
+                "",
+                f"STAT 132. Spoken transcript of the lecture that goes with the Lecture {n} notes (lecture-notes/{rel.stem}.pdf), as captioned by the recording software.",
+                "",
+            ]
+        body += [text, ""]
+    return "\n".join(head + body)
+
+
 def transcribe_missing(force: bool = False) -> None:
     for pdf in library_pdfs():
         rel = pdf.relative_to(LIBRARY)
@@ -58,8 +121,13 @@ def transcribe_missing(force: bool = False) -> None:
             if not force:
                 continue
         t0 = time.time()
-        pages = extract(pdf)
         out.parent.mkdir(parents=True, exist_ok=True)
+        if rel.parts[0] == "lecture-transcripts":
+            text = captions_transcript(pdf, rel)
+            out.write_text(text, encoding="utf-8")
+            print(f"{rel.as_posix()}: {text.count('<!-- page')} pages of captions, {time.time() - t0:.1f}s")
+            continue
+        pages = extract(pdf)
         out.write_text(to_transcript(pages, rel.as_posix(), kind_for(rel)), encoding="utf-8")
         warned = sum(1 for p in pages if p.warning)
         print(f"{rel.as_posix()}: {len(pages)} pages, {warned} flagged, {time.time() - t0:.1f}s")
@@ -130,8 +198,13 @@ def library_files(root: Path) -> dict:
     files = {}
     for p in sorted(root.rglob("*")):
         rel = p.relative_to(root).as_posix()
-        if p.is_file() and rel not in EXCLUDED and p.suffix.lower() in PUBLISHED_SUFFIXES:
-            files[rel] = {"sha256": file_sha256(p), "size": file_size(p)}
+        if not p.is_file() or rel in EXCLUDED or p.suffix.lower() not in PUBLISHED_SUFFIXES:
+            continue
+        # under transcripts/ only the Markdown transcripts are published; raw material parked there (for example the
+        # caption exports the recordings' transcripts were made from) stays local
+        if rel.startswith("transcripts/") and p.suffix.lower() != ".md":
+            continue
+        files[rel] = {"sha256": file_sha256(p), "size": file_size(p)}
     return files
 
 

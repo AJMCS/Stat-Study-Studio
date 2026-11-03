@@ -41,6 +41,29 @@ class Gemini:
         """Listing models needs a valid key but costs no quota."""
         self._send("GET", "/v1beta/models", params={"pageSize": 1})
 
+    def chat_models(self) -> list[dict]:
+        """The models the key may use that can answer a chat (generateContent), as [{"id", "name"}], following the
+        pages. Google also lists embedding and image models; those are left out."""
+        rows: list[dict] = []
+        params: dict = {"pageSize": 100}
+        while True:
+            page = self._send("GET", "/v1beta/models", params=params)
+            for m in page.get("models", []):
+                if not isinstance(m, dict) or not m.get("name"):
+                    continue
+                methods = m.get("supportedGenerationMethods")
+                if methods is not None and "generateContent" not in methods:
+                    continue
+                ident = str(m["name"]).removeprefix("models/")
+                rows.append({"id": ident, "name": m.get("displayName") or ident})
+            token = page.get("nextPageToken")
+            if not token:
+                return rows
+            params["pageToken"] = token
+
+    def models(self) -> list[str]:
+        return [m["id"] for m in self.chat_models()]
+
     def generate(self, system: str, messages: list[Message], *, json_output: bool = False, temperature: float = 0.4) -> str:
         body: dict = {
             "systemInstruction": {"parts": [{"text": system}]},

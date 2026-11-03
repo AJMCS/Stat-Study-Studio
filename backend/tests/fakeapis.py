@@ -13,6 +13,14 @@ NOT_SCOPED = (
 )
 
 
+def _display(model_id: str) -> str:
+    """Anthropic's display_name, roughly: "claude-opus-5-5" -> "Claude Opus 5.5"."""
+    parts = model_id.split("-")
+    words = [w.capitalize() for w in parts if not w.isdigit()]
+    digits = [w for w in parts if w.isdigit() and len(w) < 6]
+    return " ".join(words + [".".join(digits)]).strip()
+
+
 class FakeChatApi:
     """kind is "anthropic" or "openai". `replies` entries: str (model text), int (HTTP status), dict (raw error body + status via tuple).
 
@@ -85,7 +93,8 @@ class FakeChatApi:
                     rows = [{"archived_at": None, **w} for w in fake.workspaces if with_default or not w.get("default")]
                     return self._json(200, {"data": rows, "has_more": False})
                 if self._workspace_ok():
-                    self._json(200, {"data": [{"id": m} for m in fake.models]})
+                    rows = [{"id": m, **({"display_name": _display(m)} if fake.kind == "anthropic" else {})} for m in fake.models]
+                    self._json(200, {"data": rows, "has_more": False})
 
             def do_POST(self):
                 if not self._authorized() or not self._workspace_ok():
