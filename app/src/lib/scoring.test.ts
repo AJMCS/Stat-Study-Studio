@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { applyRecall, composite, historicalPeak, recencyWeighted, trend, criteriaBelowCutoff } from "./scoring";
+import { applyRecall, composite, courseTimeline, historicalPeak, recencyWeighted, topicChange, trend, criteriaBelowCutoff } from "./scoring";
 import type { Attempt } from "../types";
 
 const att = (composite: number, i: number): Attempt => ({
@@ -54,5 +54,34 @@ describe("scoring", () => {
     expect(s.misses).toBe(1);
     expect(s.flagged).toBe(true);
     expect(criteriaBelowCutoff(bad)).toHaveLength(4);
+  });
+});
+
+describe("comprehension over time", () => {
+  const on = (topicId: string, composite: number, day: number, counted = true): Attempt => ({ ...att(composite, day), id: `${topicId}-${day}`, topicId, counted });
+
+  it("the timeline has one point per counted attempt, with the course score the summary would have shown then", () => {
+    const a = [on("a", 40, 1), on("b", 80, 2), on("a", 60, 3), on("a", 100, 4, false)];
+    const line = courseTimeline(a);
+    expect(line.map((p) => p.score)).toEqual([40, 60, Math.round((recencyWeighted([a[0], a[2]])! + 80) / 2)]);
+    expect(line[2].topicScore).toBe(recencyWeighted([a[0], a[2]]));
+    expect(line.map((p) => p.attempt.id)).toEqual(["a-1", "b-2", "a-3"]);
+  });
+
+  it("one topic's timeline is its own recency-weighted score", () => {
+    const a = [on("a", 40, 1), on("b", 80, 2), on("a", 60, 3)];
+    expect(courseTimeline(a, 5, "a").map((p) => p.score)).toEqual([40, recencyWeighted([a[0], a[2]])]);
+  });
+
+  it("a topic's change is measured against the attempts before its latest window, else its first attempt", () => {
+    expect(topicChange([on("a", 50, 1)])).toBeNull();
+    const short = [on("a", 50, 1), on("a", 70, 2), on("a", 90, 3)];
+    expect(topicChange(short)).toEqual({ now: recencyWeighted(short), before: 50, delta: recencyWeighted(short)! - 50, attempts: 3, basis: "first" });
+    const long = [40, 40, 40, 40, 40, 90, 90, 90].map((c, i) => on("a", c, i + 1));
+    const c = topicChange(long)!;
+    expect(c.basis).toBe("window");
+    expect(c.before).toBe(40);
+    expect(c.delta).toBe(c.now - 40);
+    expect(c.delta).toBeGreaterThan(30);
   });
 });

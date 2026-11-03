@@ -2,10 +2,10 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { TOPICS } from "../mock/topics";
 import { useStore } from "../lib/store";
-import { analyticsAttempts, classify, historicalPeak, recencyWeighted, trend } from "../lib/scoring";
-import { Trend } from "../components/Trend";
+import { analyticsAttempts, classify, courseTimeline, historicalPeak, recencyWeighted, topicChange, trend } from "../lib/scoring";
+import { MetricChart, TopicChangeChart } from "../components/ComprehensionCharts";
 import { StreakIndicator } from "../components/Score";
-import { CRITERIA, CRITERION_LABELS, type Criterion } from "../types";
+import { CRITERIA, CRITERION_LABELS, type Attempt, type Criterion, type ScoringConfig } from "../types";
 import { useIncludeSelfScored } from "../lib/prefs";
 import { currentTopicId, journey } from "../lib/journey";
 import { JourneyMap } from "../components/JourneyMap";
@@ -15,10 +15,21 @@ import { Eyebrow, Note, Scribble } from "../components/Hand";
 export function Progress() {
   const { data, deleteAttempt } = useStore();
   const cfg = data.config;
-  const [open, setOpen] = useState<string | null>(null);
-  const [crit, setCrit] = useState<Criterion | "composite">("composite");
   const [includeSelf, setIncludeSelf] = useIncludeSelfScored();
   const selfCount = data.attempts.filter((a) => a.selfScored && a.counted).length;
+  // the charts' own filters: a time range and what to plot (the course, or one topic); they scope both charts
+  const [range, setRange] = useState<"all" | "30" | "7">("all");
+  const [show, setShow] = useState<string>("course");
+  const since = range === "all" ? null : new Date(Date.now() - Number(range) * 24 * 3600 * 1000).toISOString();
+  const charted = analyticsAttempts(data.attempts, undefined, includeSelf).filter((a) => !since || a.at >= since);
+  const timeline = courseTimeline(charted, cfg.recencyWindow, show === "course" ? undefined : show);
+  const topicNames = Object.fromEntries(TOPICS.map((t) => [t.id, t.title]));
+  const changes = TOPICS.flatMap((t) => {
+    if (show !== "course" && show !== t.id) return [];
+    const c = topicChange(charted.filter((a) => a.topicId === t.id), cfg.recencyWindow);
+    return c ? [{ id: t.id, title: t.title, change: c }] : [];
+  });
+  const started = TOPICS.filter((t) => data.attempts.some((a) => a.counted && a.topicId === t.id));
 
   const rows = TOPICS.map((t) => {
     const at = analyticsAttempts(data.attempts, t.id, includeSelf);
@@ -78,6 +89,36 @@ export function Progress() {
         </label>
       )}
 
+      {overall !== null && (
+        <section className="comprehension" aria-label="Comprehension over time">
+          <h2>Comprehension over time</h2>
+          <p className="muted">Whether your understanding is growing or slipping: the score after every counted attempt, and how far each topic has moved.</p>
+          <div className="chart-filters" role="group" aria-label="Chart filters">
+            <ul className="crit-tabs" role="tablist" aria-label="Time range">
+              {([["all", "All"], ["30", "30 days"], ["7", "7 days"]] as const).map(([v, name]) => (
+                <li key={v} role="presentation">
+                  <button role="tab" aria-selected={range === v} onClick={() => setRange(v)}>{name}</button>
+                </li>
+              ))}
+            </ul>
+            <label className="field inline">
+              <span>Show</span>
+              <select aria-label="What to plot" value={show} onChange={(e) => setShow(e.target.value)}>
+                <option value="course">Whole course</option>
+                {started.map((t) => (
+                  <option key={t.id} value={t.id}>
+                    {t.title}
+                  </option>
+                ))}
+              </select>
+            </label>
+          </div>
+          <p className="muted small chart-hint">Hover a point or a row, or use the arrow keys, to read it; each chart can also be shown as a table.</p>
+          <MetricChart key={`${show}-${range}-${includeSelf}`} points={timeline} cutoff={cfg.compositeCutoff} label={show === "course" ? "Course score" : topicNames[show]} topicNames={topicNames} />
+          <TopicChangeChart rows={changes} window={cfg.recencyWindow} />
+        </section>
+      )}
+
       {scored.length > 0 && <h2>Topics</h2>}
       <div className="topic-panels">
       {scored.map(({ t, at, score, peak, tr }) => {
@@ -86,7 +127,6 @@ export function Progress() {
         const apps = data.attempts.filter((a) => a.topicId === t.id && a.aiScored && a.criteria.application >= cfg.criterionCutoffs.application).length;
         const all = data.attempts.filter((a) => a.topicId === t.id).sort((a, b) => a.at.localeCompare(b.at));
         const cls = classify(score, cfg);
-        const pick = crit === "composite" ? undefined : (a: (typeof at)[number]) => a.criteria[crit];
         return (
           <section key={t.id} className="panel">
             <div className="row between">
@@ -102,7 +142,7 @@ export function Progress() {
                   <div><b>{peak}</b><span>Historical peak</span></div>
                   <div><span className={`chip ${cls === "strength" ? "ok" : "flag"}`}>{cls === "strength" ? "Strength" : "Gap"}</span><span>{tr === "improving" ? "↑ Improving" : tr === "declining" ? "↓ Declining" : "Steady"}</span></div>
                 </div>
-                <Trend attempts={crit === "composite" ? at : modelAt} cutoff={crit === "composite" ? cfg.compositeCutoff : cfg.criterionCutoffs[crit]} pick={pick} label={`${t.title} ${crit} trend`} />
+                <PathwayChart topic={t} attempts={at} modelAttempts={modelAt} all={all} cfg={cfg} topicNames={topicNames} onDelete={deleteAttempt} />
                 <p className="eyebrow">
                   {"// "}{modelAt.length > 0 ? `${apps} successful application${apps === 1 ? "" : "s"} · ` : ""}{state?.recallHistory.filter((r) => r.qualified).length ?? 0} qualifying recalls · {state?.misses ?? 0} misses
                 </p>
@@ -111,46 +151,6 @@ export function Progress() {
                     {state.strengths.length > 0 && <>Strong: {state.strengths.join(", ")}. </>}
                     {state.gaps.length > 0 && <>Working on: {state.gaps.join(", ")}.</>}
                   </p>
-                )}
-                <button className="ghost" aria-expanded={open === t.id} onClick={() => setOpen(open === t.id ? null : t.id)}>
-                  {open === t.id ? "Hide details" : "Inspect criteria and attempts"}
-                </button>
-                {open === t.id && (
-                  <>
-                    <div className="row" role="group" aria-label="Trend metric">
-                      {(["composite", ...CRITERIA] as const).map((c) => (
-                        <button
-                          key={c}
-                          className={crit === c ? "btn-sm on" : "ghost btn-sm"}
-                          aria-pressed={crit === c}
-                          disabled={c !== "composite" && modelAt.length === 0}
-                          title={c !== "composite" && modelAt.length === 0 ? "Criterion-level trends need an AI service to score your explanations" : undefined}
-                          onClick={() => setCrit(c)}
-                        >
-                          {c === "composite" ? "Composite" : CRITERION_LABELS[c]}
-                        </button>
-                      ))}
-                    </div>
-                    {modelAt.length === 0 && <p className="muted">Criterion-level trends (core idea, depth, relevance, application) need an AI service to score your explanations. Your self-scored attempts only have an overall score.</p>}
-                    <table>
-                      <thead><tr><th>Date</th><th>Type</th><th>Composite</th><th>Counts</th><th /></tr></thead>
-                      <tbody>
-                        {[...all].reverse().map((a) => (
-                          <tr key={a.id}>
-                            <td className="mono">{new Date(a.at).toLocaleDateString()}</td>
-                            <td>{a.note ?? a.kind}</td>
-                            <td><span className="mono">{a.composite}</span>{a.selfScored && <span className="chip">Self-scored</span>}</td>
-                            <td>{a.counted ? "Yes" : a.note?.startsWith("Comprehension check") ? "Practice (not counted)" : "Retry (not counted)"}</td>
-                            <td>
-                              <button className="ghost btn-sm" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && deleteAttempt(a.id)}>
-                                Delete
-                              </button>
-                            </td>
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
-                  </>
                 )}
               </>
             )}
@@ -165,5 +165,128 @@ export function Progress() {
         <JourneyList rows={jrows} current={jcur} className="mobile-only" />
       </section>
     </>
+  );
+}
+
+/**
+ * A pathway's chart space: its composite score over time, or, on request, the four criteria underneath it as tabs in
+ * the same frame (each a criterion's recency-weighted score over the attempts an AI rubric scored), with the attempts
+ * table beneath. The space is reused rather than stacked: opening the criteria closes the composite.
+ */
+/** The criterion tabs' short names; the chart's own caption carries the full label. */
+const TAB_LABELS: Record<Criterion, string> = { core: "Core idea", depth: "Depth", relevance: "Relevance", application: "Application" };
+
+function PathwayChart({
+  topic,
+  attempts,
+  modelAttempts,
+  all,
+  cfg,
+  topicNames,
+  onDelete,
+}: {
+  topic: { id: string; title: string };
+  attempts: Attempt[];
+  modelAttempts: Attempt[];
+  all: Attempt[];
+  cfg: ScoringConfig;
+  topicNames: Record<string, string>;
+  onDelete: (id: string) => void;
+}) {
+  const [view, setView] = useState<"composite" | "criteria">("composite");
+  const [tab, setTab] = useState<Criterion | "attempts">("core");
+  const noModel = modelAttempts.length === 0;
+  const crit: Criterion = tab === "attempts" ? "core" : tab;
+  const pick = (a: Attempt) => a.criteria[crit];
+  // what is in the chart space: the composite, or one criterion; each with the same one-line summary beneath
+  const metricAttempts = view === "composite" ? attempts : modelAttempts;
+  const metricPick = view === "composite" ? (a: Attempt) => a.composite : pick;
+  const points = courseTimeline(metricAttempts, cfg.recencyWindow, topic.id, metricPick);
+  const now = recencyWeighted(metricAttempts, cfg.recencyWindow, metricPick);
+  const change = topicChange(metricAttempts.map((a) => ({ ...a, composite: metricPick(a) })), cfg.recencyWindow);
+  const dir = change === null ? "new" : change.delta >= 3 ? "improving" : change.delta <= -3 ? "declining" : "steady";
+  const cutoff = view === "composite" ? cfg.compositeCutoff : cfg.criterionCutoffs[crit];
+  const name = view === "composite" ? "Composite" : TAB_LABELS[crit];
+  const summary = now !== null && (
+    <p className="crit-stat" role="status">
+      <b className="mono">{now}</b> on {view === "composite" ? "the composite" : CRITERION_LABELS[crit].toLowerCase()} now
+      {change && (
+        <>
+          {" · "}
+          <span className="mono">{dir === "improving" ? "↑" : dir === "declining" ? "↓" : "→"}</span> {dir === "improving" ? "Improving" : dir === "declining" ? "Declining" : "Steady"}{" "}
+          <span className="muted">
+            ({change.delta > 0 ? "+" : ""}
+            {change.delta} since {change.basis === "window" ? `the attempts before the last ${Math.min(cfg.recencyWindow, change.attempts)}` : "your first attempt"})
+          </span>
+        </>
+      )}
+      {" · "}
+      <span className="muted">{now >= cutoff ? "at or above" : "below"} its cutoff of {cutoff}</span>
+    </p>
+  );
+  return (
+    <div className="pathway-chart">
+      {/* one row of tabs in both views, so the chart space below never moves: the composite alone, or the criteria and the attempts */}
+      <div className="crit-row">
+        <ul className="crit-tabs" role="tablist" aria-label={view === "composite" ? "Metric" : "Criterion"}>
+          {view === "composite" ? (
+            <li role="presentation">
+              <button role="tab" aria-selected={true}>Composite</button>
+            </li>
+          ) : (
+            <>
+              {CRITERIA.map((c) => (
+                <li key={c} role="presentation">
+                  <button role="tab" aria-selected={tab === c} disabled={noModel} title={noModel ? "Criterion-level trends need an AI service to score your explanations" : undefined} onClick={() => setTab(c)}>
+                    {TAB_LABELS[c]}
+                  </button>
+                </li>
+              ))}
+              <li role="presentation">
+                <button role="tab" aria-selected={tab === "attempts"} onClick={() => setTab("attempts")}>Attempts</button>
+              </li>
+            </>
+          )}
+        </ul>
+        {view === "composite" ? (
+          <button className="link mono-link" onClick={() => { setView("criteria"); setTab(noModel ? "attempts" : "core"); }}>Inspect criteria and attempts</button>
+        ) : (
+          <button className="link mono-link" onClick={() => setView("composite")}>
+            ← <span className="back-long">Back to the </span>Composite
+          </button>
+        )}
+      </div>
+      {view === "criteria" && tab === "attempts" ? (
+        <>
+          {noModel && <p className="muted">Criterion-level trends (core idea, depth, relevance, application) need an AI service to score your explanations. Your self-scored attempts only have an overall score.</p>}
+          <div className="table-scroll attempts-table">
+            <table>
+              <thead><tr><th>Date</th><th>Type</th>{!noModel && CRITERIA.map((c) => <th key={c}>{TAB_LABELS[c]}</th>)}<th>Composite</th><th>Counts</th><th /></tr></thead>
+              <tbody>
+                {[...all].reverse().map((a) => (
+                  <tr key={a.id}>
+                    <td className="mono">{new Date(a.at).toLocaleDateString()}</td>
+                    <td>{a.note ?? a.kind}</td>
+                    {!noModel && CRITERIA.map((c) => <td key={c} className="mono">{a.aiScored ? a.criteria[c] : "—"}</td>)}
+                    <td><span className="mono">{a.composite}</span>{a.selfScored && <span className="chip">Self-scored</span>}</td>
+                    <td>{a.counted ? "Yes" : a.note?.startsWith("Comprehension check") ? "Practice (not counted)" : "Retry (not counted)"}</td>
+                    <td>
+                      <button className="link" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && onDelete(a.id)}>
+                        Delete
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      ) : (
+        <>
+          <MetricChart key={`${view}-${crit}`} points={points} cutoff={cutoff} label={name} caption={view === "composite" ? "recency-weighted, per counted attempt" : "recency-weighted, AI-scored attempts"} topicNames={topicNames} metric={metricPick} />
+          {summary}
+        </>
+      )}
+    </div>
   );
 }

@@ -3,6 +3,9 @@
 //
 //   node e2e/shots.mjs <outDir> [routes...]        e.g. node e2e/shots.mjs ../design/shots/round1 / /learn /practice
 //   node e2e/shots.mjs <outDir> --intro            filmstrip of the intro, both themes
+//   node e2e/shots.mjs <outDir> --charts           the Progress charts: a filmstrip of the course chart drawing on,
+//                                                    then a pathway's composite, its criterion tabs (with a filmstrip
+//                                                    of a tab opening) and the change bars; both themes, both widths
 //   node e2e/shots.mjs <outDir> --onboarding       first-run setup, both themes
 //   node e2e/shots.mjs <outDir> --onboarding --empty --connect   ...plus a refused key and the connected last slide
 //   node e2e/shots.mjs <outDir> [routes...] --paths    ...plus custom learning paths, desktop only: Learn with two
@@ -100,6 +103,16 @@ async function seed() {
     scores.forEach((c, i) => attempts.push({ id: `seed-${n++}`, topicId, at: day(3 + n), kind: i === 0 ? "quiz" : "recall", counted: true, composite: c, criteria: crit(c) }));
     topicState[topicId] = { streak: flagged ? 0 : scores.filter((c) => c >= 80).length, flagged, misses: flagged ? 1 : 0, warnCriteria: [], recallHistory: [], strengths: [], gaps: [] };
   }
+  // one pathway scored by an AI rubric, with criteria that move differently, so its criterion tabs have lines
+  [
+    { core: 70, depth: 40, relevance: 65, application: 35 },
+    { core: 78, depth: 52, relevance: 70, application: 44 },
+    { core: 84, depth: 61, relevance: 72, application: 58 },
+    { core: 88, depth: 55, relevance: 80, application: 71 },
+  ].forEach((c, i) =>
+    attempts.push({ id: `seed-${n++}`, topicId: "maximum-likelihood-estimation", at: day(12 + i), kind: i === 0 ? "quiz" : "recall", counted: true, composite: Math.round((c.core + c.depth + c.relevance + c.application) / 4), criteria: c, aiScored: true }),
+  );
+  topicState["maximum-likelihood-estimation"] = { streak: 1, flagged: false, misses: 0, warnCriteria: [], recallHistory: [], strengths: ["core idea"], gaps: ["depth of reasoning"] };
   await put("attempts", attempts);
   await put("topicState", topicState);
   await put("session", { topicId: "maximum-likelihood-estimation", activity: "tutorial", at: day(17) });
@@ -426,7 +439,57 @@ async function pathStates() {
 }
 
 try {
-  if (rest[0] === "--intro") {
+  if (rest[0] === "--charts") {
+    for (const theme of ["dark", "light"]) {
+      for (const vp of ["desktop", "mobile"]) {
+        const { ctx, page } = await newPage(theme, vp);
+        // animations run at a quarter speed so each 100ms frame is a true 100ms of the draw-on (a screenshot
+        // itself takes longer than that); frame names are in real-time milliseconds
+        const SLOW = 4;
+        const cdp = await ctx.newCDPSession(page);
+        await cdp.send("Animation.enable");
+        await cdp.send("Animation.setPlaybackRate", { playbackRate: 1 / SLOW });
+        await page.goto(`${origin}/#/progress`);
+        await page.waitForSelector("section[aria-label='Comprehension over time'] figure.timeline svg");
+        // element screenshots taller than the viewport are stitched; keep the sticky top bar and the floating AI chip
+        // out of them (they are page chrome, not part of the charts)
+        await page.addStyleTag({ content: `/* ------------------------------------------------------------------ top bar */
+.top { position: static !important; } .ai-chip, .ai-status { display: none !important; }` });
+        const t0 = Date.now();
+        for (let at = 0; at <= 1200; at += 100) {
+          await page.waitForTimeout(Math.max(0, at * SLOW - (Date.now() - t0)));
+          await page.locator("figure.timeline").first().screenshot({ path: join(outDir, `charts-draw-${theme}-${vp}-${String(at).padStart(4, "0")}ms.png`) });
+        }
+        await page.waitForTimeout(1500 * SLOW);
+        await page.screenshot({ path: join(outDir, `charts-course-${theme}-${vp}.png`) });
+        // the readout, on a middle point
+        {
+          const fig = page.locator("figure.timeline").first();
+          const box = await fig.locator("svg").boundingBox();
+          await page.mouse.move(box.x + box.width * 0.45, box.y + box.height * 0.4);
+          await page.waitForTimeout(300);
+          await fig.screenshot({ path: join(outDir, `charts-readout-${theme}-${vp}.png`) });
+          await page.mouse.move(0, 0);
+        }
+        await page.locator("section[aria-label='Comprehension over time']").screenshot({ path: join(outDir, `charts-section-${theme}-${vp}.png`) });
+        // the pathway with AI-scored attempts: its composite, then its criteria (filming the first tab opening)
+        const panel = page.locator(".topic-panels .panel:has-text('Maximum Likelihood Estimation')").first();
+        await panel.evaluate((el) => window.scrollTo(0, el.getBoundingClientRect().top + window.scrollY - 96)); // clear of the top bar
+        await page.waitForTimeout(1500 * SLOW);
+        await panel.screenshot({ path: join(outDir, `charts-pathway-composite-${theme}-${vp}.png`) });
+        await panel.locator("button:has-text('Inspect criteria and attempts')").click();
+        const t1 = Date.now();
+        for (let at = 0; at <= 1200; at += 200) {
+          await page.waitForTimeout(Math.max(0, at * SLOW - (Date.now() - t1)));
+          await panel.screenshot({ path: join(outDir, `charts-crit-open-${theme}-${vp}-${String(at).padStart(4, "0")}ms.png`) });
+        }
+        await panel.locator("button[role=tab]:has-text('Application')").click();
+        await page.waitForTimeout(1500 * SLOW);
+        await panel.screenshot({ path: join(outDir, `charts-pathway-criteria-${theme}-${vp}.png`) });
+        await ctx.close();
+      }
+    }
+  } else if (rest[0] === "--intro") {
     await setOnboarding(true);
     for (const theme of ["dark", "light"]) {
       const vp = process.env.INTRO_VP === "mobile" ? "mobile" : "desktop"; // INTRO_VP=mobile films the phone layout

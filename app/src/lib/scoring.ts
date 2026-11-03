@@ -63,6 +63,62 @@ export function recencyWeighted(attempts: Attempt[], window = 5, pick: (a: Attem
   return Math.round(num / den);
 }
 
+/** One point of the comprehension timeline: the recency-weighted score right after an attempt was saved. */
+export interface TimelinePoint {
+  at: string;
+  /** The course score (mean of every started topic's recency-weighted score), or the topic's own when one is in view. */
+  score: number;
+  /** The attempt that produced this point. */
+  attempt: Attempt;
+  /** The attempt's topic's recency-weighted score after it. */
+  topicScore: number;
+}
+
+/**
+ * How comprehension moved over time: after each counted attempt (oldest first), the score the Progress page would
+ * have shown then. With `topicId` it is that topic's own recency-weighted score; without, the course score, the
+ * mean of every topic started so far, exactly as the summary computes it.
+ */
+export function courseTimeline(attempts: Attempt[], window = 5, topicId?: string, pick: (a: Attempt) => number = (a) => a.composite): TimelinePoint[] {
+  const sorted = [...attempts].filter((a) => a.counted && (!topicId || a.topicId === topicId)).sort((a, b) => a.at.localeCompare(b.at));
+  const byTopic = new Map<string, Attempt[]>();
+  const out: TimelinePoint[] = [];
+  for (const a of sorted) {
+    const list = byTopic.get(a.topicId) ?? [];
+    list.push(a);
+    byTopic.set(a.topicId, list);
+    const topicScore = recencyWeighted(list, window, pick)!;
+    let score = topicScore;
+    if (!topicId) {
+      let sum = 0;
+      for (const l of byTopic.values()) sum += recencyWeighted(l, window, pick)!;
+      score = Math.round(sum / byTopic.size);
+    }
+    out.push({ at: a.at, score, attempt: a, topicScore });
+  }
+  return out;
+}
+
+/** How much a topic's recency-weighted score moved: against the score before its latest `window` attempts when
+ * there are more than that, else against its first attempt. Null with fewer than two attempts. */
+export interface TopicChange {
+  now: number;
+  before: number;
+  delta: number;
+  attempts: number;
+  basis: "window" | "first";
+}
+
+export function topicChange(attempts: Attempt[], window = 5): TopicChange | null {
+  const at = [...attempts].filter((a) => a.counted).sort((a, b) => a.at.localeCompare(b.at));
+  if (at.length < 2) return null;
+  const now = recencyWeighted(at, window)!;
+  const earlier = at.slice(0, -window);
+  const basis = earlier.length ? "window" : "first";
+  const before = basis === "window" ? recencyWeighted(earlier, window)! : at[0].composite;
+  return { now, before, delta: now - before, attempts: at.length, basis };
+}
+
 export function historicalPeak(attempts: Attempt[]): number | null {
   return attempts.length ? Math.max(...attempts.map((a) => a.composite)) : null;
 }

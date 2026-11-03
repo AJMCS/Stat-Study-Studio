@@ -33,3 +33,28 @@ References: `reference/timescale-*.png` (overall structure and hard-edged system
 **Scope (owner, 2026-10-19, during piece D round 10):** the app targets desktop/laptop only for now; a phone layout is a later
 version. Critics judge the desktop captures (1440x900 and full-page) only; the 390px captures are rendered but not judged, and a
 mobile-only flaw never fails a round.
+
+## Charts (piece F)
+
+References: `reference/charts-vercel-desktop.png` (one hairline series across the fold, one anchored readout card,
+faint vertical grid), `reference/charts-plot-desktop.png` (tick-only axes, muted mono ticks, the line is the only
+ink-weight object). Each line is checkable in a screenshot or a filmstrip frame.
+
+1. **The series is the only heavy object.** The line is 1.5–2px ink; gridlines are hairlines at no more than ~10% ink;
+   there is no axis box, only tick labels in muted mono (11–12px) and, at most, one baseline. Nothing else on the plot
+   is as dark as the line except its end marker.
+2. **One accent, on the present.** Orange appears once per chart: the current point (and its value). Every other mark
+   and every label is ink or muted; no text is ever in the series colour.
+3. **Labels are rare and anchored.** On the plot only the current value, the high and the low are labelled, each
+   sitting clear of the line and the axis band. One readout at a time, anchored to its point, value first (bold mono),
+   then what it is, then when.
+4. **Draw-on from the left at one speed.** On open the line enters at its left end and travels to the right, finishing
+   in 700–900ms with an ease-out; markers, labels and the wash appear only once the line has reached them, never
+   before, and nothing pops in afterwards. With reduced motion the end state is shown at once.
+5. **One frame, many series.** The composite and each criterion share one chart space with the same frame, 0–100
+   scale, ticks, cutoff line and height, so switching changes only the line; the frame does not move or resize.
+6. **Controls are one row, in the label voice.** Tabs and filters sit in a single row above the plot, in mono
+   uppercase like the eyebrows; the active tab is marked with ink (fill or underline), not with colour.
+7. **Rhythm.** Caption, plot and hint are spaced on the 8px grid; the plot is between one third and one half as tall
+   as it is wide; no type under 11px; on a phone the chart fills the gutter width and its readout stays inside it.
+

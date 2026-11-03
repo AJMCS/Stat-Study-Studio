@@ -76,7 +76,7 @@ await step("progress survives wiping browser storage", async () => {
   });
   await page.reload();
   await page.goto(BASE + "/progress");
-  await page.waitForSelector("text=Maximum Likelihood Estimation");
+  await page.waitForSelector(".topic-panels h3:has-text('Maximum Likelihood Estimation')"); // the topic's panel, not the charts' filter option
   const text = await page.locator("main").innerText();
   if (text.includes("No saved attempts yet")) throw new Error("progress was lost");
 });

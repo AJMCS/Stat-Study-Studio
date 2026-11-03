@@ -843,10 +843,40 @@ await step("progress: self-scored attempts are labeled and can be hidden", async
   await go("/progress");
   await page.waitForSelector("text=Stats 132 summary");
   await page.waitForSelector("text=Include self-scored attempts");
+  // the comprehension charts: a timeline with a point per counted attempt and a change bar per topic, each with a
+  // keyboard readout and a table twin, scoped by the filter row above them
+  await page.waitForSelector("section[aria-label='Comprehension over time'] figure.timeline svg");
+  const section = page.locator("section[aria-label='Comprehension over time']");
+  const plot = section.locator("figure.timeline .chart-plot");
+  await plot.focus();
+  await page.keyboard.press("End");
+  await section.locator("figure.timeline .chart-tip:has-text('course score')").waitFor();
+  await page.keyboard.press("Escape");
+  if ((await section.locator("figure.timeline .chart-tip").count()) > 0) throw new Error("escape should close the readout");
+  await section.locator("figure.timeline button:has-text('Show as a table')").click();
+  await section.locator("figure.timeline table.chart-table tbody tr").first().waitFor();
+  const points = (await apiGet("state")).state.attempts.filter((a) => a.counted).length;
+  if ((await section.locator("figure.timeline table.chart-table tbody tr").count()) !== points) throw new Error("the timeline table should have one row per counted attempt");
+  await section.locator("figure.timeline button:has-text('Chart')").click();
+  await section.locator("figure.change .dbar").first().waitFor();
+  await section.locator("figure.change .change-row").first().hover();
+  await section.locator("figure.change .chart-tip:has-text(' now')").waitFor();
+  await page.selectOption("select[aria-label='What to plot']", { index: 1 });
+  await section.locator("figure.timeline figcaption b:not(:has-text('Course score'))").waitFor();
+  await page.selectOption("select[aria-label='What to plot']", "course");
+  await shot("progress-charts");
+  // a pathway: its composite chart gives way to the criterion tabs in the same space, and back
+  const panel = page.locator(".topic-panels .panel").first();
+  await panel.locator("figure.timeline figcaption b:has-text('Composite')").waitFor();
+  await page.click("button:has-text('Inspect criteria and attempts') >> nth=0");
+  await page.waitForSelector("td .chip:has-text('Self-scored')"); // without AI scoring the criteria open on the attempts
+  await page.waitForSelector("text=need an AI service");
+  if ((await panel.locator("figure.timeline figcaption b:has-text('Composite')").count()) > 0) throw new Error("opening the criteria should close the composite chart");
+  if (!(await page.locator("button:has-text('Core idea')").first().isDisabled())) throw new Error("criterion trends should be unavailable without automatic scoring");
+  await panel.locator("button:has-text('Back to the composite')").click();
+  await panel.locator("figure.timeline figcaption b:has-text('Composite')").waitFor();
   await page.click("button:has-text('Inspect criteria and attempts') >> nth=0");
   await page.waitForSelector("td .chip:has-text('Self-scored')");
-  await page.waitForSelector("text=need an AI service");
-  if (!(await page.locator("button:has-text('Core idea')").first().isDisabled())) throw new Error("criterion trends should be unavailable without automatic scoring");
   await shot("progress");
   const summary = () => page.locator("section[aria-label='Stats 132 summary'] .stats b").first().innerText();
   const withSelf = await summary();
@@ -1482,6 +1512,8 @@ await step("paths: steps are marked done, the current step moves on, a reload re
   await page.waitForSelector(".path-step:nth-child(3).current .card.focal");
   if ((await page.locator(".path-step.done").count()) !== 2) throw new Error("done steps were not kept across a reload");
   // the page opens at its top; the link under the track (and the current node) jump to the current step's card
+  // the page scrolls to the top on open; give a smooth scroll still in flight a moment before reading the position
+  await page.waitForFunction(() => window.scrollY === 0, null, { timeout: 3000 }).catch(() => {});
   if ((await page.evaluate(() => window.scrollY)) !== 0) throw new Error("a path should open at its top");
   await page.click(".path-jump button:has-text('Jump to the current step')");
   await page.waitForFunction(() => {
