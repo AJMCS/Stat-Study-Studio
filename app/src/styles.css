@@ -790,8 +790,10 @@ main h1 + .annotated.block:not(p):not(.step-wrap):not(.notice), main h1 + p:not(
 button.link.mono-link { font: 500 13px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; white-space: nowrap; }
 button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--muted); }
 /* the link's trailing arrow says it is an action, not a tab: outside the underline (an inline-block takes no
-   decoration from its parent), from the same fallback face as the tabs' trend glyphs, on the link's own line box */
-button.link.mono-link .go { display: inline-block; margin-left: 6px; line-height: 20px; vertical-align: top; }
+   decoration from its parent), from the same fallback face as the tabs' trend glyphs, on the link's own line box.
+   That face draws the arrowhead to the last pixel of its cell (no right bearing), and the link ends flush on the
+   panel's edge, so the arrow carries its own 4px bearing to end clear of the edge */
+button.link.mono-link .go { display: inline-block; margin-left: 6px; margin-right: 4px; line-height: 20px; vertical-align: top; }
 .crit-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: nowrap; border-bottom: 1px solid var(--hair); margin-top: 8px; }
 .crit-row .crit-tabs { border-bottom: 0; margin: 0; }
 /* the block's rhythm, on the 8px grid: hint 8 under the filter row, chart 24 under the hint; caption line box 24, gap 8,
@@ -814,8 +816,10 @@ button.link.mono-link .go { display: inline-block; margin-left: 6px; line-height
 .chart .axis { fill: var(--muted); font-size: 12px; }
 .chart .area { fill: var(--ink); fill-opacity: 0.08; }
 .chart .series { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
-/* one marker vocabulary: an 8px solid dot with a 2px canvas halo, orange on the current point, ink on the point being read */
+/* one marker vocabulary: an 8px solid dot with a 2px canvas halo, orange on the current point, muted (the tick
+   colour) on the point being read, so the series and its end marker stay the only ink-weight marks */
 .chart .marker { fill: var(--ink); stroke: var(--canvas); stroke-width: 2; }
+.chart .marker.active { fill: var(--muted); }
 .chart .marker.current { fill: var(--orange); }
 .chart .leader { stroke: var(--muted); stroke-width: 1; }
 .chart .value { fill: var(--ink); font: 400 12px var(--mono); }
@@ -879,10 +883,10 @@ button.link.mono-link .go { display: inline-block; margin-left: 6px; line-height
   .change-axis { grid-template-columns: 1fr; }
   .change-axis .axis-row { grid-column: 1; }
 }
-/* the readout: a light card (hairline, surface fill) with the system's floating-tooltip shadow (§5, the one soft
-   shadow in the system, the same in both themes); the value in bold Geist Mono, then what it is, then when (with the
-   attempt that produced it) */
-.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: 0 3px 4px rgba(0, 0, 0, 0.6); }
+/* the readout: a flat card (surface fill, one hairline, no shadow in either theme: §5's chart-readout exception, so
+   the series stays the only heavy object on the plot); the value in bold Geist Mono, then what it is, then when (with
+   the attempt that produced it) */
+.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: none; }
 .chart-tip[data-side="left"] { transform: translate(calc(-100% - 12px), -50%); }
 .chart-tip.above { transform: translate(-50%, calc(-100% - 6px)); }
 .chart-tip b.mono, .chart-tip .mono { font-family: var(--mono); font-variant-numeric: tabular-nums slashed-zero; }

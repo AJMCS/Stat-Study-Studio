@@ -254,7 +254,8 @@ export function MetricChart({
           <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} onPointerMove={onMove} onPointerLeave={() => setActive(null)} aria-hidden="true">
             {ticks.map((v) => (
               <g key={v}>
-                <line className={v === 0 ? "baseline" : "grid"} x1={pad.left} x2={W - pad.right} y1={crisp(v)} y2={crisp(v)} />
+                {/* no gridline on the cutoff's own row: stacked, the two rules read darker than the baseline */}
+                {crisp(v) !== crisp(cutoff) && <line className={v === 0 ? "baseline" : "grid"} x1={pad.left} x2={W - pad.right} y1={crisp(v)} y2={crisp(v)} />}
                 {Math.abs(v - cutoff) > 6 && (
                   <text className="axis" x={pad.left - 8} y={y(v)} textAnchor="end" dominantBaseline="middle">
                     {v}
@@ -273,7 +274,7 @@ export function MetricChart({
               </text>
             ))}
             <path className="series draw-line" d={path} fill="none" pathLength={1} />
-            {/* the point being read: a solid ink dot the size of the orange end dot, and a leader to its card */}
+            {/* the point being read: a solid muted dot the size of the orange end dot, and a leader to its card */}
             {tip?.leader && <line className="leader" x1={Math.round(x(active!)) + 0.5} x2={Math.round(x(active!)) + 0.5} y1={y(a!.score)} y2={tip.edge} />}
             {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={5} />}
             <circle className={`marker current draw-pop${active === last ? " active" : ""}`} cx={x(last)} cy={y(points[last].score)} r={5} style={delay(last)} />
