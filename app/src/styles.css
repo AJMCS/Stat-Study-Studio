@@ -786,11 +786,10 @@ main h1 + .annotated.block:not(p):not(.step-wrap):not(.notice), main h1 + p:not(
 .chart-filters select { min-width: 0; width: auto; max-width: 100%; font: 500 13.5px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; padding: 6px 36px 6px 10px; background-position: right 10px center; }
 .chart-filters .field.inline { min-width: 0; }
 @media (max-width: 599px) { .chart-filters { gap: 8px 16px; } .chart-filters .field.inline > span { display: none; } }
-button.link.mono-link { font: 500 13.5px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; white-space: nowrap; }
+button.link.mono-link { font: 500 13px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; white-space: nowrap; }
 button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--muted); }
-.crit-row { display: flex; justify-content: space-between; align-items: flex-end; gap: 16px; flex-wrap: wrap; border-bottom: 1px solid var(--hair); margin-top: 8px; }
+.crit-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: nowrap; border-bottom: 1px solid var(--hair); margin-top: 8px; }
 .crit-row .crit-tabs { border-bottom: 0; margin: 0; }
-.crit-row > button { margin-bottom: 8px; }
 .chart-hint { margin: 0 0 8px; }
 .chart { margin: 24px 0 32px; max-width: 760px; }
 .chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; min-height: 28px; margin-bottom: 8px; }
@@ -802,30 +801,32 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 .chart .grid { stroke: var(--ink); stroke-opacity: 0.08; stroke-width: 1; }
 .chart .baseline { stroke: var(--ink); stroke-opacity: 0.25; stroke-width: 1; }
 .chart .cutoff { stroke: var(--ink); stroke-opacity: 0.25; stroke-width: 1; }
+.chart .plot-bg { fill: var(--canvas); }
 .chart .axis { fill: var(--muted); font-size: 12px; }
-.chart .cutoff-text { font-size: 12px; }
 .chart .area { fill: var(--ink); fill-opacity: 0.08; }
 .chart .series { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
 .chart .marker { fill: var(--ink); stroke: var(--canvas); stroke-width: 2; }
 .chart .marker.current { fill: var(--orange); }
 .chart .marker.active { stroke: var(--ink); fill: var(--surface); }
 .chart .crosshair { stroke: var(--muted); stroke-width: 1; }
-.chart .value { fill: var(--ink); font-size: 13px; }
+.chart .value { fill: var(--ink); font: 400 12px var(--mono); }
 .chart .value.end { font-weight: 600; }
 /* change by topic: HTML rows (name · track with a zero line · signed value) */
 .change-rows { position: relative; }
 .change-row { position: relative; display: grid; grid-template-columns: minmax(120px, 260px) 1fr 72px; align-items: center; gap: 12px; min-height: 32px; padding: 2px 0; border-radius: var(--r-sm); outline: none; }
-.change-row .row-label { grid-column: 1; }
-.change-row .track { grid-column: 2; }
-.change-row .value { grid-column: 3; }
+/* explicit rows: in source order the figure comes before the track, which auto-placement would push to a second row */
+.change-row .row-label { grid-column: 1; grid-row: 1; }
+.change-row .track { grid-column: 2; grid-row: 1; }
+.change-row .value { grid-column: 3; grid-row: 1; }
 .change-row:focus-visible { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 .change-row.active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .change-row .row-label { font: 14px/18px var(--sans); color: var(--ink); text-align: right; }
-.change-row .track { position: relative; display: block; height: 14px; }
-.change-row .zero { position: absolute; left: 50%; top: -6px; bottom: -6px; width: 1px; background: var(--muted); }
-.change-row .dbar { position: absolute; top: 0; height: 14px; background: var(--ink); }
-.change-row .dbar.up { border-radius: 0 4px 4px 0; transform-origin: left center; }
-.change-row .dbar.down { border-radius: 4px 0 0 4px; transform-origin: right center; }
+/* the bar is a 6px ink rule with square ends, so it sits with the 2px series rather than over it */
+.change-row .track { position: relative; display: block; height: 6px; }
+.change-row .zero { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 1px; background: var(--muted); }
+.change-row .dbar { position: absolute; top: 0; height: 6px; background: var(--ink); }
+.change-row .dbar.up { transform-origin: left center; }
+.change-row .dbar.down { transform-origin: right center; }
 .change-row .dbar.flat { width: 2px !important; left: calc(50% - 1px) !important; background: var(--muted); }
 .change-row.active .dbar { background: var(--orange); }
 .change-row .value { font-size: 13.5px; color: var(--ink); white-space: nowrap; }
@@ -843,38 +844,38 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
   .change-row .row-label { grid-column: 1; grid-row: 1; text-align: left; }
   .change-row .value { grid-column: 2; grid-row: 1; }
   .change-row .track { grid-column: 1 / -1; grid-row: 2; margin: 2px 0 6px; }
-  /* the tab row stays one line: it scrolls sideways instead of wrapping, and the way back is a short link */
-  .crit-row { flex-wrap: nowrap; align-items: center; }
-  .crit-row .crit-tabs { flex: 1 1 auto; flex-wrap: nowrap; overflow-x: auto; scrollbar-width: none; min-width: 0; }
+  /* the tab row stays one line: it scrolls sideways instead of wrapping */
+  .crit-row .crit-tabs { flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; min-width: 0; }
   .crit-row .crit-tabs::-webkit-scrollbar { display: none; }
-  .crit-row > button { margin-bottom: 0; }
-  .crit-row .back-long { display: none; }
   .chart-head figcaption .muted { display: none; }
   .change-axis { grid-template-columns: 1fr; }
   .change-axis .axis-row { grid-column: 1; }
 }
-.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface-2); border: 1px solid var(--rim); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: var(--lift); }
+/* the readout: a light card (hairline, surface fill, a faint soft shadow) no heavier than the series it reads */
+.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
 .chart-tip[data-side="left"] { transform: translate(calc(-100% - 12px), -50%); }
 .chart-tip.above { transform: translate(-50%, calc(-100% - 6px)); }
-.chart-tip b.mono { font-size: 16px; }
+.chart-tip b.mono, .chart-tip .mono { font-family: var(--mono); }
+.chart-tip b.mono { font-size: 16px; font-weight: 600; }
 .chart-tip > span { color: var(--muted); }
 .chart-tip.docked { position: static; transform: none; display: block; margin: 8px 0 0; white-space: normal; box-shadow: none; }
-/* on a wide screen the card sits in the band of the plot the line is not in: the top band, or the bottom one when
-   the point is high, beside the point and away from the plot's near edge */
-.chart-tip[data-v="top"] { transform: translate(12px, 0); }
-.chart-tip[data-v="top"][data-side="left"] { transform: translate(calc(-100% - 12px), 0); }
-.chart-tip[data-v="bottom"] { transform: translate(12px, -100%); }
-.chart-tip[data-v="bottom"][data-side="left"] { transform: translate(calc(-100% - 12px), -100%); }
+/* on a wide screen the card is anchored to its point: just above it when the point is in the lower half of the plot,
+   just below when in the upper half, beside it on the side away from the plot's near edge; it wraps within half the
+   plot so it never runs past the edge */
+.chart-plot .chart-tip { white-space: normal; max-width: calc(50% - 24px); }
+.chart-tip[data-v="above"] { transform: translate(12px, calc(-100% - 10px)); }
+.chart-tip[data-v="above"][data-side="left"] { transform: translate(calc(-100% - 12px), calc(-100% - 10px)); }
+.chart-tip[data-v="below"] { transform: translate(12px, 10px); }
+.chart-tip[data-v="below"][data-side="left"] { transform: translate(calc(-100% - 12px), 10px); }
 .chart-tip .tip-when, .chart-tip .tip-what { display: block; color: var(--muted); }
 .chart-tip .tip-what b { color: var(--ink); }
 .chart-table { margin: 8px 0 0; }
 .chart-table td.mono, .chart-table .num { font-variant-numeric: tabular-nums; }
 .chart-hint { margin: 4px 0 0; }
-@media (max-width: 899px) { .chart-tip { white-space: normal; max-width: 220px; } }
-/* draw-on: the line travels from its left end at one speed (800ms, see DRAW_MS); each mark and label appears when the
-   line reaches it; the wash fades up once the line is complete. Reduced motion shows the finished chart. */
+/* draw-on: the line travels from its left end at one speed (800ms, see DRAW_MS) with an ease-out; each mark and label
+   appears as the line reaches it. Reduced motion shows the finished chart. */
 @media (prefers-reduced-motion: no-preference) {
-  .chart .draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 900ms 150ms cubic-bezier(0,0,.58,1) forwards; }
+  .chart .draw-line { stroke-dasharray: 1; stroke-dashoffset: 1; animation: draw 800ms cubic-bezier(0,0,.58,1) forwards; }
   .chart .draw-pop { opacity: 0; animation: chart-pop 80ms linear forwards; }
   .chart .draw-fade { opacity: 0; animation: chart-fade 300ms ease-out forwards; }
   .change-row .dbar.up, .change-row .dbar.down { transform: scaleX(0); animation: chart-grow 500ms cubic-bezier(.45,0,.25,1) forwards; }
@@ -885,11 +886,15 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 @keyframes chart-grow { to { transform: scaleX(1); } }
 /* the pathway's chart space: the composite, or the criterion tabs in the same frame */
 .pathway-chart { margin-top: 8px; }
-.crit-tabs { display: flex; flex-wrap: wrap; gap: 4px 16px; margin: 8px 0 0; padding: 0; list-style: none; border-bottom: 1px solid var(--hair); }
-.crit-tabs button { font: 500 13.5px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); background: none; border: 0; border-bottom: 2px solid transparent; border-radius: 0; padding: 8px 0 6px; margin-bottom: -1px; box-shadow: none; }
+/* the tab row: Geist Mono 13px uppercase on one line, the active tab marked by a 1px ink underline at 3px offset */
+.crit-tabs { display: flex; flex-wrap: nowrap; gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; border-bottom: 1px solid var(--hair); }
+.crit-tabs button { font: 500 13px/34px var(--mono); height: 34px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none; white-space: nowrap; }
+/* the trend glyph comes from a fallback face; a zero line box keeps it from stretching the row */
+.crit-tabs .trend { color: var(--ink); line-height: 0; margin-left: 4px; }
 .crit-tabs button:hover { color: var(--ink); transform: none; box-shadow: none; }
-.crit-tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--ink); }
+.crit-tabs button[aria-selected="true"] { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .crit-tabs button:disabled { color: var(--faint); cursor: not-allowed; }
+.crit-tabs button:disabled .trend { color: var(--faint); }
 .cutoff-label { position: absolute; left: 0; transform: translateY(-50%); font: 13.5px/20px var(--mono); color: var(--muted); }
 
 /* ---- settings: label column + controls column, hairline separators, no boxes */

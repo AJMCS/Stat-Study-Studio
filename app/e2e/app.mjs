@@ -873,7 +873,7 @@ await step("progress: self-scored attempts are labeled and can be hidden", async
   await page.waitForSelector("text=need an AI service");
   if ((await panel.locator("figure.timeline figcaption b:has-text('Composite')").count()) > 0) throw new Error("opening the criteria should close the composite chart");
   if (!(await page.locator("button:has-text('Core idea')").first().isDisabled())) throw new Error("criterion trends should be unavailable without automatic scoring");
-  await panel.locator("button:has-text('Back to the composite')").click();
+  await panel.locator("button[role=tab]:has-text('Composite')").click();
   await panel.locator("figure.timeline figcaption b:has-text('Composite')").waitFor();
   await page.click("button:has-text('Inspect criteria and attempts') >> nth=0");
   await page.waitForSelector("td .chip:has-text('Self-scored')");

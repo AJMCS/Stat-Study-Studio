@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { Link } from "react-router-dom";
 import { TOPICS } from "../mock/topics";
 import { useStore } from "../lib/store";
@@ -142,16 +142,17 @@ export function Progress() {
                   <div><b>{peak}</b><span>Historical peak</span></div>
                   <div><span className={`chip ${cls === "strength" ? "ok" : "flag"}`}>{cls === "strength" ? "Strength" : "Gap"}</span><span>{tr === "improving" ? "↑ Improving" : tr === "declining" ? "↓ Declining" : "Steady"}</span></div>
                 </div>
-                <PathwayChart topic={t} attempts={at} modelAttempts={modelAt} all={all} cfg={cfg} topicNames={topicNames} onDelete={deleteAttempt} />
-                <p className="eyebrow">
-                  {"// "}{modelAt.length > 0 ? `${apps} successful application${apps === 1 ? "" : "s"} · ` : ""}{state?.recallHistory.filter((r) => r.qualified).length ?? 0} qualifying recalls · {state?.misses ?? 0} misses
-                </p>
-                {state && (state.strengths.length > 0 || state.gaps.length > 0) && (
-                  <p className="muted">
-                    {state.strengths.length > 0 && <>Strong: {state.strengths.join(", ")}. </>}
-                    {state.gaps.length > 0 && <>Working on: {state.gaps.join(", ")}.</>}
+                <PathwayChart topic={t} attempts={at} modelAttempts={modelAt} all={all} cfg={cfg} topicNames={topicNames} onDelete={deleteAttempt}>
+                  <p className="eyebrow">
+                    {"// "}{modelAt.length > 0 ? `${apps} successful application${apps === 1 ? "" : "s"} · ` : ""}{state?.recallHistory.filter((r) => r.qualified).length ?? 0} qualifying recalls · {state?.misses ?? 0} misses
                   </p>
-                )}
+                  {state && (state.strengths.length > 0 || state.gaps.length > 0) && (
+                    <p className="muted">
+                      {state.strengths.length > 0 && <>Strong: {state.strengths.join(", ")}. </>}
+                      {state.gaps.length > 0 && <>Working on: {state.gaps.join(", ")}.</>}
+                    </p>
+                  )}
+                </PathwayChart>
               </>
             )}
           </section>
@@ -169,12 +170,22 @@ export function Progress() {
 }
 
 /**
- * A pathway's chart space: its composite score over time, or, on request, the four criteria underneath it as tabs in
- * the same frame (each a criterion's recency-weighted score over the attempts an AI rubric scored), with the attempts
- * table beneath. The space is reused rather than stacked: opening the criteria closes the composite.
+ * A pathway's chart space: one tab row and one frame. The composite alone (with a link to inspect), or the composite
+ * beside the four criteria (each tab carrying its own trend) and the attempts table, all in the same space, so
+ * switching changes only the line. The pathway-level notes (children) belong to the composite view.
  */
 /** The criterion tabs' short names; the chart's own caption carries the full label. */
 const TAB_LABELS: Record<Criterion, string> = { core: "Core idea", depth: "Depth", relevance: "Relevance", application: "Application" };
+type Tab = "composite" | Criterion | "attempts";
+
+/** Where a metric stands: its recency-weighted value now, how it moved, and the direction that reads as. */
+function standing(attempts: Attempt[], window: number, pick: (a: Attempt) => number) {
+  const now = recencyWeighted(attempts, window, pick);
+  const change = topicChange(attempts.map((a) => ({ ...a, composite: pick(a) })), window);
+  const dir = change === null ? "new" : change.delta >= 3 ? "improving" : change.delta <= -3 ? "declining" : "steady";
+  const glyph = dir === "improving" ? "↑" : dir === "declining" ? "↓" : dir === "steady" ? "→" : "";
+  return { now, change, dir, glyph };
+}
 
 function PathwayChart({
   topic,
@@ -184,6 +195,7 @@ function PathwayChart({
   cfg,
   topicNames,
   onDelete,
+  children,
 }: {
   topic: { id: string; title: string };
   attempts: Attempt[];
@@ -192,24 +204,22 @@ function PathwayChart({
   cfg: ScoringConfig;
   topicNames: Record<string, string>;
   onDelete: (id: string) => void;
+  children?: ReactNode;
 }) {
-  const [view, setView] = useState<"composite" | "criteria">("composite");
-  const [tab, setTab] = useState<Criterion | "attempts">("core");
+  const [tab, setTab] = useState<Tab>("composite");
   const noModel = modelAttempts.length === 0;
-  const crit: Criterion = tab === "attempts" ? "core" : tab;
-  const pick = (a: Attempt) => a.criteria[crit];
+  const composite = tab === "composite"; // the composite view: its tab alone, with the link that opens the rest
+  const crit: Criterion = composite || tab === "attempts" ? "core" : tab;
   // what is in the chart space: the composite, or one criterion; each with the same one-line summary beneath
-  const metricAttempts = view === "composite" ? attempts : modelAttempts;
-  const metricPick = view === "composite" ? (a: Attempt) => a.composite : pick;
+  const metricAttempts = composite ? attempts : modelAttempts;
+  const metricPick = composite ? (a: Attempt) => a.composite : (a: Attempt) => a.criteria[crit];
   const points = courseTimeline(metricAttempts, cfg.recencyWindow, topic.id, metricPick);
-  const now = recencyWeighted(metricAttempts, cfg.recencyWindow, metricPick);
-  const change = topicChange(metricAttempts.map((a) => ({ ...a, composite: metricPick(a) })), cfg.recencyWindow);
-  const dir = change === null ? "new" : change.delta >= 3 ? "improving" : change.delta <= -3 ? "declining" : "steady";
-  const cutoff = view === "composite" ? cfg.compositeCutoff : cfg.criterionCutoffs[crit];
-  const name = view === "composite" ? "Composite" : TAB_LABELS[crit];
+  const { now, change, dir } = standing(metricAttempts, cfg.recencyWindow, metricPick);
+  const cutoff = composite ? cfg.compositeCutoff : cfg.criterionCutoffs[crit];
+  const name = composite ? "Composite" : TAB_LABELS[crit];
   const summary = now !== null && (
     <p className="crit-stat" role="status">
-      <b className="mono">{now}</b> on {view === "composite" ? "the composite" : CRITERION_LABELS[crit].toLowerCase()} now
+      <b className="mono">{now}</b> on {composite ? "the composite" : CRITERION_LABELS[crit].toLowerCase()} now
       {change && (
         <>
           {" · "}
@@ -224,39 +234,31 @@ function PathwayChart({
       <span className="muted">{now >= cutoff ? "at or above" : "below"} its cutoff of {cutoff}</span>
     </p>
   );
+  const tabButton = (t: Tab, label: string, glyph = "") => {
+    const locked = t !== "composite" && t !== "attempts" && noModel; // a criterion needs AI-scored attempts
+    return (
+      <li key={t} role="presentation">
+        <button role="tab" aria-selected={tab === t} disabled={locked} title={locked ? "Criterion-level trends need an AI service to score your explanations" : undefined} onClick={() => setTab(t)}>
+          {label}
+          {glyph && <span className="trend">{glyph}</span>}
+        </button>
+      </li>
+    );
+  };
   return (
     <div className="pathway-chart">
-      {/* one row of tabs in both views, so the chart space below never moves: the composite alone, or the criteria and the attempts */}
+      {/* one row in both views, so the chart space below never moves: the composite alone, or with the criteria and the attempts */}
       <div className="crit-row">
-        <ul className="crit-tabs" role="tablist" aria-label={view === "composite" ? "Metric" : "Criterion"}>
-          {view === "composite" ? (
-            <li role="presentation">
-              <button role="tab" aria-selected={true}>Composite</button>
-            </li>
-          ) : (
-            <>
-              {CRITERIA.map((c) => (
-                <li key={c} role="presentation">
-                  <button role="tab" aria-selected={tab === c} disabled={noModel} title={noModel ? "Criterion-level trends need an AI service to score your explanations" : undefined} onClick={() => setTab(c)}>
-                    {TAB_LABELS[c]}
-                  </button>
-                </li>
-              ))}
-              <li role="presentation">
-                <button role="tab" aria-selected={tab === "attempts"} onClick={() => setTab("attempts")}>Attempts</button>
-              </li>
-            </>
-          )}
+        <ul className="crit-tabs" role="tablist" aria-label="Metric">
+          {tabButton("composite", "Composite")}
+          {!composite && CRITERIA.map((c) => tabButton(c, TAB_LABELS[c], noModel ? "" : standing(modelAttempts, cfg.recencyWindow, (a) => a.criteria[c]).glyph))}
+          {!composite && tabButton("attempts", "Attempts")}
         </ul>
-        {view === "composite" ? (
-          <button className="link mono-link" onClick={() => { setView("criteria"); setTab(noModel ? "attempts" : "core"); }}>Inspect criteria and attempts</button>
-        ) : (
-          <button className="link mono-link" onClick={() => setView("composite")}>
-            ← <span className="back-long">Back to the </span>Composite
-          </button>
+        {composite && (
+          <button className="link mono-link" onClick={() => setTab(noModel ? "attempts" : "core")}>Inspect criteria and attempts</button>
         )}
       </div>
-      {view === "criteria" && tab === "attempts" ? (
+      {tab === "attempts" ? (
         <>
           {noModel && <p className="muted">Criterion-level trends (core idea, depth, relevance, application) need an AI service to score your explanations. Your self-scored attempts only have an overall score.</p>}
           <div className="table-scroll attempts-table">
@@ -283,8 +285,9 @@ function PathwayChart({
         </>
       ) : (
         <>
-          <MetricChart key={`${view}-${crit}`} points={points} cutoff={cutoff} label={name} caption={view === "composite" ? "recency-weighted, per counted attempt" : "recency-weighted, AI-scored attempts"} topicNames={topicNames} metric={metricPick} />
+          <MetricChart key={`${tab}`} points={points} cutoff={cutoff} label={name} caption={composite ? "recency-weighted, per counted attempt" : "recency-weighted, AI-scored attempts"} topicNames={topicNames} metric={metricPick} />
           {summary}
+          {composite && children}
         </>
       )}
     </div>

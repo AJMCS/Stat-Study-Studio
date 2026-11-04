@@ -80,7 +80,9 @@ Radius vocabulary is exactly three values: **4px** small buttons/inputs, **12px*
   section on the canvas separated by spacing and, where needed, a single hairline rule above it. No bordered box
   without a shadow, so no sibling card ever looks half-styled. Inputs use a 1px muted border
   (`#6c6c6c` light / `#a3a3a3` dark, at least 3:1 against the canvas) that turns ink on focus, so content outweighs
-  chrome. Links have one treatment app-wide: ink text with a 1px underline at 3px offset.
+  chrome. Links have one treatment app-wide: ink text with a 1px underline at 3px offset. A link that sits inside a
+  mono control row (a tab row, a filter row) takes the eyebrow voice (Geist Mono 13px UPPERCASE) with the same 1px
+  underline at 3px offset, so the underline treatment stays one (amended after piece F round 3).
 - Floating tooltip/menu: `0 3px 4px rgba(0,0,0,.6)`.
 - Flat rows (lists, settings rows): no shadow, hairline dividers only.
 
@@ -104,6 +106,10 @@ Radius vocabulary is exactly three values: **4px** small buttons/inputs, **12px*
   a 1px ink border + `!` marker rather than colour.
 - **Nav:** flat top bar, canvas background, 1px bottom hairline, θ mark left, few links, theme toggle and Settings at
   the right edge.
+- **Tab row (added after piece F round 3):** Geist Mono 13px UPPERCASE items on one row over a single hairline; the
+  active item is ink, marked by a 1px ink underline at 3px offset; inactive items are muted; no colour, no fill.
+  Used for time ranges and metric tabs (the composite and its criteria). A link in the row follows §5's eyebrow-voice
+  form.
 
 ## 8. Motion
 

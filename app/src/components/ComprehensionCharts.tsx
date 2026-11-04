@@ -16,10 +16,9 @@ const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month
 const dayYear = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : "0");
 
-/** The draw-on: the line waits a beat, then takes DRAW_MS to travel from its left end with the intro's ease-out
- * (CSS uses the same figures and curve). */
-export const DRAW_LEAD_MS = 150;
-export const DRAW_MS = 900;
+/** The draw-on: the line takes DRAW_MS to travel from its left end with the intro's ease-out (CSS uses the same
+ * figure and curve). */
+export const DRAW_MS = 800;
 
 /** When, as a fraction of DRAW_MS, the eased line has drawn fraction `f` of its length: the inverse of the CSS
  * ease-out curve, cubic-bezier(0, 0, .58, 1), used by the draw, found by bisection on the curve. */
@@ -78,7 +77,7 @@ export function MetricChart({
   const attemptValue = metric ?? ((q: Attempt) => q.composite);
   const [frame, W] = useWidth<HTMLDivElement>();
   const narrow = W < 480; // a phone: the readout docks under the plot instead of floating on it
-  const pad = { top: 20, right: 48, bottom: 28, left: 36 };
+  const pad = { top: 20, right: 48, bottom: 28, left: 76 }; // the left gutter holds the ticks and the cutoff's label
   const innerH = Math.max(90, Math.round((W * 0.38) / 5) * 5); // a multiple of 5: the five bands between ticks land on whole pixels
   const H = innerH + pad.top + pad.bottom;
   const [active, setActive] = useState<number | null>(null);
@@ -131,11 +130,38 @@ export function MetricChart({
   const path = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(" ");
   const summary = `${label}: ${points.map((p) => `${day(p.at)} ${p.score}`).join(", ")}; cutoff ${cutoff}`;
   const dateTicks = points.length > 2 && x(last) - x(0) > 200 ? [0, Math.floor(last / 2), last] : points.length > 1 ? [0, last] : [0];
-  const delay = (i: number) => ({ animationDelay: `${DRAW_LEAD_MS + Math.round(easeTime(reach(i)) * DRAW_MS) - 40}ms` });
+  const delay = (i: number) => ({ animationDelay: `${Math.round(easeTime(reach(i)) * DRAW_MS) - 40}ms` });
   const lowAbove = y(points[lowest].score) > H - pad.bottom - 24;
-  // the cutoff's label sits at whichever end of the line is farther from it, so it never crosses the series
-  const cutoffLeft = Math.abs(y(points[0].score) - y(cutoff)) >= Math.abs(y(points[last].score) - y(cutoff));
-  const nearCutoffLabel = (i: number) => (cutoffLeft ? i === 0 : i === last) && Math.abs(y(points[i].score) - y(cutoff)) < 22; // a value label would collide with "cutoff"
+  // the readout sits beside its point, on the side away from the plot's near edge, just above the point when it is
+  // in the lower half of the plot and just below when in the upper half; "just" means clear of the series where
+  // the card will lie, so a flat line is not covered, and it never reaches the axis band or the top of the plot
+  const tipPlace = (i: number) => {
+    const side = x(i) > W / 2 ? "left" : "right";
+    const cardW = Math.min(300, W / 2 - 24); // the card's width (CSS caps it at half the plot)
+    const cardH = cardW < 300 ? 90 : 72; // and its height (one more line when it wraps)
+    const xs = [x(i), side === "right" ? x(i) + cardW : x(i) - cardW].sort((p, q) => p - q);
+    const yAt = (px: number) => {
+      // the series' height at px, interpolated along its segment
+      const j = points.findIndex((_, k) => k < last && x(k) <= px && px <= x(k + 1));
+      if (j < 0) return y(points[px < x(0) ? 0 : last].score);
+      const f = (px - x(j)) / (x(j + 1) - x(j) || 1);
+      return y(points[j].score) + f * (y(points[j + 1].score) - y(points[j].score));
+    };
+    const inSpan = (k: number) => x(k) >= xs[0] && x(k) <= xs[1];
+    const ys = [yAt(xs[0]), yAt(xs[1]), ...points.filter((_, k) => inSpan(k)).map((p) => y(p.score))];
+    // the high and low labels hang off their points; the card clears them too
+    const lowY = Math.max(...ys) + (inSpan(lowest) && !lowAbove ? 18 : 0);
+    const highY = Math.min(...ys) - (inSpan(hi) ? 14 : 0);
+    const py = y(points[i].score);
+    const fitsBelow = pad.top + innerH - lowY - 10 >= cardH;
+    const fitsAbove = highY - pad.top - 10 >= cardH;
+    // the side that keeps the card nearest its point, with a nudge toward the emptier half of the plot
+    const costAbove = py - highY + (py > pad.top + innerH / 2 ? 0 : 12);
+    const costBelow = lowY - py + (py > pad.top + innerH / 2 ? 12 : 0);
+    const above = fitsAbove && (!fitsBelow || costAbove <= costBelow);
+    return { side, v: above ? "above" : "below", style: { left: `${x(i)}px`, top: `${above ? highY : lowY}px` } };
+  };
+  const tip = a && !narrow ? tipPlace(active!) : null;
 
   return (
     <figure className="chart timeline" ref={frame}>
@@ -173,16 +199,21 @@ export function MetricChart({
       ) : (
         <div className="chart-plot" tabIndex={0} role="img" aria-label={summary} aria-describedby={a ? `${id}-tip` : undefined} onKeyDown={onKey} onBlur={() => setActive(null)}>
           <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} onPointerMove={onMove} onPointerLeave={() => setActive(null)} aria-hidden="true">
+            {/* a plain plate under the plot, so the page's graph paper does not show through the chart's own grid */}
+            <rect className="plot-bg" x={pad.left} y={pad.top} width={innerW} height={innerH} />
             {ticks.map((v) => (
               <g key={v}>
                 <line className={v === 0 ? "baseline" : "grid"} x1={pad.left} x2={W - pad.right} y1={crisp(v)} y2={crisp(v)} />
-                <text className="axis" x={pad.left - 8} y={y(v)} textAnchor="end" dominantBaseline="middle">
-                  {v}
-                </text>
+                {Math.abs(v - cutoff) > 6 && (
+                  <text className="axis" x={pad.left - 8} y={y(v)} textAnchor="end" dominantBaseline="middle">
+                    {v}
+                  </text>
+                )}
               </g>
             ))}
+            {/* the cutoff is labelled in the axis gutter, like a tick, so it never meets the series */}
             <line className="cutoff" x1={pad.left} x2={W - pad.right} y1={crisp(cutoff)} y2={crisp(cutoff)} />
-            <text className="axis cutoff-text" x={cutoffLeft ? pad.left + 4 : W - pad.right - 4} y={y(cutoff) - 5} textAnchor={cutoffLeft ? "start" : "end"}>
+            <text className="axis" x={pad.left - 8} y={y(cutoff)} textAnchor="end" dominantBaseline="middle">
               cutoff {cutoff}
             </text>
             {dateTicks.map((i) => (
@@ -191,14 +222,14 @@ export function MetricChart({
               </text>
             ))}
             <path className="series draw-line" d={path} fill="none" pathLength={1} />
-            {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={4} />}
+            {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={3} />}
             <circle className={`marker current draw-pop${active === last ? " active" : ""}`} cx={x(last)} cy={y(points[last].score)} r={5} style={delay(last)} />
-            {hi !== last && hi !== lowest && points.length > 2 && !nearCutoffLabel(hi) && (
+            {hi !== last && hi !== lowest && points.length > 2 && (
               <text className="value draw-pop" x={lx(hi)} y={y(points[hi].score) - 10} textAnchor={anchor(hi)} style={delay(hi)}>
                 {points[hi].score}
               </text>
             )}
-            {lowest !== last && lowest !== hi && points.length > 2 && !nearCutoffLabel(lowest) && (
+            {lowest !== last && lowest !== hi && points.length > 2 && (
               <text className="value draw-pop" x={lx(lowest)} y={y(points[lowest].score) + (lowAbove ? -10 : 18)} textAnchor={anchor(lowest)} style={delay(lowest)}>
                 {points[lowest].score}
               </text>
@@ -212,9 +243,9 @@ export function MetricChart({
               className={`chart-tip${narrow ? " docked" : ""}`}
               id={`${id}-tip`}
               role="status"
-              style={narrow ? undefined : { left: `${(x(active!) / W) * 100}%`, top: `${((y(a.score) < pad.top + innerH * 0.45 ? H - pad.bottom - 6 : pad.top) / H) * 100}%` }}
-              data-side={x(active!) > W / 2 ? "left" : "right"}
-              data-v={y(a.score) < pad.top + innerH * 0.45 ? "bottom" : "top"}
+              style={tip?.style}
+              data-side={tip?.side}
+              data-v={tip?.v}
             >
               <b className="mono">{a.score}</b> <span>{label.toLowerCase()}</span>
               <span className="tip-when">{dayYear(a.at)}</span>

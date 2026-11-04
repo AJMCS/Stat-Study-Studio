@@ -5,7 +5,9 @@
 //   node e2e/shots.mjs <outDir> --intro            filmstrip of the intro, both themes
 //   node e2e/shots.mjs <outDir> --charts           the Progress charts: a filmstrip of the course chart drawing on,
 //                                                    then a pathway's composite, its criterion tabs (with a filmstrip
-//                                                    of a tab opening) and the change bars; both themes, both widths
+//                                                    of a tab opening, then two criteria, the attempts and the composite
+//                                                    again) and the change bars; both themes, both widths. Filmstrips
+//                                                    run at quarter speed and are named in film time
 //   node e2e/shots.mjs <outDir> --onboarding       first-run setup, both themes
 //   node e2e/shots.mjs <outDir> --onboarding --empty --connect   ...plus a refused key and the connected last slide
 //   node e2e/shots.mjs <outDir> [routes...] --paths    ...plus custom learning paths, desktop only: Learn with two
@@ -443,8 +445,8 @@ try {
     for (const theme of ["dark", "light"]) {
       for (const vp of ["desktop", "mobile"]) {
         const { ctx, page } = await newPage(theme, vp);
-        // animations run at a quarter speed so each 100ms frame is a true 100ms of the draw-on (a screenshot
-        // itself takes longer than that); frame names are in real-time milliseconds
+        // animations run at a quarter speed, because a screenshot takes longer than a frame of the draw-on; frame
+        // names are film time in milliseconds, so real time is a quarter of the name (an 800ms draw ends at ~3200ms)
         const SLOW = 4;
         const cdp = await ctx.newCDPSession(page);
         await cdp.send("Animation.enable");
@@ -455,9 +457,14 @@ try {
         // out of them (they are page chrome, not part of the charts)
         await page.addStyleTag({ content: `/* ------------------------------------------------------------------ top bar */
 .top { position: static !important; } .ai-chip, .ai-status { display: none !important; }` });
+        // the page's own load has already eaten into the first draw, so film a fresh one: changing the range and
+        // changing it back remounts the chart, and the clock starts on that click
+        await page.locator("section[aria-label='Comprehension over time'] button[role=tab]:has-text('30 days')").click();
+        await page.waitForTimeout(100);
+        await page.locator("section[aria-label='Comprehension over time'] button[role=tab]:text-is('All')").click();
         const t0 = Date.now();
-        for (let at = 0; at <= 1200; at += 100) {
-          await page.waitForTimeout(Math.max(0, at * SLOW - (Date.now() - t0)));
+        for (let at = 0; at <= 4000; at += 200) {
+          await page.waitForTimeout(Math.max(0, at - (Date.now() - t0)));
           await page.locator("figure.timeline").first().screenshot({ path: join(outDir, `charts-draw-${theme}-${vp}-${String(at).padStart(4, "0")}ms.png`) });
         }
         await page.waitForTimeout(1500 * SLOW);
@@ -479,13 +486,16 @@ try {
         await panel.screenshot({ path: join(outDir, `charts-pathway-composite-${theme}-${vp}.png`) });
         await panel.locator("button:has-text('Inspect criteria and attempts')").click();
         const t1 = Date.now();
-        for (let at = 0; at <= 1200; at += 200) {
-          await page.waitForTimeout(Math.max(0, at * SLOW - (Date.now() - t1)));
+        for (let at = 0; at <= 4000; at += 400) {
+          await page.waitForTimeout(Math.max(0, at - (Date.now() - t1)));
           await panel.screenshot({ path: join(outDir, `charts-crit-open-${theme}-${vp}-${String(at).padStart(4, "0")}ms.png`) });
         }
-        await panel.locator("button[role=tab]:has-text('Application')").click();
-        await page.waitForTimeout(1500 * SLOW);
-        await panel.screenshot({ path: join(outDir, `charts-pathway-criteria-${theme}-${vp}.png`) });
+        // the other tabs: a second criterion, the attempts table, and the composite again from its tab
+        for (const [tab, name] of [["Application", "criteria"], ["Depth", "criteria-depth"], ["Attempts", "attempts"], ["Composite", "composite-back"]]) {
+          await panel.locator(`button[role=tab]:has-text('${tab}')`).click();
+          await page.waitForTimeout(1500 * SLOW);
+          await panel.screenshot({ path: join(outDir, `charts-pathway-${name}-${theme}-${vp}.png`) });
+        }
         await ctx.close();
       }
     }
