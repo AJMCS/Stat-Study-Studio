@@ -257,7 +257,9 @@ function PathwayChart({
           {!composite && tabButton("attempts", "Attempts")}
         </ul>
         {composite && (
-          <button className="link mono-link" onClick={() => setTab(noModel ? "attempts" : "core")}>Inspect criteria and attempts</button>
+          <button className="link mono-link" onClick={() => setTab(noModel ? "attempts" : "core")}>
+            Inspect criteria and attempts<span className="go" aria-hidden="true">→</span>
+          </button>
         )}
       </div>
       {tab === "attempts" ? (
@@ -279,7 +281,8 @@ function PathwayChart({
                     {!noModel && CRITERIA.map((c) => <td key={c} className="mono">{a.aiScored ? a.criteria[c] : "—"}</td>)}
                     <td className="mono">{a.composite}</td>
                     <td>
-                      <button className="link" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && onDelete(a.id)}>
+                      {/* destructive, so it is worded and marked (§1): the app's "!" danger form, at the row's size */}
+                      <button className="danger btn-sm" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && onDelete(a.id)}>
                         Delete
                       </button>
                     </td>

@@ -38,6 +38,32 @@ function easeTime(f: number): number {
   return bez(0, 0.58, (lo + hi) / 2);
 }
 
+/* Geist Mono's figures, from the face itself (per em): 0.6 advance, ink from 0.016 under the baseline to 0.726 over it,
+ * inset about 0.05 at each side; its "middle" baseline sits half an x-height (0.265) under the alphabetic one. */
+const FIG = { adv: 0.6, up: 0.726, down: 0.016, inset: 0.04, middle: 0.265 };
+const LABEL_PX = 12;
+
+/** A value label on the plot (the high, the low, the current value), over a knockout in the canvas colour that
+ * clears 2px around its figures, so no gridline strikes through it. The label keeps its own position and anchor;
+ * the knockout is sized from the face's metrics, so it needs no measuring pass. */
+function ValueLabel({ x, y, anchor = "start", middle = false, end = false, style, value }: { x: number; y: number; anchor?: "start" | "middle" | "end"; middle?: boolean; end?: boolean; style?: React.CSSProperties; value: number }) {
+  const n = String(value).length;
+  const adv = FIG.adv * LABEL_PX;
+  const w = n * adv - 2 * FIG.inset * LABEL_PX;
+  const left = anchor === "start" ? x + FIG.inset * LABEL_PX : anchor === "end" ? x - n * adv + FIG.inset * LABEL_PX : x - w / 2;
+  const base = middle ? y + FIG.middle * LABEL_PX : y;
+  const top = base - FIG.up * LABEL_PX;
+  const h = (FIG.up + FIG.down) * LABEL_PX;
+  return (
+    <g className="draw-pop" style={style}>
+      <rect className="knockout" x={left - 2} y={top - 2} width={w + 4} height={h + 4} />
+      <text className={`value${end ? " end" : ""}`} x={x} y={y} textAnchor={anchor} dominantBaseline={middle ? "middle" : undefined}>
+        {value}
+      </text>
+    </g>
+  );
+}
+
 /** The element's rendered width in CSS pixels (640 until measured), so the plot is drawn at its true size and its
  * type never scales down with the viewport. */
 function useWidth<T extends HTMLElement>(fallback = 640): [React.RefObject<T | null>, number] {
@@ -251,19 +277,14 @@ export function MetricChart({
             {tip?.leader && <line className="leader" x1={Math.round(x(active!)) + 0.5} x2={Math.round(x(active!)) + 0.5} y1={y(a!.score)} y2={tip.edge} />}
             {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={5} />}
             <circle className={`marker current draw-pop${active === last ? " active" : ""}`} cx={x(last)} cy={y(points[last].score)} r={5} style={delay(last)} />
+            {/* the value labels, each on its knockout so the gridlines stop at its figures */}
             {hi !== last && hi !== lowest && points.length > 2 && !flatToEnd(hi) && (
-              <text className="value draw-pop" x={lx(hi)} y={y(points[hi].score) - 10} textAnchor={anchor(hi)} style={{ ...delay(hi), ...unlessRead(hi) }}>
-                {points[hi].score}
-              </text>
+              <ValueLabel x={lx(hi)} y={y(points[hi].score) - 10} anchor={anchor(hi)} style={{ ...delay(hi), ...unlessRead(hi) }} value={points[hi].score} />
             )}
             {lowest !== last && lowest !== hi && points.length > 2 && !flatToEnd(lowest) && (
-              <text className="value draw-pop" x={lx(lowest)} y={y(points[lowest].score) + (lowAbove ? -10 : 18)} textAnchor={anchor(lowest)} style={{ ...delay(lowest), ...unlessRead(lowest) }}>
-                {points[lowest].score}
-              </text>
+              <ValueLabel x={lx(lowest)} y={y(points[lowest].score) + (lowAbove ? -10 : 18)} anchor={anchor(lowest)} style={{ ...delay(lowest), ...unlessRead(lowest) }} value={points[lowest].score} />
             )}
-            <text className="value end draw-pop" x={x(last) + 10} y={y(points[last].score)} dominantBaseline="middle" style={delay(last)}>
-              {points[last].score}
-            </text>
+            <ValueLabel x={x(last) + 10} y={y(points[last].score)} middle end style={delay(last)} value={points[last].score} />
           </svg>
           {a && (
             <div

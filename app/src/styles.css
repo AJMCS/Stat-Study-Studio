@@ -789,6 +789,9 @@ main h1 + .annotated.block:not(p):not(.step-wrap):not(.notice), main h1 + p:not(
 @media (max-width: 599px) { .chart-filters { gap: 8px 16px; } .chart-filters .field.inline > span { display: none; } }
 button.link.mono-link { font: 500 13px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; white-space: nowrap; }
 button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--muted); }
+/* the link's trailing arrow says it is an action, not a tab: outside the underline (an inline-block takes no
+   decoration from its parent), from the same fallback face as the tabs' trend glyphs, on the link's own line box */
+button.link.mono-link .go { display: inline-block; margin-left: 6px; line-height: 20px; vertical-align: top; }
 .crit-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: nowrap; border-bottom: 1px solid var(--hair); margin-top: 8px; }
 .crit-row .crit-tabs { border-bottom: 0; margin: 0; }
 /* the block's rhythm, on the 8px grid: hint 8 under the filter row, chart 24 under the hint; caption line box 24, gap 8,
@@ -817,6 +820,8 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 .chart .leader { stroke: var(--muted); stroke-width: 1; }
 .chart .value { fill: var(--ink); font: 400 12px var(--mono); }
 .chart .value.end { font-weight: 600; }
+/* the knockout under each value label: the canvas colour, 2px around the figures, so a gridline never strikes through */
+.chart .knockout { fill: var(--canvas); }
 /* change by topic: HTML rows (name · track with a zero line · signed value) */
 .change-rows { position: relative; }
 .change-row { position: relative; display: grid; grid-template-columns: minmax(120px, 260px) 1fr 72px; align-items: center; gap: 12px; min-height: 32px; padding: 2px 0; border-radius: var(--r-sm); outline: none; }
@@ -850,7 +855,12 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 .attempts-table th:first-child, .attempts-table td:first-child { padding-left: 0; }
 .attempts-table th:last-child, .attempts-table td:last-child { padding-right: 0; text-align: right; }
 .attempts-table td { padding: 8px 6px; font-size: 14px; line-height: 20px; }
-.attempts-table td button.link { color: var(--ink); }
+/* dates, headers and figures never wrap; only the Attempt column (a note can be long) gives way */
+.attempts-table th, .attempts-table td { white-space: nowrap; }
+.attempts-table td:nth-child(2) { white-space: normal; }
+/* the row's destructive action in the app's danger form ("!" badge, ink label, underline), at the row's 14px size and
+   on its 20px line; its own 8px side padding keeps the label off the panel's edge */
+.attempts-table td button.danger { font: 500 14px/20px var(--sans); border: 0; padding: 0 8px; vertical-align: top; }
 .attempts-table td .chip { margin-left: 6px; }
 .change-row .chart-tip { left: 50%; top: 0; }
 .change-axis { display: grid; grid-template-columns: minmax(120px, 260px) 1fr 72px; gap: 12px; margin-top: 4px; }
@@ -869,9 +879,10 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
   .change-axis { grid-template-columns: 1fr; }
   .change-axis .axis-row { grid-column: 1; }
 }
-/* the readout: a light card (hairline, surface fill, a faint soft shadow) no heavier than the series it reads; the
-   value in bold Geist Mono, then what it is, then when (with the attempt that produced it) */
-.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
+/* the readout: a light card (hairline, surface fill) with the system's floating-tooltip shadow (§5, the one soft
+   shadow in the system, the same in both themes); the value in bold Geist Mono, then what it is, then when (with the
+   attempt that produced it) */
+.chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: 0 3px 4px rgba(0, 0, 0, 0.6); }
 .chart-tip[data-side="left"] { transform: translate(calc(-100% - 12px), -50%); }
 .chart-tip.above { transform: translate(-50%, calc(-100% - 6px)); }
 .chart-tip b.mono, .chart-tip .mono { font-family: var(--mono); font-variant-numeric: tabular-nums slashed-zero; }
