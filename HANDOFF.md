@@ -48,7 +48,7 @@ cd app && npx vitest run                               # 109 pass
 cd app && npm run build && node e2e/run.mjs            # real service + Chrome; prints "E2E passed"
 
 # renders for the critics (gitignored; regenerate)
-cd app && npm run build && node e2e/shots.mjs ../design/shots/charts-r3 --charts
+cd app && npm run build && node e2e/shots.mjs ../design/shots/charts-r5 --charts
 node e2e/shoot-ref.mjs https://vercel.com/analytics ../design/reference/charts-vercel
 node e2e/shoot-ref.mjs https://observablehq.com/plot/marks/line ../design/reference/charts-plot
 ```

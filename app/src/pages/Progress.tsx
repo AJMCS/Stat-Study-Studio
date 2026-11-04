@@ -113,7 +113,7 @@ export function Progress() {
               </select>
             </label>
           </div>
-          <p className="muted small chart-hint">Hover a point or a row, or use the arrow keys, to read it; each chart can also be shown as a table.</p>
+          <p className="chart-hint">Hover a point or a row, or use the arrow keys, to read it; each chart can also be shown as a table.</p>
           <MetricChart key={`${show}-${range}-${includeSelf}`} points={timeline} cutoff={cfg.compositeCutoff} label={show === "course" ? "Course score" : topicNames[show]} topicNames={topicNames} />
           <TopicChangeChart rows={changes} window={cfg.recencyWindow} />
         </section>
@@ -124,7 +124,10 @@ export function Progress() {
       {scored.map(({ t, at, score, peak, tr }) => {
         const state = data.topicState[t.id];
         const modelAt = at.filter((a) => a.aiScored); // only an AI rubric produces a real per-criterion breakdown
-        const apps = data.attempts.filter((a) => a.topicId === t.id && a.aiScored && a.criteria.application >= cfg.criterionCutoffs.application).length;
+        // the pathway's counts, from the same counted attempts its table lists, each against the cutoff it is held to
+        const recalls = at.filter((a) => a.kind === "recall");
+        const recallsOver = recalls.filter((a) => a.composite >= cfg.compositeCutoff).length;
+        const apps = modelAt.filter((a) => a.criteria.application >= cfg.criterionCutoffs.application).length;
         const all = data.attempts.filter((a) => a.topicId === t.id).sort((a, b) => a.at.localeCompare(b.at));
         const cls = classify(score, cfg);
         return (
@@ -144,7 +147,8 @@ export function Progress() {
                 </div>
                 <PathwayChart topic={t} attempts={at} modelAttempts={modelAt} all={all} cfg={cfg} topicNames={topicNames} onDelete={deleteAttempt}>
                   <p className="eyebrow">
-                    {"// "}{modelAt.length > 0 ? `${apps} successful application${apps === 1 ? "" : "s"} · ` : ""}{state?.recallHistory.filter((r) => r.qualified).length ?? 0} qualifying recalls · {state?.misses ?? 0} misses
+                    {"// "}{recalls.length === 0 ? "no recalls yet" : `${recalls.length} recall${recalls.length === 1 ? "" : "s"}, ${recallsOver} of them ${cfg.compositeCutoff}+`}
+                    {modelAt.length > 0 && ` · application ${cfg.criterionCutoffs.application}+ on ${apps} of ${modelAt.length} attempt${modelAt.length === 1 ? "" : "s"}`}
                   </p>
                   {state && (state.strengths.length > 0 || state.gaps.length > 0) && (
                     <p className="muted">
@@ -214,24 +218,22 @@ function PathwayChart({
   const metricAttempts = composite ? attempts : modelAttempts;
   const metricPick = composite ? (a: Attempt) => a.composite : (a: Attempt) => a.criteria[crit];
   const points = courseTimeline(metricAttempts, cfg.recencyWindow, topic.id, metricPick);
-  const { now, change, dir } = standing(metricAttempts, cfg.recencyWindow, metricPick);
+  const { now, change } = standing(metricAttempts, cfg.recencyWindow, metricPick);
   const cutoff = composite ? cfg.compositeCutoff : cfg.criterionCutoffs[crit];
   const name = composite ? "Composite" : TAB_LABELS[crit];
+  // the value and how far it moved; the direction word lives on the tab (a criterion) or in the panel's header (the
+  // composite), so the line does not repeat it
   const summary = now !== null && (
     <p className="crit-stat" role="status">
-      <b className="mono">{now}</b> on {composite ? "the composite" : CRITERION_LABELS[crit].toLowerCase()} now
+      <b className="mono">{now}</b> recency-weighted {name.toLowerCase()}
       {change && (
         <>
           {" · "}
-          <span className="mono">{dir === "improving" ? "↑" : dir === "declining" ? "↓" : "→"}</span> {dir === "improving" ? "Improving" : dir === "declining" ? "Declining" : "Steady"}{" "}
-          <span className="muted">
-            ({change.delta > 0 ? "+" : ""}
-            {change.delta} since {change.basis === "window" ? `the attempts before the last ${Math.min(cfg.recencyWindow, change.attempts)}` : "your first attempt"})
-          </span>
+          <span className="mono">{change.delta > 0 ? "+" : ""}{change.delta}</span> since {change.basis === "window" ? `before the last ${Math.min(cfg.recencyWindow, change.attempts)} attempts` : "your first attempt"}
         </>
       )}
       {" · "}
-      <span className="muted">{now >= cutoff ? "at or above" : "below"} its cutoff of {cutoff}</span>
+      {now >= cutoff ? "at or above" : "below"} the cutoff of <span className="mono">{cutoff}</span>
     </p>
   );
   const tabButton = (t: Tab, label: string, glyph = "") => {
@@ -261,17 +263,21 @@ function PathwayChart({
       {tab === "attempts" ? (
         <>
           {noModel && <p className="muted">Criterion-level trends (core idea, depth, relevance, application) need an AI service to score your explanations. Your self-scored attempts only have an overall score.</p>}
+          {/* the panel's table, in the panel's width: a short date, the attempt (with whether it counts) and its scores */}
           <div className="table-scroll attempts-table">
             <table>
-              <thead><tr><th>Date</th><th>Type</th>{!noModel && CRITERIA.map((c) => <th key={c}>{TAB_LABELS[c]}</th>)}<th>Composite</th><th>Counts</th><th /></tr></thead>
+              <thead><tr><th>Date</th><th>Attempt</th>{!noModel && CRITERIA.map((c) => <th key={c}>{TAB_LABELS[c]}</th>)}<th>Composite</th><th /></tr></thead>
               <tbody>
                 {[...all].reverse().map((a) => (
                   <tr key={a.id}>
-                    <td className="mono">{new Date(a.at).toLocaleDateString()}</td>
-                    <td>{a.note ?? a.kind}</td>
+                    <td className="mono">{new Date(a.at).toLocaleDateString(undefined, { month: "short", day: "numeric" })}</td>
+                    <td>
+                      {a.note ?? a.kind}
+                      {a.selfScored && <span className="chip">Self-scored</span>}
+                      {!a.counted && <span className="muted"> · {a.note?.startsWith("Comprehension check") ? "practice" : "retry"}, not counted</span>}
+                    </td>
                     {!noModel && CRITERIA.map((c) => <td key={c} className="mono">{a.aiScored ? a.criteria[c] : "—"}</td>)}
-                    <td><span className="mono">{a.composite}</span>{a.selfScored && <span className="chip">Self-scored</span>}</td>
-                    <td>{a.counted ? "Yes" : a.note?.startsWith("Comprehension check") ? "Practice (not counted)" : "Retry (not counted)"}</td>
+                    <td className="mono">{a.composite}</td>
                     <td>
                       <button className="link" onClick={() => confirm("Delete this attempt? It will no longer affect your trend or historical peak.") && onDelete(a.id)}>
                         Delete
@@ -285,7 +291,7 @@ function PathwayChart({
         </>
       ) : (
         <>
-          <MetricChart key={`${tab}`} points={points} cutoff={cutoff} label={name} caption={composite ? "recency-weighted, per counted attempt" : "recency-weighted, AI-scored attempts"} topicNames={topicNames} metric={metricPick} />
+          <MetricChart key={`${tab}`} points={points} cutoff={cutoff} label={name} caption={composite ? "recency-weighted, per counted attempt" : "recency-weighted, AI-scored attempts"} topicNames={topicNames} metric={metricPick} noTable />
           {summary}
           {composite && children}
         </>

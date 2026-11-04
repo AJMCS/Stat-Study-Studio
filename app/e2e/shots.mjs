@@ -486,6 +486,7 @@ try {
         await panel.screenshot({ path: join(outDir, `charts-pathway-composite-${theme}-${vp}.png`) });
         await panel.locator("button:has-text('Inspect criteria and attempts')").click();
         const t1 = Date.now();
+        await page.mouse.move(0, 0); // off the tab row, so no tab is filmed in its hover ink
         for (let at = 0; at <= 4000; at += 400) {
           await page.waitForTimeout(Math.max(0, at - (Date.now() - t1)));
           await panel.screenshot({ path: join(outDir, `charts-crit-open-${theme}-${vp}-${String(at).padStart(4, "0")}ms.png`) });
@@ -493,6 +494,7 @@ try {
         // the other tabs: a second criterion, the attempts table, and the composite again from its tab
         for (const [tab, name] of [["Application", "criteria"], ["Depth", "criteria-depth"], ["Attempts", "attempts"], ["Composite", "composite-back"]]) {
           await panel.locator(`button[role=tab]:has-text('${tab}')`).click();
+          await page.mouse.move(0, 0);
           await page.waitForTimeout(1500 * SLOW);
           await panel.screenshot({ path: join(outDir, `charts-pathway-${name}-${theme}-${vp}.png`) });
         }

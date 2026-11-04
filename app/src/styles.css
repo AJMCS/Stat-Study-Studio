@@ -691,7 +691,7 @@ button.btn-sm.ghost.intro-skip { border-color: var(--muted); }
 
 /* ================================================================== responsive */
 @media (min-width: 900px) {
-  .topic-panels { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; align-items: stretch; }
+  .topic-panels { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: stretch; } /* minmax(0, …): a panel's table can never widen its column */
   .topic-panels > .panel { margin: 0; }
   .topic-panels > .panel:has([aria-expanded="true"]) { grid-column: 1 / -1; }
 }
@@ -779,36 +779,42 @@ main h1 + .annotated.block:not(p):not(.step-wrap):not(.notice), main h1 + p:not(
 /* ---- comprehension charts: one series in ink, the current point in the accent, hairline grid, table twin */
 .comprehension { margin-top: 48px; max-width: 760px; }
 .comprehension > h2 { margin-bottom: 4px; }
-.chart-filters { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; margin: 16px 0 8px; }
+/* the range row is a tab row (§7): one hairline under the tabs and the Show select together */
+.chart-filters { display: flex; flex-wrap: wrap; gap: 12px 32px; align-items: center; margin: 16px 0 0; border-bottom: 1px solid var(--hair); }
 .chart-filters .crit-tabs { margin: 0; border-bottom: 0; }
 .chart-filters .field.inline { display: flex; flex-direction: row; align-items: center; gap: 8px; }
 .chart-filters .field.inline > span { font: 13.5px/20px var(--mono); text-transform: uppercase; color: var(--muted); }
 .chart-filters select { min-width: 0; width: auto; max-width: 100%; font: 500 13.5px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; padding: 6px 36px 6px 10px; background-position: right 10px center; }
-.chart-filters .field.inline { min-width: 0; }
+.chart-filters .field.inline { min-width: 0; margin: 0; }
 @media (max-width: 599px) { .chart-filters { gap: 8px 16px; } .chart-filters .field.inline > span { display: none; } }
 button.link.mono-link { font: 500 13px/20px var(--mono); text-transform: uppercase; letter-spacing: 0.02em; color: var(--ink); text-decoration: underline; text-underline-offset: 3px; background: none; border: 0; padding: 0; box-shadow: none; border-radius: 0; white-space: nowrap; }
 button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--muted); }
 .crit-row { display: flex; justify-content: space-between; align-items: center; gap: 16px; flex-wrap: nowrap; border-bottom: 1px solid var(--hair); margin-top: 8px; }
 .crit-row .crit-tabs { border-bottom: 0; margin: 0; }
-.chart-hint { margin: 0 0 8px; }
+/* the block's rhythm, on the 8px grid: hint 8 under the filter row, chart 24 under the hint; caption line box 24, gap 8,
+   drawing 272 (16 head + 224 plot + 32 axis band), summary line 8 under it */
+.chart-hint { margin: 8px 0 0; font: 14px/20px var(--sans); color: var(--muted); }
 .chart { margin: 24px 0 32px; max-width: 760px; }
-.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; min-height: 28px; margin-bottom: 8px; }
+/* each chart block is a plain plate from its caption row to its axis labels, so the page's graph paper stops at the block's own edge */
+.chart { background: var(--canvas); }
+.chart-head { display: flex; justify-content: space-between; align-items: baseline; gap: 16px; min-height: 24px; margin-bottom: 8px; }
 .chart-head figcaption { margin: 0; min-width: 0; flex: 1 1 auto; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .chart-head > button { flex: 0 0 auto; }
+/* the table link sits in a sans caption row, so it takes the app-wide link form at the caption size */
+.chart-head > button.link { font: 14px/20px var(--sans); color: var(--ink); white-space: nowrap; }
 .chart-plot { position: relative; outline: none; border-radius: var(--r-sm); }
 .chart-plot:focus-visible { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 .chart svg { width: 100%; height: auto; display: block; overflow: visible; font-family: var(--mono); touch-action: none; }
 .chart .grid { stroke: var(--ink); stroke-opacity: 0.08; stroke-width: 1; }
 .chart .baseline { stroke: var(--ink); stroke-opacity: 0.25; stroke-width: 1; }
 .chart .cutoff { stroke: var(--ink); stroke-opacity: 0.25; stroke-width: 1; }
-.chart .plot-bg { fill: var(--canvas); }
 .chart .axis { fill: var(--muted); font-size: 12px; }
 .chart .area { fill: var(--ink); fill-opacity: 0.08; }
 .chart .series { stroke: var(--ink); stroke-width: 2; stroke-linejoin: round; stroke-linecap: round; }
+/* one marker vocabulary: an 8px solid dot with a 2px canvas halo, orange on the current point, ink on the point being read */
 .chart .marker { fill: var(--ink); stroke: var(--canvas); stroke-width: 2; }
 .chart .marker.current { fill: var(--orange); }
-.chart .marker.active { stroke: var(--ink); fill: var(--surface); }
-.chart .crosshair { stroke: var(--muted); stroke-width: 1; }
+.chart .leader { stroke: var(--muted); stroke-width: 1; }
 .chart .value { fill: var(--ink); font: 400 12px var(--mono); }
 .chart .value.end { font-weight: 600; }
 /* change by topic: HTML rows (name · track with a zero line · signed value) */
@@ -821,19 +827,31 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 .change-row:focus-visible { box-shadow: 0 0 0 2px var(--surface), 0 0 0 4px var(--ink); }
 .change-row.active { background: color-mix(in srgb, var(--ink) 5%, transparent); }
 .change-row .row-label { font: 14px/18px var(--sans); color: var(--ink); text-align: right; }
-/* the bar is a 6px ink rule with square ends, so it sits with the 2px series rather than over it */
+/* the bar is a 6px muted rule with square ends (ink when read), so the 2px ink series stays the heaviest object in the section */
 .change-row .track { position: relative; display: block; height: 6px; }
 .change-row .zero { position: absolute; left: 50%; top: -5px; bottom: -5px; width: 1px; background: var(--muted); }
-.change-row .dbar { position: absolute; top: 0; height: 6px; background: var(--ink); }
+.change-row .dbar { position: absolute; top: 0; height: 6px; background: var(--muted); }
 .change-row .dbar.up { transform-origin: left center; }
 .change-row .dbar.down { transform-origin: right center; }
 .change-row .dbar.flat { width: 2px !important; left: calc(50% - 1px) !important; background: var(--muted); }
-.change-row.active .dbar { background: var(--orange); }
+.change-row.active .dbar { background: var(--ink); }
 .change-row .value { font-size: 13.5px; color: var(--ink); white-space: nowrap; }
-.crit-stat { margin: 8px 0 0; }
-.attempts-table td button.link { color: var(--ink); }
+/* the line under a pathway chart: the value and its delta in Geist Mono, the rest in the caption voice, on one line */
+.crit-stat { margin: 8px 0 0; font: 14px/20px var(--sans); color: var(--ink); }
+.crit-stat b.mono { font-weight: 600; }
+.pathway-chart .chart { margin-bottom: 8px; }
+.pathway-chart .crit-stat + .eyebrow { margin-top: 16px; }
 .table-scroll { overflow-x: auto; margin: 16px 0; }
 .table-scroll table { margin: 0; min-width: 480px; }
+/* the pathway's attempts table fits the panel's width: tighter cells, 12px mono headers (the tick size), no fixed minimum */
+.attempts-table { margin: 24px 0 0; }
+.attempts-table table { min-width: 0; }
+.attempts-table th { font-size: 12px; line-height: 16px; padding: 6px 6px; }
+.attempts-table th:first-child, .attempts-table td:first-child { padding-left: 0; }
+.attempts-table th:last-child, .attempts-table td:last-child { padding-right: 0; text-align: right; }
+.attempts-table td { padding: 8px 6px; font-size: 14px; line-height: 20px; }
+.attempts-table td button.link { color: var(--ink); }
+.attempts-table td .chip { margin-left: 6px; }
 .change-row .chart-tip { left: 50%; top: 0; }
 .change-axis { display: grid; grid-template-columns: minmax(120px, 260px) 1fr 72px; gap: 12px; margin-top: 4px; }
 .change-axis .axis-row { grid-column: 2; display: flex; justify-content: space-between; }
@@ -851,27 +869,27 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
   .change-axis { grid-template-columns: 1fr; }
   .change-axis .axis-row { grid-column: 1; }
 }
-/* the readout: a light card (hairline, surface fill, a faint soft shadow) no heavier than the series it reads */
+/* the readout: a light card (hairline, surface fill, a faint soft shadow) no heavier than the series it reads; the
+   value in bold Geist Mono, then what it is, then when (with the attempt that produced it) */
 .chart-tip { position: absolute; transform: translate(12px, -50%); background: var(--surface); border: 1px solid var(--hair); border-radius: var(--r-sm); padding: 8px 10px; font: 13px/18px var(--sans); color: var(--ink); white-space: nowrap; pointer-events: none; z-index: 2; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08); }
 .chart-tip[data-side="left"] { transform: translate(calc(-100% - 12px), -50%); }
 .chart-tip.above { transform: translate(-50%, calc(-100% - 6px)); }
-.chart-tip b.mono, .chart-tip .mono { font-family: var(--mono); }
-.chart-tip b.mono { font-size: 16px; font-weight: 600; }
+.chart-tip b.mono, .chart-tip .mono { font-family: var(--mono); font-variant-numeric: tabular-nums slashed-zero; }
+.chart-tip b.mono { font: 700 18px/20px var(--mono); }
 .chart-tip > span { color: var(--muted); }
 .chart-tip.docked { position: static; transform: none; display: block; margin: 8px 0 0; white-space: normal; box-shadow: none; }
-/* on a wide screen the card is anchored to its point: just above it when the point is in the lower half of the plot,
-   just below when in the upper half, beside it on the side away from the plot's near edge; it wraps within half the
-   plot so it never runs past the edge */
+/* on a wide screen the card is anchored to its point: just above or just below it (whichever keeps it nearest while
+   clearing the series), its near corner 12px past the point on the side away from the plot's near edge, so the
+   leader dropped from the point meets its edge; it wraps within half the plot so it never runs past the edge */
 .chart-plot .chart-tip { white-space: normal; max-width: calc(50% - 24px); }
-.chart-tip[data-v="above"] { transform: translate(12px, calc(-100% - 10px)); }
-.chart-tip[data-v="above"][data-side="left"] { transform: translate(calc(-100% - 12px), calc(-100% - 10px)); }
-.chart-tip[data-v="below"] { transform: translate(12px, 10px); }
-.chart-tip[data-v="below"][data-side="left"] { transform: translate(calc(-100% - 12px), 10px); }
+.chart-tip[data-v="above"] { transform: translate(-12px, calc(-100% - 10px)); }
+.chart-tip[data-v="above"][data-side="left"] { transform: translate(calc(-100% + 12px), calc(-100% - 10px)); }
+.chart-tip[data-v="below"] { transform: translate(-12px, 10px); }
+.chart-tip[data-v="below"][data-side="left"] { transform: translate(calc(-100% + 12px), 10px); }
 .chart-tip .tip-when, .chart-tip .tip-what { display: block; color: var(--muted); }
 .chart-tip .tip-what b { color: var(--ink); }
 .chart-table { margin: 8px 0 0; }
 .chart-table td.mono, .chart-table .num { font-variant-numeric: tabular-nums; }
-.chart-hint { margin: 4px 0 0; }
 /* draw-on: the line travels from its left end at one speed (800ms, see DRAW_MS) with an ease-out; each mark and label
    appears as the line reaches it. Reduced motion shows the finished chart. */
 @media (prefers-reduced-motion: no-preference) {
@@ -888,9 +906,10 @@ button.link.mono-link:hover { transform: none; box-shadow: none; color: var(--mu
 .pathway-chart { margin-top: 8px; }
 /* the tab row: Geist Mono 13px uppercase on one line, the active tab marked by a 1px ink underline at 3px offset */
 .crit-tabs { display: flex; flex-wrap: nowrap; gap: 12px; margin: 8px 0 0; padding: 0; list-style: none; border-bottom: 1px solid var(--hair); }
-.crit-tabs button { font: 500 13px/34px var(--mono); height: 34px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none; white-space: nowrap; }
+.crit-tabs li { margin: 0; }
+.crit-tabs button { display: block; font: 500 13px/40px var(--mono); height: 40px; text-transform: uppercase; letter-spacing: 0.02em; color: var(--muted); background: none; border: 0; border-radius: 0; padding: 0; box-shadow: none; white-space: nowrap; }
 /* the trend glyph comes from a fallback face; a zero line box keeps it from stretching the row */
-.crit-tabs .trend { color: var(--ink); line-height: 0; margin-left: 4px; }
+.crit-tabs .trend { color: var(--ink); line-height: 0; margin-left: 6px; }
 .crit-tabs button:hover { color: var(--ink); transform: none; box-shadow: none; }
 .crit-tabs button[aria-selected="true"] { color: var(--ink); text-decoration: underline; text-decoration-thickness: 1px; text-underline-offset: 3px; }
 .crit-tabs button:disabled { color: var(--faint); cursor: not-allowed; }

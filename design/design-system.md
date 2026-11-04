@@ -34,7 +34,8 @@ the same size. Per-topic numbers (cards, tables) are ink mono at body or heading
 **Orange marks "where you are" (clarified after round 3):** in diagrams, completed or structural lines and hub rings
 are ink/muted; orange is only the single current route (from the start to the current node) or, if that is long,
 only the branch into the current node. A viewport's orange budget is: one heading key word (+ its underline) and one
-diagram route.
+diagram route. A chart may carry one orange marker on its current point (and nothing else in orange; amended after
+piece F round 4, where bar line 2 already requires it).
 
 Rules: at most one orange element group and one chartreuse highlight per screen region; no gradients, glass, or
 blurred glows; no third hue (success is shown with ink + a check mark, not green).

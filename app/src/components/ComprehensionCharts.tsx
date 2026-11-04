@@ -15,6 +15,8 @@ import type React from "react";
 const day = (iso: string) => new Date(iso).toLocaleDateString(undefined, { month: "short", day: "numeric" });
 const dayYear = (iso: string) => new Date(iso).toLocaleDateString(undefined, { year: "numeric", month: "short", day: "numeric" });
 const signed = (n: number) => (n > 0 ? `+${n}` : n < 0 ? `−${Math.abs(n)}` : "0");
+/** An attempt's kind as it reads in a sentence ("after a quiz on ..."). */
+const KIND_WORDS: Record<Attempt["kind"], string> = { tutor: "a tutor session", quiz: "a quiz", exam: "an exam", recall: "a recall" };
 
 /** The draw-on: the line takes DRAW_MS to travel from its left end with the intro's ease-out (CSS uses the same
  * figure and curve). */
@@ -62,6 +64,7 @@ export function MetricChart({
   caption,
   empty = "No counted attempts in this range yet.",
   metric,
+  noTable = false,
 }: {
   points: TimelinePoint[];
   cutoff: number;
@@ -73,12 +76,17 @@ export function MetricChart({
   empty?: string;
   /** The attempt's own value on this metric (its composite by default; a criterion's score on a criterion chart). */
   metric?: (a: Attempt) => number;
+  /** Without the table twin: for a chart whose panel has its own table (the pathway's attempts). */
+  noTable?: boolean;
 }) {
   const attemptValue = metric ?? ((q: Attempt) => q.composite);
   const [frame, W] = useWidth<HTMLDivElement>();
   const narrow = W < 480; // a phone: the readout docks under the plot instead of floating on it
-  const pad = { top: 20, right: 48, bottom: 28, left: 76 }; // the left gutter holds the ticks and the cutoff's label
-  const innerH = Math.max(90, Math.round((W * 0.38) / 5) * 5); // a multiple of 5: the five bands between ticks land on whole pixels
+  // one plot height for every chart (224, on the 8px grid; between a third and a half of any width the shell is
+  // drawn at), with a 16px head above it and a 32px axis band below, so the whole drawing is 272 tall; the left
+  // gutter holds the ticks and the cutoff's label
+  const pad = { top: 16, right: 48, bottom: 32, left: 76 };
+  const innerH = 224;
   const H = innerH + pad.top + pad.bottom;
   const [active, setActive] = useState<number | null>(null);
   const [table, setTable] = useState(false);
@@ -101,8 +109,16 @@ export function MetricChart({
   const last = points.length - 1;
   const hi = points.reduce((b, p, i) => (p.score > points[b].score ? i : b), 0);
   const lowest = points.reduce((b, p, i) => (p.score < points[b].score ? i : b), 0);
-  // when, along the draw-on, the line reaches each point (a fraction of DRAW_MS)
-  const reach = (i: number) => (points.length === 1 ? 0 : (x(i) - x(0)) / (x(last) - x(0) || 1));
+  // the length of the line up to each point, as a fraction of its whole length: the draw-on dashes the path by
+  // length, so this (not the x position) is where the tip is when it reaches the point
+  const along = points.reduce<number[]>((acc, p, i) => {
+    if (i === 0) return [0];
+    const q = points[i - 1];
+    return [...acc, acc[i - 1] + Math.hypot(x(i) - x(i - 1), y(p.score) - y(q.score))];
+  }, []);
+  const reach = (i: number) => (along[last] ? along[i] / along[last] : 0);
+  // a high (or low) that equals the current value on a flat run to the end would label the same number twice
+  const flatToEnd = (i: number) => points.slice(i).every((p) => p.score === points[last].score);
 
   if (points.length === 0) return <p className="muted">{empty}</p>;
 
@@ -130,16 +146,20 @@ export function MetricChart({
   const path = points.map((p, i) => `${i ? "L" : "M"}${x(i).toFixed(1)},${y(p.score).toFixed(1)}`).join(" ");
   const summary = `${label}: ${points.map((p) => `${day(p.at)} ${p.score}`).join(", ")}; cutoff ${cutoff}`;
   const dateTicks = points.length > 2 && x(last) - x(0) > 200 ? [0, Math.floor(last / 2), last] : points.length > 1 ? [0, last] : [0];
-  const delay = (i: number) => ({ animationDelay: `${Math.round(easeTime(reach(i)) * DRAW_MS) - 40}ms` });
+  // each mark fades in the moment the eased draw reaches its point, never before; the end marker and value get a
+  // 40ms lead, where the ease-out has all but stopped the tip, so they land with the line rather than after it
+  const delay = (i: number) => ({ animationDelay: `${Math.round(easeTime(reach(i)) * DRAW_MS) - (i === last ? 40 : 0)}ms` });
   const lowAbove = y(points[lowest].score) > H - pad.bottom - 24;
   // the readout sits beside its point, on the side away from the plot's near edge, just above the point when it is
   // in the lower half of the plot and just below when in the upper half; "just" means clear of the series where
   // the card will lie, so a flat line is not covered, and it never reaches the axis band or the top of the plot
+  const when = (p: TimelinePoint) => `${dayYear(p.at)} · after ${p.attempt.note ?? KIND_WORDS[p.attempt.kind]} on ${topicNames[p.attempt.topicId] ?? p.attempt.topicId}`;
   const tipPlace = (i: number) => {
     const side = x(i) > W / 2 ? "left" : "right";
     const cardW = Math.min(300, W / 2 - 24); // the card's width (CSS caps it at half the plot)
-    const cardH = cardW < 300 ? 90 : 72; // and its height (one more line when it wraps)
-    const xs = [x(i), side === "right" ? x(i) + cardW : x(i) - cardW].sort((p, q) => p - q);
+    const cardH = when(points[i]).length * 6.6 > cardW - 20 ? 74 : 56; // and its height (one more line when the when-line wraps)
+    // the card's near corner sits 12px past the point, so a leader dropped from the point meets its edge
+    const xs = side === "right" ? [x(i) - 12, x(i) - 12 + cardW] : [x(i) + 12 - cardW, x(i) + 12];
     const yAt = (px: number) => {
       // the series' height at px, interpolated along its segment
       const j = points.findIndex((_, k) => k < last && x(k) <= px && px <= x(k + 1));
@@ -159,9 +179,14 @@ export function MetricChart({
     const costAbove = py - highY + (py > pad.top + innerH / 2 ? 0 : 12);
     const costBelow = lowY - py + (py > pad.top + innerH / 2 ? 12 : 0);
     const above = fitsAbove && (!fitsBelow || costAbove <= costBelow);
-    return { side, v: above ? "above" : "below", style: { left: `${x(i)}px`, top: `${above ? highY : lowY}px` } };
+    // the card's near edge (its bottom when above, its top when below) is 10px past highY or lowY (CSS); a leader
+    // from the point to that edge shows which point it reads whenever the card cannot sit within 12px of it
+    const edge = above ? highY - 10 : lowY + 10;
+    return { side, v: above ? "above" : "below", edge, leader: Math.abs(edge - py) > 12, style: { left: `${x(i)}px`, top: `${above ? highY : lowY}px` } };
   };
   const tip = a && !narrow ? tipPlace(active!) : null;
+  // the point being read carries its own card, so its high/low label gives way to it (and to the leader)
+  const unlessRead = (i: number): React.CSSProperties => (active === i ? { visibility: "hidden" } : {});
 
   return (
     <figure className="chart timeline" ref={frame}>
@@ -169,9 +194,11 @@ export function MetricChart({
         <figcaption>
           <b>{label}</b> <span className="muted">· {caption ?? "recency-weighted score after each counted attempt"}</span>
         </figcaption>
-        <button className="link mono-link" aria-pressed={table} onClick={() => setTable(!table)}>
-          {table ? "Chart" : "Show as a table"}
-        </button>
+        {!noTable && (
+          <button className="link" aria-pressed={table} onClick={() => setTable(!table)}>
+            {table ? "Chart" : "Show as a table"}
+          </button>
+        )}
       </div>
       {table ? (
         <table className="chart-table">
@@ -199,8 +226,6 @@ export function MetricChart({
       ) : (
         <div className="chart-plot" tabIndex={0} role="img" aria-label={summary} aria-describedby={a ? `${id}-tip` : undefined} onKeyDown={onKey} onBlur={() => setActive(null)}>
           <svg viewBox={`0 0 ${W} ${H}`} width={W} height={H} onPointerMove={onMove} onPointerLeave={() => setActive(null)} aria-hidden="true">
-            {/* a plain plate under the plot, so the page's graph paper does not show through the chart's own grid */}
-            <rect className="plot-bg" x={pad.left} y={pad.top} width={innerW} height={innerH} />
             {ticks.map((v) => (
               <g key={v}>
                 <line className={v === 0 ? "baseline" : "grid"} x1={pad.left} x2={W - pad.right} y1={crisp(v)} y2={crisp(v)} />
@@ -222,15 +247,17 @@ export function MetricChart({
               </text>
             ))}
             <path className="series draw-line" d={path} fill="none" pathLength={1} />
-            {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={3} />}
+            {/* the point being read: a solid ink dot the size of the orange end dot, and a leader to its card */}
+            {tip?.leader && <line className="leader" x1={Math.round(x(active!)) + 0.5} x2={Math.round(x(active!)) + 0.5} y1={y(a!.score)} y2={tip.edge} />}
+            {a && active !== last && <circle className="marker active" cx={x(active!)} cy={y(a.score)} r={5} />}
             <circle className={`marker current draw-pop${active === last ? " active" : ""}`} cx={x(last)} cy={y(points[last].score)} r={5} style={delay(last)} />
-            {hi !== last && hi !== lowest && points.length > 2 && (
-              <text className="value draw-pop" x={lx(hi)} y={y(points[hi].score) - 10} textAnchor={anchor(hi)} style={delay(hi)}>
+            {hi !== last && hi !== lowest && points.length > 2 && !flatToEnd(hi) && (
+              <text className="value draw-pop" x={lx(hi)} y={y(points[hi].score) - 10} textAnchor={anchor(hi)} style={{ ...delay(hi), ...unlessRead(hi) }}>
                 {points[hi].score}
               </text>
             )}
-            {lowest !== last && lowest !== hi && points.length > 2 && (
-              <text className="value draw-pop" x={lx(lowest)} y={y(points[lowest].score) + (lowAbove ? -10 : 18)} textAnchor={anchor(lowest)} style={delay(lowest)}>
+            {lowest !== last && lowest !== hi && points.length > 2 && !flatToEnd(lowest) && (
+              <text className="value draw-pop" x={lx(lowest)} y={y(points[lowest].score) + (lowAbove ? -10 : 18)} textAnchor={anchor(lowest)} style={{ ...delay(lowest), ...unlessRead(lowest) }}>
                 {points[lowest].score}
               </text>
             )}
@@ -248,10 +275,7 @@ export function MetricChart({
               data-v={tip?.v}
             >
               <b className="mono">{a.score}</b> <span>{label.toLowerCase()}</span>
-              <span className="tip-when">{dayYear(a.at)}</span>
-              <span className="tip-what">
-                after {a.attempt.note ?? a.attempt.kind} on {topicNames[a.attempt.topicId] ?? a.attempt.topicId}: <span className="mono">{attemptValue(a.attempt)}</span>
-              </span>
+              <span className="tip-when">{when(a)}</span>
             </div>
           )}
         </div>
@@ -288,7 +312,7 @@ export function TopicChangeChart({ rows, window: win }: { rows: ChangeRow[]; win
         <figcaption>
           <b>Change by topic</b> <span className="muted">· current score against the score before the latest attempts</span>
         </figcaption>
-        <button className="link mono-link" aria-pressed={table} onClick={() => setTable(!table)}>
+        <button className="link" aria-pressed={table} onClick={() => setTable(!table)}>
           {table ? "Chart" : "Show as a table"}
         </button>
       </div>
