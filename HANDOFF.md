@@ -3,13 +3,15 @@
 Written for the Claude session that picks this repo up in the cloud. Everything below is also in the repo; this is the
 short path in.
 
-## Where things stand (commit 1a62c9f, 2026-11-03)
+## Where things stand (commit ad80c48 on `charts-design-loop`, 2026-11-03)
 
 - **Shipped on `main`:** course library through lecture 12 with recordings for lectures 2, 3, 5–10 (`course-library/`),
   a glossary that reads numbered definitions from the transcripts (`backend/studio/glossary.py`), Settings that pick
   an AI model from the account's own list, and the Progress page's comprehension charts.
-- **In progress:** a design-loop review of those charts (piece F). Round 3 is built and committed but **its three
-  critics have not run yet**. Start there.
+- **Done on desktop:** the design-loop review of those charts (piece F) ran rounds 3 to 8 in the cloud session and
+  **all three critics passed at round 8**. The work is on the `charts-design-loop` branch, not yet merged. What is
+  left (blind pairs against the reference shots, owner sign-off on four design-system clarifications, the phone
+  layout) is listed under "Resume here" in `design/progress.md`.
 
 ## What the owner asked for (the brief for piece F)
 
