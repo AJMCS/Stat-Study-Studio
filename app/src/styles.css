@@ -852,13 +852,21 @@ button.link.mono-link .go { display: inline-block; margin-left: 6px; margin-righ
 .pathway-chart .crit-stat + .eyebrow { margin-top: 16px; }
 .table-scroll { overflow-x: auto; margin: 16px 0; }
 .table-scroll table { margin: 0; min-width: 480px; }
+/* the Attempts tab's caption takes the chart caption's row and voice: 24px under the tab row, one 24px line (the muted
+   part gives way to an ellipsis rather than wrap), 8px over the table, so the tab row and the table sit where they did */
+.attempts-cap { margin: 24px 0 8px; min-height: 24px; font: 16px/24px var(--sans); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 /* the pathway's attempts table fits the panel's width: tighter cells, 12px mono headers (the tick size), no fixed minimum */
-.attempts-table { margin: 24px 0 0; }
+.attempts-table { margin: 0; }
 .attempts-table table { min-width: 0; }
-.attempts-table th { font-size: 12px; line-height: 16px; padding: 6px 6px; }
+/* the header row keeps its mono eyebrow voice; its rule is the same hairline as the row dividers (§5 flat rows), not
+   the base table's ink rule */
+.attempts-table th { font-size: 12px; line-height: 16px; padding: 6px 6px; border-bottom-color: var(--hair); }
 .attempts-table th:first-child, .attempts-table td:first-child { padding-left: 0; }
 .attempts-table th:last-child, .attempts-table td:last-child { padding-right: 0; text-align: right; }
 .attempts-table td { padding: 8px 6px; font-size: 14px; line-height: 20px; }
+/* the Attempt column is words (the kind, a note, whether it counts), so it is the sans at the row's size; the dates
+   and scores are data and stay mono */
+.attempts-table td:nth-child(2) { font-family: var(--sans); }
 /* dates, headers and figures never wrap; only the Attempt column (a note can be long) gives way */
 .attempts-table th, .attempts-table td { white-space: nowrap; }
 .attempts-table td:nth-child(2) { white-space: normal; }
@@ -879,7 +887,7 @@ button.link.mono-link .go { display: inline-block; margin-left: 6px; margin-righ
   /* the tab row stays one line: it scrolls sideways instead of wrapping */
   .crit-row .crit-tabs { flex: 1 1 auto; overflow-x: auto; scrollbar-width: none; min-width: 0; }
   .crit-row .crit-tabs::-webkit-scrollbar { display: none; }
-  .chart-head figcaption .muted { display: none; }
+  .chart-head figcaption .muted, .attempts-cap .muted { display: none; }
   .change-axis { grid-template-columns: 1fr; }
   .change-axis .axis-row { grid-column: 1; }
 }

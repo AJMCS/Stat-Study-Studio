@@ -264,6 +264,11 @@ function PathwayChart({
       </div>
       {tab === "attempts" ? (
         <>
+          {/* the tab's caption, in the chart caption's row and voice: the table is raw (each attempt's own scores, so the
+              header's historical peak is in it) while the charts weight recent attempts, and nothing else says so */}
+          <p className="attempts-cap">
+            <b>Attempts</b> <span className="muted">· each attempt's own scores; the charts weight recent ones more</span>
+          </p>
           {noModel && <p className="muted">Criterion-level trends (core idea, depth, relevance, application) need an AI service to score your explanations. Your self-scored attempts only have an overall score.</p>}
           {/* the panel's table, in the panel's width: a short date, the attempt (with whether it counts) and its scores */}
           <div className="table-scroll attempts-table">
