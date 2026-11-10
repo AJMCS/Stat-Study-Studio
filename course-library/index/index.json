@@ -2,8 +2,8 @@
   "version": 1,
   "embedding_model": "sentence-transformers/all-MiniLM-L6-v2",
   "dimensions": 384,
-  "chunks": 689,
-  "documents": 47,
+  "chunks": 731,
+  "documents": 48,
   "transcripts": {
     "transcripts/discussion-sections/disc-01-annotated.md": "c27dfe9e9f2bbfac",
     "transcripts/discussion-sections/disc-01.md": "4328fad38c92f70e",
@@ -37,6 +37,7 @@
     "transcripts/lecture-transcripts/lecture-08-the-chi-squared-distribution.md": "6262655e923b585c",
     "transcripts/lecture-transcripts/lecture-09-joint-distribution-of-the-sample-mean-and-variance.md": "f47f0f7edd7011e0",
     "transcripts/lecture-transcripts/lecture-10-the-t-distribution.md": "6b74413c7676a155",
+    "transcripts/lecture-transcripts/lecture-11-interval-estimation.md": "c847849feed5e1a6",
     "transcripts/prerequisites-stat131/notes-00-calculus-review.md": "2590b83dbf3f6545",
     "transcripts/prerequisites-stat131/notes-01-classic-probability-theory.md": "a76d1bfd56e3620a",
     "transcripts/prerequisites-stat131/notes-02-counting-and-conditional-probability.md": "167863fbbf254f9e",
@@ -53,5 +54,5 @@
     "transcripts/readings/reading-ch09-the-sample-mean-and-variance-together.md": "4156c982b341f03e",
     "transcripts/readings/reading-ch11-interval-estimation.md": "e058220d9d4f74ac"
   },
-  "built_at": "2026-11-03T21:35:53Z"
+  "built_at": "2026-11-10T16:46:15Z"
 }

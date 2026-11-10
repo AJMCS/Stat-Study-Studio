@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": 2,
-  "built_at": "2026-11-03T21:35:54Z",
+  "version": 3,
+  "built_at": "2026-11-10T16:46:15Z",
   "files": {
     "discussion-sections/disc-01-annotated.pdf": {
       "sha256": "8aa1820e383e83153a6fd450fe30f7f3c6799b13b834f5b4f85c99d94ca4496f",
@@ -52,16 +52,16 @@
       "size": 81398
     },
     "index/chunks.jsonl": {
-      "sha256": "00dc4ee8d70fbaac0b75a5cd58f5309481dc88b39aa7ce17cc59699b3b7854b5",
-      "size": 936259
+      "sha256": "a5ac10cb821898c8e139c4fe539fd78973252d227b7685d1eb18379c1fbe6ee6",
+      "size": 999006
     },
     "index/embeddings.npy": {
-      "sha256": "a898da4e2fe2e91626aada4de51f3c1850aa3ce9a42547e8af558ced9b5fca2f",
-      "size": 529280
+      "sha256": "af6945ce9c1743c62dfe0a16d7b15031d123719d057a8a618ab4aeccf98a2146",
+      "size": 561536
     },
     "index/index.json": {
-      "sha256": "521c0ec500dbce258c4141fc8819bc3f4f60bbb8529783124a0072a3159a1c46",
-      "size": 4485
+      "sha256": "3a30fd967e9494d37d111ad19db72022297152289714be49a4cf735375a2887c",
+      "size": 4578
     },
     "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf": {
       "sha256": "fc1977f4f679758ed72b24f27742554fca7bace53dd1e7cdc4ae08421b76d2a0",
@@ -143,9 +143,13 @@
       "sha256": "b3ffce4945e3e4cfda8d118593076762d3c2f30a4ac1d4d112465ba4292523f6",
       "size": 72684
     },
+    "lecture-transcripts/lecture-11-interval-estimation.pdf": {
+      "sha256": "8c0e3c3010366ab4f3050e2b19fd71fb38995a2d7f1187f4437a9ec3c684113c",
+      "size": 84811
+    },
     "manifest.json": {
-      "sha256": "1e99f8a692a8929275066fd51a3bc5b475ea63f138463aa78962ab3426985f19",
-      "size": 7708
+      "sha256": "c188942ed0e5e554014f22b7d412dd214f55c033a1fe1e62915ca9a18a48d5cf",
+      "size": 7760
     },
     "prerequisites-stat131/common-distributions-table.pdf": {
       "sha256": "18b6868e654673451f0555b7f54902ced62722d2ae172893f24530051d246b76",
@@ -346,6 +350,10 @@
     "transcripts/lecture-transcripts/lecture-10-the-t-distribution.md": {
       "sha256": "6b74413c7676a1554c218d431071ea333b7c0d8c5a10c8d13d7951adc74ebad5",
       "size": 48958
+    },
+    "transcripts/lecture-transcripts/lecture-11-interval-estimation.md": {
+      "sha256": "c847849feed5e1a6160a3c97378703606671cd86ad6bb9dc48f3a16052be8483",
+      "size": 50995
     },
     "transcripts/prerequisites-stat131/common-distributions-table.md": {
       "sha256": "a641c4a0a3a3f8c92e65995c3f7dc1f05fe17bf6d60fb64a0fb1f37537a6c508",
