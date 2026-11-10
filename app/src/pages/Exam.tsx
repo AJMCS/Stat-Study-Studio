@@ -6,6 +6,7 @@ import { api, hitToSource, personalHitToSource, ServiceRejected } from "../lib/a
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
+import { Prose, QuestionText } from "../components/Prose";
 import { Eyebrow, KeyTitle, Scribble, Note } from "../components/Hand";
 import { StepTrack } from "../components/StepTrack";
 import { BackToTopic } from "../components/BackLink";
@@ -324,7 +325,7 @@ export function Exam() {
           <section key={q.id} className="panel">
             <h2><span className="h-mono">Question {n + 1}</span>{q.aiWritten && <span className="chip">AI-written</span>}</h2>
             {general && q.topicId && <p className="eyebrow">{"// "}{sectionTitle(q.topicId)}</p>}
-            <p className="prompt"><RichText text={q.prompt} /></p>
+            <QuestionText text={q.prompt} />
             {written(answers[q.id]) && aiRes[q.id] ? (
               <>
                 <h3>Your answer</h3>
@@ -372,7 +373,7 @@ export function Exam() {
       </div>
       <StepTrack at={i} total={exam.questions.length} label="Exam progress" note="you are here" />
       <section className="panel focal">
-        <p className="prompt"><RichText text={q.prompt} /></p>
+        <QuestionText text={q.prompt} />
         {q.aiWritten && <p className="muted small">Written by your AI service for this exam. If a reference solution later disagrees with the lecture notes, trust the notes.</p>}
         <Pad key={q.id} group={`exam:${scope.id}`} value={a} onChange={(v) => setAnswers((m) => ({ ...m, [q.id]: v }))} label="Your full solution" />
         {!timed && (
@@ -381,7 +382,12 @@ export function Exam() {
             <button className="ghost" onClick={() => setHints((h) => ({ ...h, [q.id]: true }))}>Hint</button>
           </div>
         )}
-        {!timed && hints[q.id] && <p className="notice hl" role="status">Hint: {q.hint}</p>}
+        {!timed && hints[q.id] && (
+          <div className="notice hl hint" role="status">
+            <span className="hint-lead">Hint: </span>
+            {q.aiWritten ? <Prose text={q.hint} /> : <RichText text={q.hint} />}
+          </div>
+        )}
         {!timed && showSrc && <Citations sources={srcs} />}
       </section>
       <div className="row">

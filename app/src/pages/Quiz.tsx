@@ -7,6 +7,7 @@ import { api, ServiceRejected } from "../lib/api";
 import { uid, useStore } from "../lib/store";
 import { Pad, emptyPad, padForAi, padToText, type PadValue } from "../components/Pad";
 import { RichText } from "../components/Math";
+import { Prose, QuestionText } from "../components/Prose";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
 import { Annotated, Eyebrow, KeyTitle, Scribble } from "../components/Hand";
@@ -419,14 +420,21 @@ export function Quiz() {
             return (
               <li key={it.questionId}>
                 {general && it.topicId && <p className="eyebrow">{"// "}{sectionTitle(it.topicId)}</p>}
-                <p><RichText text={it.prompt} />{it.aiWritten && <span className="chip">AI-written</span>}</p>
+                {it.aiWritten ? (
+                  <div className="prompt-row">
+                    <Prose text={it.prompt} />
+                    <span className="chip">AI-written</span>
+                  </div>
+                ) : (
+                  <p><RichText text={it.prompt} /></p>
+                )}
                 <p className={it.correct ? "ok-text" : "bad-text"}>
                   {it.unanswered ? "Unanswered" : it.correct ? "Correct" : "Partial credit"}
                   {!it.unanswered && !it.correct && <span className="chip">{Math.round((it.partial ?? 0) * 100)}%</span>}
                   {it.selfScored && <span className="chip">Self-scored</span>}
                   {it.aiScored && <span className="chip">AI-scored</span>}
                 </p>
-                <p><RichText text={it.feedback} /></p>
+                {it.aiWritten ? <Prose text={it.feedback} /> : <p><RichText text={it.feedback} /></p>}
                 {it.aiFeedback && (
                   <ul className="small">
                     {it.aiFeedback.map((f) => (
@@ -463,7 +471,7 @@ export function Quiz() {
         <p className="lede">Compare each answer with the reference answer and say how it went. Be honest: this is what tells you what to review. These are marked <i>self-scored</i> in your progress.</p>
         {list.map((qq) => (
           <section key={qq.id} className="panel">
-            <p className="prompt"><RichText text={qq.prompt} /></p>
+            <QuestionText text={qq.prompt} written={qq.aiWritten} />
             <SelfRate
               name={`rate-${qq.id}`}
               answer={padToText(answers[qq.id].pad)}
@@ -518,7 +526,10 @@ export function Quiz() {
       {basedOn.length > 0 && <p className="muted">Based on: {basedOn.join(" · ")}</p>}
       <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
       <section className="panel focal">
-        <p className="prompt"><RichText text={q.prompt} />{q.aiWritten && <span className="chip">AI-written</span>}</p>
+        <div className="prompt-row">
+          <QuestionText text={q.prompt} />
+          {q.aiWritten && <span className="chip">AI-written</span>}
+        </div>
         {q.aiWritten && <p className="muted small">Written by your AI service for this quiz. If its explanation disagrees with the lecture notes, trust the notes.</p>}
         {q.kind === "mc" ? (
           <fieldset disabled={locked}>
@@ -576,7 +587,7 @@ export function Quiz() {
                   {rf.ai && <span className="chip">AI-scored</span>}
                 </p>
                 {rf.ai && <ScoreBreakdown criteria={rf.ai.criteria} cfg={cfg} feedback={rf.ai.feedback} note={rf.ai.note} drawingIgnored={rf.ai.drawingIgnored} />}
-                <p><RichText text={rf.feedback} /></p>
+                {q.aiWritten ? <Prose text={rf.feedback} /> : <p><RichText text={rf.feedback} /></p>}
                 <p className="muted">
                   First response: {f.correct ? "correct" : f.credit > 0 ? "partly right" : "needs work"}. It is locked and is what counts; a retry does not change your first-attempt score.
                 </p>
@@ -589,7 +600,7 @@ export function Quiz() {
                   {f.ai && <span className="chip">AI-scored</span>}
                 </p>
                 {f.ai && <ScoreBreakdown criteria={f.ai.criteria} cfg={cfg} feedback={f.ai.feedback} note={f.ai.note} drawingIgnored={f.ai.drawingIgnored} />}
-                <p><RichText text={f.feedback} /></p>
+                {q.aiWritten ? <Prose text={f.feedback} /> : <p><RichText text={f.feedback} /></p>}
               </>
             )}
             {!retrying[q.id] && <button className="ghost" onClick={() => setRetrying((m) => ({ ...m, [q.id]: true }))}>Try again (saved separately)</button>}

@@ -6,7 +6,7 @@ import { api, hitToSource, personalHitToSource, ServiceRejected, type TutorStage
 import { Citations } from "../components/Citation";
 import { useStore } from "../lib/store";
 import { Pad, emptyPad } from "../components/Pad";
-import { RichText } from "../components/Math";
+import { Prose } from "../components/Prose";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { DrawingIgnored, ScoreBreakdown } from "../components/Score";
 import { composite, EMPTY_TOPIC_STATE } from "../lib/scoring";
@@ -120,7 +120,7 @@ function TutorChat() {
         {msgs.map((m, i) => (
           <div key={i} className={`bubble ${m.role}`}>
             <b className="sr-only">{m.role === "tutor" ? "Tutor: " : "You: "}</b>
-            <RichText text={m.text} />
+            <Prose text={m.text} />
             {m.sources && m.sources.length > 0 && <Citations sources={m.sources} />}
             {m.drawingIgnored && <DrawingIgnored did="read" />}
           </div>

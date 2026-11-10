@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { Link } from "react-router-dom";
 import { api, hitToSource, personalHitToSource, ServiceRejected, type AskTurn } from "../lib/api";
 import { useAi } from "../lib/ai";
-import { RichText } from "./Math";
+import { Prose } from "./Prose";
 import { Citations } from "./Citation";
 import type { SourceRef } from "../types";
 
@@ -81,7 +81,7 @@ export function AskPanel({ doc, page, pages }: { doc: AskDoc; page: number; page
                 <div key={i} className={`bubble ${m.role === "learner" ? "learner" : "tutor"}`}>
                   <b className="sr-only">{m.role === "learner" ? "You: " : "Guide: "}</b>
                   {moved && <p className="eyebrow">{"// page "}{m.page}</p>}
-                  <RichText text={m.text} />
+                  <Prose text={m.text} />
                   {m.sources && m.sources.length > 0 && <Citations sources={m.sources} />}
                 </div>
               );

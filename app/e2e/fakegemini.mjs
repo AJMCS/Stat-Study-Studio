@@ -30,7 +30,8 @@ const examScript = (_body, lastUser) => {
   return JSON.stringify({
     questions: Array.from({ length: n }, (_, i) => ({
       concept: `Generated concept ${i + 1}`,
-      prompt: `Generated question ${i + 1}: compute the MLE for a sample with $\\theta$ unknown.`,
+      // written the way models often write: LaTeX's own delimiters, a display block mid-sentence, parts run together
+      prompt: `Generated question ${i + 1}: compute the MLE for a sample with \\(\\theta\\) unknown. (a) Write the likelihood $L(\\theta)$, (b) show that $$\\hat\\theta = \\bar x$$ is the maximiser.`,
       solution: `Generated solution ${i + 1}: write the log-likelihood, differentiate, solve.`,
       hint: `Generated hint ${i + 1}: start from the log-likelihood.`,
       keyPoints: ["Writes the log-likelihood", "Differentiates and solves", "Checks it is a maximum"],

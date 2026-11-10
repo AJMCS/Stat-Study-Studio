@@ -5,6 +5,7 @@ import { useStore } from "../lib/store";
 import { ScoreBreakdown } from "../components/Score";
 import { Citations } from "../components/Citation";
 import { RichText } from "../components/Math";
+import { QuestionText } from "../components/Prose";
 import { Eyebrow, Note, Scribble } from "../components/Hand";
 import { PageView } from "../components/PageView";
 import { CRITERION_LABELS, type ExamRecord } from "../types";
@@ -102,7 +103,10 @@ export function ExamReview() {
         {e.items.map((it) => (
           <li key={it.questionId}>
             {it.topicId && <p className="eyebrow">{"// "}{sectionTitle(it.topicId)}</p>}
-            <p className="prompt"><RichText text={it.prompt} />{it.aiWritten && <span className="chip">AI-written</span>}</p>
+            <div className="prompt-row">
+              <QuestionText text={it.prompt} />
+              {it.aiWritten && <span className="chip">AI-written</span>}
+            </div>
             <h3>Your answer</h3>
             <pre className="answer">{it.answer || "(unanswered)"}</pre>
             <p className="eyebrow">{"// Score "}{it.composite}</p>

@@ -1587,6 +1587,11 @@ await step("ai: an exam is written around the focus, marked as AI-written, cites
   await page.click("button:has-text('Write my exam')");
   await page.waitForSelector("text=Generated question 1", { timeout: 15000 });
   await page.waitForSelector(".chip:has-text('AI-written')");
+  // the question reads as written: maths set (inline and display), no raw delimiters, each part on its own line
+  const promptText = await page.locator(".prompt").first().textContent();
+  if (promptText.includes("\\(") || promptText.includes("$$")) throw new Error("raw LaTeX delimiters in the question: " + promptText);
+  if ((await page.locator(".prompt .katex").count()) < 2 || (await page.locator(".prompt .katex-display").count()) < 1) throw new Error("the question's maths should be set, with the display block as a block");
+  if ((await page.locator(".prompt p").count()) < 3) throw new Error("the setting and each lettered part should be on their own lines");
   const asked = JSON.stringify((await geminiLog()).at(-1));
   if (!asked.includes("Uniform edge case") || !asked.includes("Number of questions: 3")) throw new Error("the focus and count were not sent");
   await page.click("button:has-text('Hint')");
