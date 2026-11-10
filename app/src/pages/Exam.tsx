@@ -53,6 +53,8 @@ export function Exam() {
   const [writeNew, setWriteNew] = useState(!!ask || !!fileId);
   /** What the written questions were based on, as the service reported it: a named course document, the uploaded file. */
   const [basedOn, setBasedOn] = useState<string[]>([]);
+  /** What came along with a review guide: the problem sets and notes of the topics it covers. */
+  const [alsoRead, setAlsoRead] = useState<string[]>([]);
   const [count, setCount] = useState(4);
   const [genBusy, setGenBusy] = useState(false);
   const [genError, setGenError] = useState("");
@@ -120,6 +122,7 @@ export function Exam() {
         fileId || undefined,
       );
       setBasedOn(res.basedOn ?? []);
+      setAlsoRead(res.alsoRead ?? []);
       const sources: SourceRef[] = [];
       const questions = res.questions.map((q, n) => {
         const ids = q.sources.map((h) => {
@@ -364,7 +367,12 @@ export function Exam() {
     <>
       <Eyebrow>{timed ? "Timed exam" : "Exam"} · {custom ? "Custom" : scope.title}</Eyebrow>
       <h1><KeyTitle text={exam.title} /></h1>
-      {basedOn.length > 0 && <p className="muted">Based on: {basedOn.join(" · ")}</p>}
+      {basedOn.length > 0 && (
+        <p className="muted">
+          Based on: {basedOn.join(" · ")}
+          {alsoRead.length > 0 && <>, with the problem sets and notes of its topics: {alsoRead.join(", ")}</>}
+        </p>
+      )}
       {exam.focusMatched === true && <p className="muted">Chose the {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"} that match your focus.</p>}
       {exam.focusMatched === false && <p className="notice warn-box" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}
       <div className="row between">

@@ -1289,7 +1289,7 @@ await step("ai: an exam based on an uploaded document: Practice reads the file, 
   await page.waitForSelector(`p.muted:has-text('Based on: ${REVIEW_NAME}')`);
   const sent = (await geminiLog()).at(-1);
   const user = sent.contents[0].parts.map((p) => p.text ?? "").join("");
-  if (!user.includes("Source material") || !user.includes("MLE of a Poisson rate") || !user.includes(`Source 1: ${REVIEW_NAME}`)) throw new Error("the file's text should go to the model as source material");
+  if (!user.includes("Source material") || !user.includes("MLE of a Poisson rate") || !user.includes(`Source 1 (the student's own file): ${REVIEW_NAME}`)) throw new Error("the file's text should go to the model as source material");
   if (sent.systemInstruction.parts[0].text.includes("MLE of a Poisson rate")) throw new Error("the file's text leaked into the instructions");
   await shot("exam-from-file");
 });

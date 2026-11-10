@@ -480,10 +480,10 @@ export const api = {
     await call(`/api/files/${fileId}/restore-reading`, { method: "POST" });
   },
   /** `sections`: for an exam across the course, the topics to spread the questions over; each question then names its own. */
-  aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[], sections?: string[], fileId?: string): Promise<{ questions: AiExamQuestion[]; basedOn: string[] }> =>
+  aiExam: async (topic: string, focus: string, count: number, examples: { concept: string; prompt: string }[], sections?: string[], fileId?: string): Promise<{ questions: AiExamQuestion[]; basedOn: string[]; alsoRead: string[] }> =>
     (await call("/api/ai/exam", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ topic, focus, count, examples, ...(sections ? { sections } : {}), ...(fileId ? { fileId } : {}) }) })).json(),
   /** Quiz questions written around what the learner asks to be tested on; `sections` spreads them over the course's topics. */
-  aiQuiz: async (ask: string, count: number, sections?: string[], fileId?: string): Promise<{ questions: AiQuizQuestion[]; basedOn: string[] }> =>
+  aiQuiz: async (ask: string, count: number, sections?: string[], fileId?: string): Promise<{ questions: AiQuizQuestion[]; basedOn: string[]; alsoRead: string[] }> =>
     (await call("/api/ai/quiz", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ ask, count, ...(sections ? { sections } : {}), ...(fileId ? { fileId } : {}) }) })).json(),
   /** A question about the page in view of a course document (`source`) or one of the learner's files (`fileId`). */
   aiAsk: async (body: { question: string; source?: string; fileId?: string; page: number; history: AskTurn[] }): Promise<AskReply> =>

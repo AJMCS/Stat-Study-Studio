@@ -33,7 +33,7 @@ from .embedder import DEFAULT_MODEL, Embedder
 from .highlight import best_highlight
 from .library import LibraryRuntime
 from .models import ALL_SLICES
-from .named import named_documents
+from .named import named_documents, related_documents
 from .pages import PageStore
 from .personal import IMAGE_EXTS, MAX_BYTES, MAX_IMPROVE_PAGES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
@@ -99,6 +99,10 @@ class PathBody(BaseModel):
 PATH_FILE_CHARS = 12000
 # How much of each document an exam or quiz is based on goes to the model (a named course document, or an upload).
 DOCUMENT_CHARS = 15000
+# A review guide or exam paper brings the problem sets and notes of the topics it covers along: this much of each,
+# and this much in all (a model on this computer has the smaller window).
+RELATED_CHARS = 6000
+RELATED_TOTAL_HOSTED, RELATED_TOTAL_LOCAL = 48000, 24000
 
 
 class ExampleQuestion(BaseModel):
@@ -332,7 +336,7 @@ def create_app(
         if not body.ask.strip() and not body.fileId:
             raise HTTPException(422, "Say what to be tested on, or add a file, or both.")
         provider = ai().provider()
-        documents, image, based_on = source_material(body.ask, body.fileId)
+        documents, image, based_on, also_read = source_material(body.ask, body.fileId)
         query = f"{body.ask} {documents[0][1][:400] if documents else ''}".strip()[:500]
         sources = grounding(query, shared=5, personal=3)
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
@@ -341,7 +345,7 @@ def create_app(
         )
         for q in questions:
             q["sources"] = [sources[i - 1] for i in q.pop("cites")]
-        return {"questions": questions, "basedOn": based_on, "model": getattr(provider, "model", "")}
+        return {"questions": questions, "basedOn": based_on, "alsoRead": also_read, "model": getattr(provider, "model", "")}
 
     @app.post("/api/ai/ask")
     def ai_ask(body: AskBody) -> dict[str, Any]:
@@ -451,17 +455,36 @@ def create_app(
             raise HTTPException(422, "Nothing readable was found in that file. Try a clearer copy, or type what you want instead.")
         return row["filename"], row["pages"], file_text, image
 
-    def source_material(ask: str, file_id: str | None) -> tuple[list[tuple[str, str]], tuple[bytes, str] | None, list[str]]:
+    def source_material(ask: str, file_id: str | None) -> tuple[list[tuple[str, str, str]], tuple[bytes, str] | None, list[str], list[str]]:
         """What an exam or quiz is based on: the course documents the ask names ("exam 2 review", "homework 3"),
-        whole within DOCUMENT_CHARS each, and the file the learner uploaded. Returns (documents as (title, text), the
-        picture when the file is one, and the titles to show as "based on")."""
+        whole within DOCUMENT_CHARS each, and the file the learner uploaded. A review guide or exam paper (the
+        library's answer-key material) also brings the problem sets and notes of the topics it covers, within a
+        budget, so the questions are asked the way the professor asks them and only on what the review covers.
+        Returns (documents as (title, text, role), the picture when the file is one, the "based on" titles and
+        the "also read" titles)."""
         pages: PageStore = app.state.library.pages
-        documents = [(pages.title(source), pages.document_text(source, DOCUMENT_CHARS)) for source in named_documents(ask, pages)]
+        named = named_documents(ask, pages)
+        documents: list[tuple[str, str, str]] = [(pages.title(s), pages.document_text(s, DOCUMENT_CHARS), "named") for s in named]
         image = None
         if file_id:
             name, _pages, text, image = file_for_ai(file_id, DOCUMENT_CHARS)
-            documents.append((name, text))
-        return documents, image, [title for title, _ in documents]
+            documents.append((name, text, "upload"))
+        based_on = [title for title, _, _ in documents]
+        budget = RELATED_TOTAL_LOCAL if ai().is_local else RELATED_TOTAL_HOSTED
+        also: list[str] = []
+        seen = set(named)
+        for source in named:
+            if not source.startswith(("exams/", "quizzes/")):
+                continue
+            for rel in related_documents(pages.document_text(source, DOCUMENT_CHARS), pages, seen):
+                text = pages.document_text(rel, min(RELATED_CHARS, budget))
+                if not text.strip() or budget <= 0:
+                    continue
+                documents.append((pages.title(rel), text, "related"))
+                also.append(pages.title(rel))
+                seen.add(rel)
+                budget -= len(text)
+        return documents, image, based_on, also
 
     @app.post("/api/ai/path")
     def ai_path(body: PathBody) -> dict[str, Any]:
@@ -497,7 +520,7 @@ def create_app(
         """Write exam questions around a focus, adapting the question bank where useful, grounded in course pages, and
         based on the course documents the focus names or a file the learner uploaded."""
         provider = ai().provider()
-        documents, image, based_on = source_material(body.focus, body.fileId)
+        documents, image, based_on, also_read = source_material(body.focus, body.fileId)
         query = f"{body.topic} {body.focus} {documents[0][1][:400] if documents else ''}".strip()[:500]
         sources = grounding(query, shared=5, personal=3)
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
@@ -514,7 +537,7 @@ def create_app(
         )
         for q in questions:
             q["sources"] = [sources[i - 1] for i in q.pop("cites")]
-        return {"questions": questions, "basedOn": based_on, "model": getattr(provider, "model", "")}
+        return {"questions": questions, "basedOn": based_on, "alsoRead": also_read, "model": getattr(provider, "model", "")}
 
     @app.delete("/api/ai")
     def ai_disconnect(provider: str | None = Query(default=None, max_length=20)) -> dict[str, Any]:

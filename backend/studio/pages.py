@@ -99,6 +99,9 @@ class PageStore:
         """Every document with a transcript, by its library path, in library order."""
         return sorted(self._titles)
 
+    def has(self, source: str) -> bool:
+        return source in self._titles
+
     def document_text(self, source: str, max_chars: int) -> str:
         """A whole document as the model reads it: its pages in order, each marked, cut at `max_chars`."""
         parts: list[str] = []

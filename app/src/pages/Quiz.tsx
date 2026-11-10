@@ -91,8 +91,9 @@ export function Quiz() {
   const { data, recordAttempt, saveQuiz } = useStore();
   const ai = useAi();
   const fileName = fileId ? (data.files.find((f) => f.id === fileId)?.filename ?? "") : "";
-  /** What the written questions were based on, as the service reported it. */
+  /** What the written questions were based on, as the service reported it, and what came along with a review guide. */
   const [basedOn, setBasedOn] = useState<string[]>([]);
+  const [alsoRead, setAlsoRead] = useState<string[]>([]);
   /** Across the course: how many such quizzes came before, so each sitting moves on to every topic's next questions. */
   const [rotation] = useState(() => data.quizzes.filter((q) => q.topicId === COURSE_ID).length);
   /** From the bank: a topic's ten, the course's ten, or the ones matching the ask (the course's ten when none do). */
@@ -154,6 +155,7 @@ export function Quiz() {
     try {
       const res = await api.aiQuiz(ask, WRITTEN_COUNT, scope.topics.map((t) => t.title), fileId || undefined);
       setBasedOn(res.basedOn ?? []);
+      setAlsoRead(res.alsoRead ?? []);
       setWritten(
         res.questions.map((q, n) => {
           const topicId = scope.topics.find((t) => t.title === q.section)?.id;
@@ -523,7 +525,12 @@ export function Quiz() {
       {back}
       <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {label}{section && ` · ${section}`}</Eyebrow>
       <h1 className="h-mono">Question {i + 1} of {questions.length}</h1>
-      {basedOn.length > 0 && <p className="muted">Based on: {basedOn.join(" · ")}</p>}
+      {basedOn.length > 0 && (
+        <p className="muted">
+          Based on: {basedOn.join(" · ")}
+          {alsoRead.length > 0 && <>, with the problem sets and notes of its topics: {alsoRead.join(", ")}</>}
+        </p>
+      )}
       <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
       <section className="panel focal">
         <div className="prompt-row">

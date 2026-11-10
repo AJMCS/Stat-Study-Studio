@@ -412,7 +412,7 @@ def test_an_exam_based_on_an_uploaded_file_sends_its_text_as_source_material(cli
     assert r.status_code == 200, r.text
     assert r.json()["basedOn"] == ["exam-review.pdf"] and len(r.json()["questions"]) == 2
     text = user_text(fake.requests[0])
-    assert "Source material" in text and "Source 1: exam-review.pdf" in text and "Poisson rate" in text and "[page 2]" in text
+    assert "Source material" in text and "Source 1 (the student's own file): exam-review.pdf" in text and "Poisson rate" in text and "[page 2]" in text
     assert "Poisson rate" not in fake.requests[0]["systemInstruction"]["parts"][0]["text"]
 
 
