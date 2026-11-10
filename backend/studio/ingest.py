@@ -33,6 +33,7 @@ KIND_BY_FOLDER = {
     "discussion-sections": "problem-set",
     "homework": "problem-set",
     "quizzes": "answer-key",
+    "exams": "answer-key",  # exam papers and their reviews: never searched, used when a learner asks for practice based on them
     "readings": "reading",
     "prerequisites-stat131": "prerequisite",
 }

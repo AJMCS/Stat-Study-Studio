@@ -26,10 +26,12 @@ export function Exam() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const scope = scopeFor(id);
-  /** /exam?ask=…: a custom exam around the learner's own words (the Practice page's "Your own ask"). */
+  /** /exam?ask=…&file=…: a custom exam around the learner's own words and/or a file they uploaded (Practice's "Your own ask"). */
   const ask = scope?.general ? (params.get("ask") ?? "").trim().slice(0, 500) : "";
+  const fileId = scope?.general ? (params.get("file") ?? "").trim() : "";
   const nav = useNavigate();
   const { data, saveExam, recordAttempt } = useStore();
+  const fileName = fileId ? (data.files.find((f) => f.id === fileId)?.filename ?? "") : "";
   const [timed, setTimed] = useState(false);
   const [focus, setFocus] = useState(ask);
   const [exam, setExam] = useState<DraftExam | null>(null);
@@ -46,8 +48,10 @@ export function Exam() {
   const [aiRes, setAiRes] = useState<Record<string, AiScored>>({});
   const [aiBusy, setAiBusy] = useState(false);
   const [aiError, setAiError] = useState("");
-  // a custom ask is best served by questions written around it, when a service is there to write them
-  const [writeNew, setWriteNew] = useState(!!ask);
+  // a custom ask or a document is best served by questions written around it, when a service is there to write them
+  const [writeNew, setWriteNew] = useState(!!ask || !!fileId);
+  /** What the written questions were based on, as the service reported it: a named course document, the uploaded file. */
+  const [basedOn, setBasedOn] = useState<string[]>([]);
   const [count, setCount] = useState(4);
   const [genBusy, setGenBusy] = useState(false);
   const [genError, setGenError] = useState("");
@@ -74,7 +78,9 @@ export function Exam() {
 
   if (!scope) return <p>Topic not found.</p>;
   const general = scope.general;
-  const custom = general && !!ask;
+  const custom = general && (!!ask || !!fileId);
+  /** What a custom exam is called by: the ask, or the file it is based on. */
+  const askOrFile = ask || fileName || "your file";
   /** What this paper is called in titles: a topic's exam, the course's, or a custom one around the ask. */
   const label = custom ? "Custom exam" : examTitle(scope);
   const back = general ? (
@@ -92,7 +98,7 @@ export function Exam() {
   /** The paper from the question bank; a custom one is named for the ask whether or not a question matched it. */
   const fromBank = () => {
     const d = selectExam(scope, focus, rotation);
-    begin(custom ? { ...d, title: `Custom exam: ${focus.trim() || ask}` } : d);
+    begin(custom ? { ...d, title: `Custom exam: ${focus.trim() || askOrFile}` } : d);
   };
 
   /** Ask the AI service for new questions around the focus. If that fails nothing is lost: the question bank is one click away. */
@@ -110,7 +116,9 @@ export function Exam() {
         count,
         examples.slice(0, 8).map((q) => ({ concept: q.concept, prompt: q.prompt })),
         general ? scope.topics.map((t) => t.title) : undefined,
+        fileId || undefined,
       );
+      setBasedOn(res.basedOn ?? []);
       const sources: SourceRef[] = [];
       const questions = res.questions.map((q, n) => {
         const ids = q.sources.map((h) => {
@@ -131,7 +139,7 @@ export function Exam() {
           ...(topicId ? { topicId } : {}),
         };
       });
-      begin({ title: `${label} (AI-written${focus.trim() ? `: ${focus.trim()}` : ""})`, questions, focusMatched: null, sources });
+      begin({ title: `${label} (AI-written${focus.trim() ? `: ${focus.trim()}` : fileName ? `: ${fileName}` : ""})`, questions, focusMatched: null, sources });
     } catch (e) {
       setGenError(e instanceof ServiceRejected ? e.message : "Couldn't reach the study service to write the questions.");
     } finally {
@@ -151,6 +159,12 @@ export function Exam() {
           {custom ? "Around what you asked to be tested on. " : general && "One question from every topic, like the real paper. "}
           Write complete, multi-step solutions: set up the problem, justify your choices, and show the work. When you finish, you compare with a full reference solution and score yourself.
         </p>
+        {fileId && (
+          <p className="muted" role="status">
+            Based on your file <b>{fileName || "(your upload)"}</b>
+            {ai.connected ? ": your AI service reads it and writes the questions from it." : ". Writing questions from a document needs an AI service; without one, this exam comes from the question bank around your ask."}
+          </p>
+        )}
         <fieldset className="panel">
           <legend>Mode</legend>
           <label className="choice"><input type="radio" name="mode" checked={!timed} onChange={() => setTimed(false)} /> <span>Untimed (default): source toggle and hints available while you work</span></label>
@@ -276,7 +290,7 @@ export function Exam() {
         aiScored: s.aiScored,
         criteria: s.criteria,
         note: general
-          ? `${custom ? `Custom exam ("${focus.trim() || ask}")` : "Exam across the course"}, attempt ${record.attempt}: ${g.set.length} question${g.set.length === 1 ? "" : "s"} on this topic (${how})`
+          ? `${custom ? `Custom exam ("${focus.trim() || askOrFile}")` : "Exam across the course"}, attempt ${record.attempt}: ${g.set.length} question${g.set.length === 1 ? "" : "s"} on this topic (${how})`
           : `Exam attempt ${record.attempt} (${how})`,
       });
     }
@@ -349,6 +363,7 @@ export function Exam() {
     <>
       <Eyebrow>{timed ? "Timed exam" : "Exam"} · {custom ? "Custom" : scope.title}</Eyebrow>
       <h1><KeyTitle text={exam.title} /></h1>
+      {basedOn.length > 0 && <p className="muted">Based on: {basedOn.join(" · ")}</p>}
       {exam.focusMatched === true && <p className="muted">Chose the {exam.questions.length} question{exam.questions.length === 1 ? "" : "s"} that match your focus.</p>}
       {exam.focusMatched === false && <p className="notice warn-box" role="status">No question matched that focus, so this is the full exam. Try other words, or pick a different topic.</p>}
       <div className="row between">

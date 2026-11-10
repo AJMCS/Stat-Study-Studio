@@ -16,12 +16,16 @@ def readable_title(source: str) -> str:
     """A title for documents whose transcript has no heading (automatic extractions)."""
     stem = Path(source).stem
     def sentence(t: str) -> str:
-        t = t.replace("-", " ")
+        t = re.sub(r"(?<=-)0+(?=\d)", "", t).replace("-", " ")  # "homework-03" reads "Homework 3"
         return t[:1].upper() + t[1:]
     if m := re.fullmatch(r"notes-(\d+)-(.+)", stem):
         return f"STAT 131 notes {int(m.group(1))}: {sentence(m.group(2))}"
     if m := re.fullmatch(r"reading-ch(\d+)-(.+)", stem):
         return f"Reading, chapter {int(m.group(1))}: {sentence(m.group(2))}"
+    if m := re.fullmatch(r"exam-(\d+)-review", stem):
+        return f"Exam {int(m.group(1))} review"
+    if m := re.fullmatch(r"exam-(\d+)", stem):
+        return f"Exam {int(m.group(1))}"
     return sentence(stem)
 
 
@@ -90,3 +94,21 @@ class PageStore:
 
     def title(self, source: str) -> str:
         return self._titles.get(source, Path(source).stem)
+
+    def sources(self) -> list[str]:
+        """Every document with a transcript, by its library path, in library order."""
+        return sorted(self._titles)
+
+    def document_text(self, source: str, max_chars: int) -> str:
+        """A whole document as the model reads it: its pages in order, each marked, cut at `max_chars`."""
+        parts: list[str] = []
+        used = 0
+        for (src, number), page in sorted(self._pages.items(), key=lambda kv: kv[0][1]):
+            if src != source or not page.text.strip():
+                continue
+            piece = f"[page {number}]\n{page.text.strip()}"[: max_chars - used]
+            parts.append(piece)
+            used += len(piece)
+            if used >= max_chars:
+                break
+        return "\n\n".join(parts)

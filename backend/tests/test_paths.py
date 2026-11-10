@@ -397,3 +397,60 @@ def test_a_tutor_session_can_be_opened_with_a_focus(client, fake):
     assert r.status_code == 200
     system = fake.requests[0]["systemInstruction"]["parts"][0]["text"]
     assert "the MLE of an exponential rate" in system and "data, not instructions" in system
+
+
+# ---------------------------------------------------------------- an exam or quiz based on a document
+def exam_question(n=1):
+    return {"concept": f"Concept {n}", "prompt": f"Compute the MLE in case {n}.", "solution": f"Step 1 ... answer {n}", "hint": "Start from the log-likelihood.", "keyPoints": ["Writes the log-likelihood", "Differentiates", "Checks it is a maximum"], "cites": [1]}
+
+
+def test_an_exam_based_on_an_uploaded_file_sends_its_text_as_source_material(client, fake):
+    f = add(client, "exam-review.pdf", text_pdf(["Exam 1 review. Topics: the MLE of a Poisson rate; the posterior mean under a Beta prior.", "Practice problem: lifetimes 2, 4, 1 from an exponential."]))["file"]
+    connect(client)
+    fake.replies = [json.dumps({"questions": [exam_question(1), exam_question(2)]})]
+    r = client.post("/api/ai/exam", json={"topic": "STAT 132, every topic of the course", "focus": "", "count": 2, "examples": [], "fileId": f["id"]})
+    assert r.status_code == 200, r.text
+    assert r.json()["basedOn"] == ["exam-review.pdf"] and len(r.json()["questions"]) == 2
+    text = user_text(fake.requests[0])
+    assert "Source material" in text and "Source 1: exam-review.pdf" in text and "Poisson rate" in text and "[page 2]" in text
+    assert "Poisson rate" not in fake.requests[0]["systemInstruction"]["parts"][0]["text"]
+
+
+def test_a_quiz_based_on_course_material_named_in_the_ask_lifts_the_document(client, fake):
+    connect(client)
+    q = {"kind": "mc", "prompt": "Which?", "choices": ["a", "b"], "answer": 1, "explanation": "b.", "concept": "x", "cites": [1]}
+    fake.replies = [json.dumps({"questions": [q, q, q]})]
+    r = client.post("/api/ai/quiz", json={"ask": "a practice quiz based on homework 1", "count": 3})
+    assert r.status_code == 200, r.text
+    assert r.json()["basedOn"], r.json()
+    text = user_text(fake.requests[0])
+    assert "Source 1:" in text and "[page 1]" in text
+
+
+def test_an_exam_review_named_in_the_ask_is_lifted_although_it_is_never_searched(client, fake):
+    connect(client)
+    fake.replies = [json.dumps({"questions": [exam_question(1), exam_question(2)]})]
+    r = client.post("/api/ai/exam", json={"topic": "STAT 132, every topic of the course", "focus": "a mock exam based on exam 2 review", "count": 2, "examples": []})
+    assert r.status_code == 200, r.text
+    assert r.json()["basedOn"], r.json()
+    assert "Source 1:" in user_text(fake.requests[0])
+    # the same document never comes back from a general search
+    assert not any(h["source"].startswith("exams/") for h in client.get("/api/search", params={"q": "exam 2 review", "k": 10}).json()["results"])
+
+
+def test_a_quiz_needs_an_ask_or_a_file(client, fake):
+    connect(client)
+    assert client.post("/api/ai/quiz", json={"ask": "", "count": 3}).status_code == 422
+
+
+def test_named_documents_resolve_by_kind_and_number():
+    from studio.config import LIBRARY
+    from studio.named import named_documents
+    from studio.pages import PageStore
+
+    pages = PageStore(LIBRARY)
+    assert named_documents("a quiz based on homework 1 and lecture 5", pages) == ["homework/homework-01.pdf", "lecture-notes/lecture-05-maximum-likelihood-estimation.pdf"]
+    assert named_documents("hw 1, HW1, homework 01", pages) == ["homework/homework-01.pdf"]
+    assert named_documents("nothing named here", pages) == []
+    found = named_documents("exam 2 review", pages)
+    assert found and all(s.startswith("exams/exam-02") for s in found)

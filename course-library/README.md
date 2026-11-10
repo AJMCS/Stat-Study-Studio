@@ -13,6 +13,7 @@ Lowercase, hyphenated, zero-padded numbers, so files sort in course order.
 | `discussion-sections/` | `disc-NN.pdf`, `disc-NN-annotated.pdf` | Problem sets and worked/annotated versions |
 | `homework/` | `homework-NN.pdf` | Problem sets, used as exam question sources |
 | `quizzes/` | `quiz-NN-<title>.pdf` | Quiz question sets with answers |
+| `exams/` | `exam-NN-review.pdf`, `exam-NN.pdf` | Exam reviews and papers (answer-key material: never searched or cited in general; used when a learner asks for a practice exam or quiz based on them, e.g. "based on exam 2 review") |
 | `readings/` | `reading-chNN-<title>.pdf` | Course reading, numbered by chapter |
 | `prerequisites-stat131/` | `notes-NN-<title>.pdf` | STAT 131 background, for revisiting prerequisites |
 

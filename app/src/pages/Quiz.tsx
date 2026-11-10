@@ -83,11 +83,15 @@ export function Quiz() {
   const { id } = useParams();
   const [params] = useSearchParams();
   const scope = scopeFor(id);
-  /** The Practice page's "Your own ask": only a quiz across the course can be custom. */
+  /** The Practice page's "Your own ask", and/or a file to base it on: only a quiz across the course can be custom. */
   const ask = scope?.general ? (params.get("ask") ?? "").trim().slice(0, 500) : "";
-  const custom = !!ask;
+  const fileId = scope?.general ? (params.get("file") ?? "").trim() : "";
+  const custom = !!ask || !!fileId;
   const { data, recordAttempt, saveQuiz } = useStore();
   const ai = useAi();
+  const fileName = fileId ? (data.files.find((f) => f.id === fileId)?.filename ?? "") : "";
+  /** What the written questions were based on, as the service reported it. */
+  const [basedOn, setBasedOn] = useState<string[]>([]);
   /** Across the course: how many such quizzes came before, so each sitting moves on to every topic's next questions. */
   const [rotation] = useState(() => data.quizzes.filter((q) => q.topicId === COURSE_ID).length);
   /** From the bank: a topic's ten, the course's ten, or the ones matching the ask (the course's ten when none do). */
@@ -147,7 +151,8 @@ export function Quiz() {
     setGenBusy(true);
     setGenError("");
     try {
-      const res = await api.aiQuiz(ask, WRITTEN_COUNT, scope.topics.map((t) => t.title));
+      const res = await api.aiQuiz(ask, WRITTEN_COUNT, scope.topics.map((t) => t.title), fileId || undefined);
+      setBasedOn(res.basedOn ?? []);
       setWritten(
         res.questions.map((q, n) => {
           const topicId = scope.topics.find((t) => t.title === q.section)?.id;
@@ -185,9 +190,16 @@ export function Quiz() {
         <Eyebrow>Quiz · {questions.length} questions{custom ? " · your own ask" : general ? " · every topic" : ""}</Eyebrow>
         <h1><KeyTitle text={custom ? "Your custom quiz" : scope.title} /></h1>
         <p className="lede">
-          {custom ? `Around what you asked to be tested on: "${ask}". ` : general ? "Ten questions drawn from every topic, one question at a time. " : "One question at a time. "}
+          {custom
+            ? `Around ${[ask ? `"${ask}"` : "", fileId ? `your file ${fileName || "(your upload)"}` : ""].filter(Boolean).join(" and ")}. `
+            : general
+              ? "Ten questions drawn from every topic, one question at a time. "
+              : "One question at a time. "}
           Choose how you want feedback.
         </p>
+        {fileId && !ai.connected && (
+          <p className="notice warn-box" role="status">Writing questions from a document needs an AI service; without one, this quiz comes from the question bank around your ask.</p>
+        )}
         {custom && ai.connected && (
           <fieldset className="panel">
             <legend>Questions</legend>
@@ -362,7 +374,7 @@ export function Quiz() {
     const groups = general
       ? [...new Set(items.map((it) => it.topicId).filter((t): t is string => !!t))].map((topicId) => ({ topicId, items: items.filter((it) => it.topicId === topicId) }))
       : [{ topicId: scope.id, items }];
-    const what = custom ? `custom quiz ("${ask}")` : "quiz across the course";
+    const what = custom ? `custom quiz ("${ask || fileName || "your file"}")` : "quiz across the course";
     for (const g of groups) {
       const s = criteriaOf(g.items);
       const how = s.selfScored ? " (self-scored)" : s.aiScored ? " (AI-scored)" : "";
@@ -503,6 +515,7 @@ export function Quiz() {
       {back}
       <Eyebrow>{mode === "graded" ? "Graded quiz" : "Practice quiz"} · {label}{section && ` · ${section}`}</Eyebrow>
       <h1 className="h-mono">Question {i + 1} of {questions.length}</h1>
+      {basedOn.length > 0 && <p className="muted">Based on: {basedOn.join(" · ")}</p>}
       <StepTrack at={i} total={questions.length} label="Quiz progress" note={i === questions.length - 1 ? "last one" : "you are here"} />
       <section className="panel focal">
         <p className="prompt"><RichText text={q.prompt} />{q.aiWritten && <span className="chip">AI-written</span>}</p>

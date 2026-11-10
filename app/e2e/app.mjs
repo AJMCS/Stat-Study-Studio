@@ -1270,6 +1270,41 @@ await step("ai: a custom quiz is written around the ask, spread over the topics,
   await shot("ai-quiz-custom");
 });
 
+await step("ai: an exam based on an uploaded document: Practice reads the file, its text goes to the model as source material, and the exam says what it is based on", async () => {
+  // its own file, with its own content: the service refuses a second upload of the very same bytes, and the path
+  // steps later upload the homework PDF and expect it to be new
+  const REVIEW_NAME = "exam-review-sample.pdf";
+  const REVIEW_PDF = makePdf(["Exam 2 review. Topics: the MLE of a Poisson rate, and the posterior mean under a Beta prior.", "Practice problem: find the MLE of the rate from the counts 3, 0, 2, 5."]);
+  await fresh("/practice");
+  await page.locator("form[aria-label='Your own ask'] input[type=file]").setInputFiles({ name: REVIEW_NAME, mimeType: "application/pdf", buffer: REVIEW_PDF });
+  await page.waitForSelector(`form[aria-label='Your own ask'] p:has-text('${REVIEW_NAME}')`, { timeout: 30000 });
+  await page.waitForSelector("form[aria-label='Your own ask'] p:has-text('is read')", { timeout: 30000 });
+  await page.click("button:has-text('Custom exam')");
+  await page.waitForURL(/#\/exam\?.*file=/);
+  await page.waitForSelector("text=Based on your file");
+  await page.waitForSelector(`b:has-text('${REVIEW_NAME}')`);
+  if (!(await page.isChecked("input[name=qsrc] >> nth=1"))) throw new Error("a document defaults to written questions");
+  await page.click("button:has-text('Write my exam')");
+  await page.waitForSelector("text=Generated question 1", { timeout: 15000 });
+  await page.waitForSelector(`p.muted:has-text('Based on: ${REVIEW_NAME}')`);
+  const sent = (await geminiLog()).at(-1);
+  const user = sent.contents[0].parts.map((p) => p.text ?? "").join("");
+  if (!user.includes("Source material") || !user.includes("MLE of a Poisson rate") || !user.includes(`Source 1: ${REVIEW_NAME}`)) throw new Error("the file's text should go to the model as source material");
+  if (sent.systemInstruction.parts[0].text.includes("MLE of a Poisson rate")) throw new Error("the file's text leaked into the instructions");
+  await shot("exam-from-file");
+});
+
+await step("ai: a quiz based on course material named in the ask lifts that document whole", async () => {
+  await fresh(`/quiz?ask=${encodeURIComponent("a practice quiz based on homework 1")}`);
+  await page.waitForSelector("text=Your custom quiz");
+  await page.click("button:has-text('Start graded quiz')");
+  await page.waitForSelector("text=Question 1 of 10", { timeout: 15000 });
+  await page.waitForSelector("p.muted:has-text('Based on:')");
+  const sent = (await geminiLog()).at(-1);
+  const user = sent.contents[0].parts.map((p) => p.text ?? "").join("");
+  if (!user.includes("Source 1:") || !user.includes("[page 1]")) throw new Error("homework 1 should be lifted whole as source material");
+});
+
 await step("ai: a recall with a drawing is scored on four criteria, with comments, the drawing goes with the text, and it is saved as AI-scored", async () => {
   await fresh(`/topic/${T}`);
   await page.click("button:has-text('Try a recall')");

@@ -2322,3 +2322,7 @@ main h1 + p.lede + .step-wrap { margin-top: 0 !important; }
 .ask-row { margin-top: 40px; }
 .ask-row .field { max-width: 640px; margin-top: 16px; }
 .ask-row .muted.small { margin: 8px 0 0; }
+
+/* Practice: the document a custom exam or quiz can be based on, under the ask. */
+.ask-row .file-row { margin-top: 4px; }
+.ask-row .file-row .field { margin-top: 12px; }

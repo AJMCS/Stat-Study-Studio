@@ -43,6 +43,11 @@ Push the repo to GitHub on branch `main` (`AJMCS/Stat-Study-Studio`, set in `bac
    which lecture it is. `transcribe-missing` (step 2) turns it into a page-aligned transcript with the caption lines
    joined into paragraphs and the lecture's title from `manifest.json`. Recordings are searchable but ranked below
    the notes; a recording whose export is empty (two words) is not worth adding.
+6c. **Exam reviews and papers:** put them under `course-library/exams/` as `exam-NN-review.pdf` (the review) or
+   `exam-NN.pdf` (the paper), run `transcribe-missing`, `build-index` and `build-manifest` as above. They are
+   answer-key material (never searched or cited in general), but a learner who asks for a practice exam or
+   quiz "based on exam 2" gets the whole document as the material to write from; the same lift works for
+   "homework 3", "lecture 5", "quiz 2", "discussion 4" and "reading 11". No manifest entry is needed.
 7. **Commit and push to `main`.** Announce in Discord; students click "Check for updates" (the app also checks
    itself on start).
 

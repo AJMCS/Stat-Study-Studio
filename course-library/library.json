@@ -1,7 +1,7 @@
 {
   "schema": 1,
-  "version": 3,
-  "built_at": "2026-11-10T16:46:15Z",
+  "version": 4,
+  "built_at": "2026-11-10T17:53:38Z",
   "files": {
     "discussion-sections/disc-01-annotated.pdf": {
       "sha256": "8aa1820e383e83153a6fd450fe30f7f3c6799b13b834f5b4f85c99d94ca4496f",
@@ -39,6 +39,14 @@
       "sha256": "1fb2162f2e86faf01902a918a566606fad5b988db8f72d82a570380027b7f467",
       "size": 99445
     },
+    "exams/exam-01-review.pdf": {
+      "sha256": "3e1ff3140c15e9ad676de06318a07720adec1d4f7a98afa9e6729a69fe6f3373",
+      "size": 227221
+    },
+    "exams/exam-02-review.pdf": {
+      "sha256": "b0119749040aacee94d4f93390056d827f8b1941d45463315e603ac521076a2b",
+      "size": 168662
+    },
     "homework/homework-01.pdf": {
       "sha256": "bf37898af3453c9d76d262c83f1882da96cbd5d5cf020f6c62967d9b2960104c",
       "size": 51255
@@ -60,7 +68,7 @@
       "size": 561536
     },
     "index/index.json": {
-      "sha256": "3a30fd967e9494d37d111ad19db72022297152289714be49a4cf735375a2887c",
+      "sha256": "2d74aef570a821605b1e2bfe45605fca3b5d9316cdf8c42cfbaffd21845c2fb2",
       "size": 4578
     },
     "lecture-notes/lecture-01-probability-review-and-intro-to-inference.pdf": {
@@ -258,6 +266,14 @@
     "transcripts/discussion-sections/disc-06.md": {
       "sha256": "69bd20c78d2d2342120a64665ee995135f7e64feb32808295722cb20da09005f",
       "size": 1564
+    },
+    "transcripts/exams/exam-01-review.md": {
+      "sha256": "f2264f03b3e85b0fd74a746a96f590e42c3637f976d357a7641da64b5e5eeb6b",
+      "size": 5481
+    },
+    "transcripts/exams/exam-02-review.md": {
+      "sha256": "aa3c957261d18b1c36cb678fd95454c4ef835e8a7bc755cb738b30e7f7d41f89",
+      "size": 4734
     },
     "transcripts/homework/homework-01.md": {
       "sha256": "067b7c8bec5bf0e5594927a3049f9369e36c8ad3d1c2b8a9e978d8524293619c",

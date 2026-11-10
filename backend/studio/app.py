@@ -33,6 +33,7 @@ from .embedder import DEFAULT_MODEL, Embedder
 from .highlight import best_highlight
 from .library import LibraryRuntime
 from .models import ALL_SLICES
+from .named import named_documents
 from .pages import PageStore
 from .personal import IMAGE_EXTS, MAX_BYTES, MAX_IMPROVE_PAGES, MEDIA_TYPES, PersonalStore, UploadRejected
 from .retrieval import SharedIndex
@@ -96,6 +97,8 @@ class PathBody(BaseModel):
 
 # How much of an uploaded file goes to the model with a path request: the first pages, up to this many characters.
 PATH_FILE_CHARS = 12000
+# How much of each document an exam or quiz is based on goes to the model (a named course document, or an upload).
+DOCUMENT_CHARS = 15000
 
 
 class ExampleQuestion(BaseModel):
@@ -110,14 +113,18 @@ class ExamBody(BaseModel):
     examples: list[ExampleQuestion] = Field(default_factory=list, max_length=8)
     # an exam across the whole course: the topics to spread the questions over; each question then names its own
     sections: list[str] = Field(default_factory=list, max_length=12)
+    # a file the learner uploaded to base the exam on (read through the upload pipeline like any upload)
+    fileId: str | None = Field(default=None, max_length=40)
 
 
 class QuizBody(BaseModel):
-    """A quiz written around what the learner asks to be tested on; `sections` spreads it over the course's topics."""
+    """A quiz written around what the learner asks to be tested on, or based on a file they uploaded; `sections`
+    spreads it over the course's topics."""
 
-    ask: str = Field(min_length=1, max_length=500)
+    ask: str = Field(default="", max_length=500)
     count: int = Field(default=10, ge=3, le=12)
     sections: list[str] = Field(default_factory=list, max_length=12)
+    fileId: str | None = Field(default=None, max_length=40)
 
 
 class AskTurn(BaseModel):
@@ -322,13 +329,19 @@ def create_app(
     def ai_quiz(body: QuizBody) -> dict[str, Any]:
         """Write quiz questions around what the learner asks to be tested on, grounded in course pages. Each question
         carries the sources it relied on and, when sections were given, the one it is on."""
+        if not body.ask.strip() and not body.fileId:
+            raise HTTPException(422, "Say what to be tested on, or add a file, or both.")
         provider = ai().provider()
-        sources = grounding(body.ask[:500], shared=5, personal=3)
+        documents, image, based_on = source_material(body.ask, body.fileId)
+        query = f"{body.ask} {documents[0][1][:400] if documents else ''}".strip()[:500]
+        sources = grounding(query, shared=5, personal=3)
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
-        questions = tasks.generate_quiz(provider, ask=body.ask, count=body.count, excerpts=excerpts, sections=[s[:200] for s in body.sections])
+        questions = tasks.generate_quiz(
+            provider, ask=body.ask, count=body.count, excerpts=excerpts, sections=[s[:200] for s in body.sections], documents=documents, image=image
+        )
         for q in questions:
             q["sources"] = [sources[i - 1] for i in q.pop("cites")]
-        return {"questions": questions, "model": getattr(provider, "model", "")}
+        return {"questions": questions, "basedOn": based_on, "model": getattr(provider, "model", "")}
 
     @app.post("/api/ai/ask")
     def ai_ask(body: AskBody) -> dict[str, Any]:
@@ -413,6 +426,43 @@ def create_app(
         cited = [here if i == 1 else sources[i - 2] for i in turn.pop("cites")]
         return {**turn, "sources": cited, "page": {"title": title, "page": body.page, "pages": total, "warning": warning}}
 
+    def file_for_ai(file_id: str, limit: int = PATH_FILE_CHARS) -> tuple[str, int, str, tuple[bytes, str] | None]:
+        """An uploaded file as the model gets it: (name, pages, the first pages' text up to `limit` characters, and
+        the picture itself when the file is one). The learner handed the file in for exactly this, so it goes whole
+        within the limit, whatever its collection's search permission."""
+        store: PersonalStore = app.state.personal
+        row = store._file(file_id)
+        if row is None or row["removed"]:
+            raise HTTPException(404, "That file is no longer in your collections. Add it again.")
+        parts: list[str] = []
+        used = 0
+        for r in db().read("SELECT page, text FROM personal_pages WHERE file_id=? ORDER BY page", (file_id,)):
+            text = r["text"].strip()
+            if not text:
+                continue
+            piece = f"[page {r['page']}]\n{text}"[: limit - used]
+            parts.append(piece)
+            used += len(piece)
+            if used >= limit:
+                break
+        file_text = "\n\n".join(parts)
+        image = store.render_for_ai(file_id, 1) if row["ext"] in IMAGE_EXTS else None
+        if not file_text.strip() and image is None:
+            raise HTTPException(422, "Nothing readable was found in that file. Try a clearer copy, or type what you want instead.")
+        return row["filename"], row["pages"], file_text, image
+
+    def source_material(ask: str, file_id: str | None) -> tuple[list[tuple[str, str]], tuple[bytes, str] | None, list[str]]:
+        """What an exam or quiz is based on: the course documents the ask names ("exam 2 review", "homework 3"),
+        whole within DOCUMENT_CHARS each, and the file the learner uploaded. Returns (documents as (title, text), the
+        picture when the file is one, and the titles to show as "based on")."""
+        pages: PageStore = app.state.library.pages
+        documents = [(pages.title(source), pages.document_text(source, DOCUMENT_CHARS)) for source in named_documents(ask, pages)]
+        image = None
+        if file_id:
+            name, _pages, text, image = file_for_ai(file_id, DOCUMENT_CHARS)
+            documents.append((name, text))
+        return documents, image, [title for title, _ in documents]
+
     @app.post("/api/ai/path")
     def ai_path(body: PathBody) -> dict[str, Any]:
         """Build a custom learning path from what the learner typed and, optionally, a file they uploaded: the model
@@ -422,29 +472,9 @@ def create_app(
         if not body.ask.strip() and not body.fileId:
             raise HTTPException(422, "Type what you want to be able to do, or add a file, or both.")
         provider = ai().provider()
-        store: PersonalStore = app.state.personal
         file_name, file_text, file_pages, image = "", "", 0, None
         if body.fileId:
-            row = store._file(body.fileId)
-            if row is None or row["removed"]:
-                raise HTTPException(404, "That file is no longer in your collections. Add it again.")
-            file_name, file_pages = row["filename"], row["pages"]
-            parts: list[str] = []
-            used = 0
-            for r in db().read("SELECT page, text FROM personal_pages WHERE file_id=? ORDER BY page", (body.fileId,)):
-                text = r["text"].strip()
-                if not text:
-                    continue
-                piece = f"[page {r['page']}]\n{text}"[: PATH_FILE_CHARS - used]
-                parts.append(piece)
-                used += len(piece)
-                if used >= PATH_FILE_CHARS:
-                    break
-            file_text = "\n\n".join(parts)
-            if row["ext"] in IMAGE_EXTS:
-                image = store.render_for_ai(body.fileId, 1)
-            if not file_text.strip() and image is None:
-                raise HTTPException(422, "Nothing readable was found in that file. Try a clearer copy, or type what you want instead.")
+            file_name, file_pages, file_text, image = file_for_ai(body.fileId)
         query = f"{body.ask} {file_text[:600]}".strip()[:500] or file_name
         sources = grounding(query, shared=6, personal=2)
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
@@ -464,9 +494,12 @@ def create_app(
 
     @app.post("/api/ai/exam")
     def ai_exam(body: ExamBody) -> dict[str, Any]:
-        """Write exam questions around a focus, adapting the question bank where useful, grounded in course pages."""
+        """Write exam questions around a focus, adapting the question bank where useful, grounded in course pages, and
+        based on the course documents the focus names or a file the learner uploaded."""
         provider = ai().provider()
-        sources = grounding(f"{body.topic} {body.focus}".strip()[:500], shared=5, personal=3)
+        documents, image, based_on = source_material(body.focus, body.fileId)
+        query = f"{body.topic} {body.focus} {documents[0][1][:400] if documents else ''}".strip()[:500]
+        sources = grounding(query, shared=5, personal=3)
         excerpts = [f"{h['title']}, page {h['page']}: {h['text'][:900]}" for h in sources]
         questions = tasks.generate_exam(
             provider,
@@ -476,10 +509,12 @@ def create_app(
             examples=[e.model_dump() for e in body.examples],
             excerpts=excerpts,
             sections=[s[:200] for s in body.sections],
+            documents=documents,
+            image=image,
         )
         for q in questions:
             q["sources"] = [sources[i - 1] for i in q.pop("cites")]
-        return {"questions": questions, "model": getattr(provider, "model", "")}
+        return {"questions": questions, "basedOn": based_on, "model": getattr(provider, "model", "")}
 
     @app.delete("/api/ai")
     def ai_disconnect(provider: str | None = Query(default=None, max_length=20)) -> dict[str, Any]:
